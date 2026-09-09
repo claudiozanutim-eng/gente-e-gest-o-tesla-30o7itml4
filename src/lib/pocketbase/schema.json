@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-09-09T15:02:04.363Z",
+  "generatedAt": "2026-09-09T15:07:13.048Z",
   "collections": [
     {
       "name": "users",
@@ -613,6 +613,83 @@
         "CREATE INDEX idx_solic_colaborador ON solicitacao_alteracao (colaborador_id)",
         "CREATE INDEX idx_solic_tenant ON solicitacao_alteracao (tenant_id)",
         "CREATE INDEX idx_solic_status ON solicitacao_alteracao (status)"
+      ]
+    },
+    {
+      "name": "log_auditoria",
+      "type": "base",
+      "apiRules": {
+        "list": "@request.auth.id != '' && tenant_id = @request.auth.tenant_id && (@request.auth.perfil = 'rh' || @request.auth.perfil = 'admin')",
+        "view": "@request.auth.id != '' && tenant_id = @request.auth.tenant_id && (@request.auth.perfil = 'rh' || @request.auth.perfil = 'admin')",
+        "create": "@request.auth.id != '' && tenant_id = @request.auth.tenant_id && (@request.auth.perfil = 'rh' || @request.auth.perfil = 'admin')",
+        "update": null,
+        "delete": null
+      },
+      "fields": [
+        {
+          "name": "tenant_id",
+          "type": "relation",
+          "required": true,
+          "system": false,
+          "collectionRef": "tenant"
+        },
+        {
+          "name": "user_id",
+          "type": "relation",
+          "required": true,
+          "system": false,
+          "collectionRef": "users"
+        },
+        {
+          "name": "acao",
+          "type": "text",
+          "required": true,
+          "system": false
+        },
+        {
+          "name": "entidade",
+          "type": "text",
+          "required": true,
+          "system": false
+        },
+        {
+          "name": "entidade_id",
+          "type": "text",
+          "required": true,
+          "system": false
+        },
+        {
+          "name": "dados_json",
+          "type": "json",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "data_hora",
+          "type": "date",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "created",
+          "type": "autodate",
+          "required": false,
+          "system": false,
+          "autodateTriggers": ["onCreate"]
+        },
+        {
+          "name": "updated",
+          "type": "autodate",
+          "required": false,
+          "system": false,
+          "autodateTriggers": ["onCreate", "onUpdate"]
+        }
+      ],
+      "indexes": [
+        "CREATE INDEX idx_audit_tenant ON log_auditoria (tenant_id)",
+        "CREATE INDEX idx_audit_user ON log_auditoria (user_id)",
+        "CREATE INDEX idx_audit_entidade ON log_auditoria (entidade, entidade_id)",
+        "CREATE INDEX idx_audit_data ON log_auditoria (data_hora)"
       ]
     }
   ]

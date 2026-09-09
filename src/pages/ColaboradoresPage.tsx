@@ -1,19 +1,27 @@
-import React, { useEffect, useState } from 'react'
+import React, { useEffect, useState, useMemo } from 'react'
 import {
   Users,
   Search,
-  Building,
-  Calendar,
-  ShieldCheck,
-  CheckCircle,
-  XCircle,
   Filter,
+  CheckCircle2,
+  XCircle,
+  Eye,
+  Building2,
+  Briefcase,
+  Calendar,
+  Sparkles,
+  ShieldCheck,
+  RefreshCw,
+  Layers,
+  ArrowUpDown,
+  UserPlus,
 } from 'lucide-react'
 import { useAuth } from '@/context/AuthContext'
 import { colaboradorService } from '@/services/api'
 import { Colaborador } from '@/types'
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
+import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
 import {
@@ -32,148 +40,320 @@ import {
   SelectValue,
 } from '@/components/ui/select'
 import { Skeleton } from '@/components/ui/skeleton'
+import { FichaColaboradorModal } from '@/components/colaboradores/FichaColaboradorModal'
+
+function formatarDataBR(dateStr?: string): string {
+  if (!dateStr) return '—'
+  try {
+    const d = new Date(dateStr)
+    if (isNaN(d.getTime())) return dateStr
+    return d.toLocaleDateString('pt-BR', {
+      day: '2-digit',
+      month: '2-digit',
+      year: 'numeric',
+      timeZone: 'UTC',
+    })
+  } catch {
+    return dateStr
+  }
+}
+
+function getIniciais(nome?: string): string {
+  if (!nome) return 'CO'
+  const partes = nome.trim().split(/\s+/).filter(Boolean)
+  if (partes.length === 0) return 'CO'
+  if (partes.length === 1) return partes[0].slice(0, 2).toUpperCase()
+  return (partes[0][0] + partes[partes.length - 1][0]).toUpperCase()
+}
 
 export default function ColaboradoresPage() {
   const { user } = useAuth()
   const [colaboradores, setColaboradores] = useState<Colaborador[]>([])
-  const [loading, setLoading] = useState(true)
-  const [searchTerm, setSearchTerm] = useState('')
-  const [filterDept, setFilterDept] = useState<string>('todos')
-  const [filterStatus, setFilterStatus] = useState<string>('todos')
+  const [loading, setLoading] = useState<boolean>(true)
+  const [refreshing, setRefreshing] = useState<boolean>(false)
 
-  useEffect(() => {
-    async function loadColabs() {
-      if (!user?.tenant_id) return
-      try {
-        setLoading(true)
-        const data = await colaboradorService.getColaboradores(user.tenant_id)
-        setColaboradores(data)
-      } catch (err) {
-        console.error(err)
-      } finally {
-        setLoading(false)
-      }
-    }
+  // Filtros
+  const [searchTerm, setSearchTerm] = useState<string>('')
+  const [statusFilter, setStatusFilter] = useState<'todos' | 'ativo' | 'inativo'>('todos')
+  const [departamentoFilter, setDepartamentoFilter] = useState<string>('todos')
 
-    loadColabs()
-  }, [user?.tenant_id])
+  // Modal Ficha Completa
+  const [selectedColaborador, setSelectedColaborador] = useState<Colaborador | null>(null)
+  const [fichaModalOpen, setFichaModalOpen] = useState<boolean>(false)
 
-  const departments = Array.from(new Set(colaboradores.map((c) => c.departamento).filter(Boolean)))
-
-  const filtered = colaboradores.filter((c) => {
-    const matchesSearch =
-      c.nome.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      c.cargo.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      c.cpf.includes(searchTerm)
-
-    const matchesDept = filterDept === 'todos' || c.departamento === filterDept
-    const matchesStatus = filterStatus === 'todos' || c.status === filterStatus
-
-    return matchesSearch && matchesDept && matchesStatus
-  })
-
-  const formatDate = (dateStr?: string) => {
-    if (!dateStr) return '---'
+  const carregarColaboradores = async (showLoadingState = true) => {
+    if (!user?.tenant_id) return
     try {
-      return new Date(dateStr).toLocaleDateString('pt-BR')
-    } catch {
-      return dateStr
+      if (showLoadingState) setLoading(true)
+      else setRefreshing(true)
+
+      const list = await colaboradorService.getColaboradores(user.tenant_id)
+      setColaboradores(list)
+    } catch (err) {
+      console.error('Erro ao listar colaboradores:', err)
+    } finally {
+      setLoading(false)
+      setRefreshing(false)
     }
   }
 
+  useEffect(() => {
+    carregarColaboradores()
+  }, [user?.tenant_id])
+
+  // Lista de departamentos para o filtro
+  const departamentos = useMemo(() => {
+    const depts = new Set<string>()
+    colaboradores.forEach((c) => {
+      if (c.departamento && c.departamento.trim()) {
+        depts.add(c.departamento.trim())
+      }
+    })
+    return Array.from(depts).sort()
+  }, [colaboradores])
+
+  // Filtragem conforme especificação:
+  // "Barra de busca por nome, cargo ou departamento"
+  // "Filtro por status (Ativo, Inativo, Todos)"
+  const filtered = useMemo(() => {
+    return colaboradores.filter((c) => {
+      const termo = searchTerm.trim().toLowerCase()
+      const matchesSearch =
+        !termo ||
+        c.nome.toLowerCase().includes(termo) ||
+        (c.nome_completo && c.nome_completo.toLowerCase().includes(termo)) ||
+        (c.cargo && c.cargo.toLowerCase().includes(termo)) ||
+        (c.departamento && c.departamento.toLowerCase().includes(termo)) ||
+        (c.cpf && c.cpf.includes(termo))
+
+      const matchesStatus =
+        statusFilter === 'todos' || c.status.toLowerCase() === statusFilter.toLowerCase()
+
+      const matchesDept =
+        departamentoFilter === 'todos' ||
+        (c.departamento && c.departamento.trim() === departamentoFilter)
+
+      return matchesSearch && matchesStatus && matchesDept
+    })
+  }, [colaboradores, searchTerm, statusFilter, departamentoFilter])
+
+  // Métricas rápidas do topo
+  const totalAtivos = useMemo(
+    () => colaboradores.filter((c) => c.status === 'ativo').length,
+    [colaboradores],
+  )
+  const totalInativos = useMemo(
+    () => colaboradores.filter((c) => c.status === 'inativo').length,
+    [colaboradores],
+  )
+
+  const handleOpenFicha = (colaborador: Colaborador) => {
+    setSelectedColaborador(colaborador)
+    setFichaModalOpen(true)
+  }
+
   return (
-    <div className="space-y-6">
-      {/* Header */}
+    <div className="space-y-6 pb-12">
+      {/* Header com estilo corporativo */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
-          <div className="flex items-center gap-2 mb-1">
+          <div className="flex items-center gap-2 mb-1.5">
             <Badge
               variant="outline"
-              className="bg-[#E8EEF7] text-[#0D47A1] border-[#0D47A1]/20 text-xs"
+              className="bg-[#E8EEF7] text-[#0D47A1] border-[#0D47A1]/20 text-xs font-semibold px-2.5 py-0.5"
             >
               Gestão de Pessoas
             </Badge>
+            <Badge
+              variant="outline"
+              className="bg-emerald-50 text-emerald-800 border-emerald-200 text-xs font-medium"
+            >
+              Acesso Restrito: RH e Admin
+            </Badge>
           </div>
-          <h2 className="text-2xl font-bold tracking-tight text-[#212121]">
-            Colaboradores da Organização
-          </h2>
-          <p className="text-sm text-[#757575]">
-            Lista completa de colaboradores registrados no tenant ativo.
+          <h1 className="text-2xl sm:text-3xl font-extrabold tracking-tight text-[#212121]">
+            Base de Colaboradores
+          </h1>
+          <p className="text-sm text-[#757575] mt-0.5">
+            Cadastro unificado, histórico funcional e ficha cadastral completa dos colaboradores.
           </p>
         </div>
-        <div className="flex items-center gap-2 text-sm text-[#757575]">
-          <span className="font-semibold text-[#0D47A1]">{filtered.length}</span> de{' '}
-          <span className="font-medium">{colaboradores.length}</span> registros
+
+        <div className="flex items-center gap-2">
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => carregarColaboradores(false)}
+            disabled={refreshing || loading}
+            className="border-[#E0E0E0] text-xs h-9 gap-1.5 text-[#424242] hover:bg-slate-50"
+          >
+            <RefreshCw
+              className={`h-3.5 w-3.5 ${refreshing ? 'animate-spin text-[#0D47A1]' : ''}`}
+            />
+            Atualizar
+          </Button>
         </div>
       </div>
 
-      {/* Filters card */}
-      <Card className="border border-[#E0E0E0] bg-white shadow-sm">
-        <CardContent className="pt-6">
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-            <div className="relative">
-              <Search className="absolute left-3 top-3 h-4 w-4 text-[#757575]" />
+      {/* Cards de Métricas do Quadro */}
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+        <Card className="border border-[#E0E0E0] bg-white shadow-xs">
+          <CardContent className="p-4 flex items-center justify-between">
+            <div className="space-y-0.5">
+              <span className="text-xs font-semibold text-[#757575] uppercase tracking-wide">
+                Total de Registros
+              </span>
+              <p className="text-2xl font-extrabold text-[#212121]">{colaboradores.length}</p>
+            </div>
+            <div className="h-10 w-10 rounded-xl bg-blue-50 text-[#0D47A1] flex items-center justify-center">
+              <Users className="h-5 w-5" />
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card className="border border-[#E0E0E0] bg-white shadow-xs">
+          <CardContent className="p-4 flex items-center justify-between">
+            <div className="space-y-0.5">
+              <span className="text-xs font-semibold text-[#757575] uppercase tracking-wide">
+                Colaboradores Ativos
+              </span>
+              <p className="text-2xl font-extrabold text-[#2E7D32]">{totalAtivos}</p>
+            </div>
+            <div className="h-10 w-10 rounded-xl bg-[#E8F5E9] text-[#2E7D32] flex items-center justify-center">
+              <CheckCircle2 className="h-5 w-5" />
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card className="border border-[#E0E0E0] bg-white shadow-xs">
+          <CardContent className="p-4 flex items-center justify-between">
+            <div className="space-y-0.5">
+              <span className="text-xs font-semibold text-[#757575] uppercase tracking-wide">
+                Inativos / Desligados
+              </span>
+              <p className="text-2xl font-extrabold text-[#C62828]">{totalInativos}</p>
+            </div>
+            <div className="h-10 w-10 rounded-xl bg-[#FFEBEE] text-[#C62828] flex items-center justify-center">
+              <XCircle className="h-5 w-5" />
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+
+      {/* Barra de Filtros conforme o requisito do usuário:
+          - Barra de busca por nome, cargo ou departamento
+          - Filtro por status (Ativo, Inativo, Todos) */}
+      <Card className="border border-[#E0E0E0] bg-white shadow-xs">
+        <CardContent className="p-4 sm:p-5">
+          <div className="grid grid-cols-1 sm:grid-cols-12 gap-3">
+            {/* Input de Busca */}
+            <div className="relative sm:col-span-6">
+              <Search className="absolute left-3 top-2.5 h-4 w-4 text-[#757575]" />
               <Input
-                placeholder="Buscar por nome, cargo ou CPF..."
+                placeholder="Buscar por nome, cargo ou departamento..."
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
-                className="pl-9 border-[#E0E0E0]"
+                className="pl-9 text-xs border-[#E0E0E0] h-9 focus-visible:ring-[#0D47A1]"
               />
             </div>
 
-            <Select value={filterDept} onValueChange={setFilterDept}>
-              <SelectTrigger className="border-[#E0E0E0]">
-                <SelectValue placeholder="Filtrar por departamento" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="todos">Todos os departamentos</SelectItem>
-                {departments.map((d) => (
-                  <SelectItem key={d} value={d}>
-                    {d}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+            {/* Filtro Status (Ativo, Inativo, Todos) */}
+            <div className="sm:col-span-3">
+              <Select
+                value={statusFilter}
+                onValueChange={(val: 'todos' | 'ativo' | 'inativo') => setStatusFilter(val)}
+              >
+                <SelectTrigger className="text-xs border-[#E0E0E0] h-9 bg-white">
+                  <div className="flex items-center gap-1.5 truncate">
+                    <span className="text-[#757575]">Status:</span>
+                    <SelectValue placeholder="Status" />
+                  </div>
+                </SelectTrigger>
+                <SelectContent className="bg-white border-[#E0E0E0]">
+                  <SelectItem value="todos">Todos os status</SelectItem>
+                  <SelectItem value="ativo">Ativo</SelectItem>
+                  <SelectItem value="inativo">Inativo</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
 
-            <Select value={filterStatus} onValueChange={setFilterStatus}>
-              <SelectTrigger className="border-[#E0E0E0]">
-                <SelectValue placeholder="Filtrar por status" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="todos">Todos os status</SelectItem>
-                <SelectItem value="ativo">Ativo</SelectItem>
-                <SelectItem value="inativo">Inativo</SelectItem>
-              </SelectContent>
-            </Select>
+            {/* Filtro Departamento complementar */}
+            <div className="sm:col-span-3">
+              <Select value={departamentoFilter} onValueChange={setDepartamentoFilter}>
+                <SelectTrigger className="text-xs border-[#E0E0E0] h-9 bg-white">
+                  <div className="flex items-center gap-1.5 truncate">
+                    <span className="text-[#757575]">Área:</span>
+                    <SelectValue placeholder="Departamento" />
+                  </div>
+                </SelectTrigger>
+                <SelectContent className="bg-white border-[#E0E0E0]">
+                  <SelectItem value="todos">Todos os departamentos</SelectItem>
+                  {departamentos.map((d) => (
+                    <SelectItem key={d} value={d}>
+                      {d}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+
+          {/* Contador de resultados */}
+          <div className="mt-3 pt-3 border-t border-[#F5F5F5] flex flex-wrap items-center justify-between text-xs text-[#757575]">
+            <span>
+              Exibindo <strong className="text-[#0D47A1]">{filtered.length}</strong> de{' '}
+              <strong>{colaboradores.length}</strong> colaboradores
+            </span>
+
+            {(searchTerm || statusFilter !== 'todos' || departamentoFilter !== 'todos') && (
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => {
+                  setSearchTerm('')
+                  setStatusFilter('todos')
+                  setDepartamentoFilter('todos')
+                }}
+                className="h-6 px-2 text-[11px] text-[#0D47A1] hover:bg-blue-50"
+              >
+                Limpar filtros
+              </Button>
+            )}
           </div>
         </CardContent>
       </Card>
 
-      {/* Table */}
-      <Card className="border border-[#E0E0E0] bg-white shadow-sm overflow-hidden">
+      {/* Tabela de Colaboradores:
+          Colunas: Foto (miniatura), Nome, Cargo, Departamento, Status (Ativo/Inativo), Data de Admissão.
+          Ao clicar em um colaborador, abre a ficha completa */}
+      <Card className="border border-[#E0E0E0] bg-white shadow-xs overflow-hidden">
         <div className="overflow-x-auto">
           <Table>
             <TableHeader className="bg-[#FAFAFA]">
-              <TableRow className="border-b border-[#E0E0E0]">
-                <TableHead className="font-semibold text-xs text-[#212121]">Colaborador</TableHead>
-                <TableHead className="font-semibold text-xs text-[#212121]">Departamento</TableHead>
-                <TableHead className="font-semibold text-xs text-[#212121]">Cargo</TableHead>
-                <TableHead className="font-semibold text-xs text-[#212121]">CPF</TableHead>
-                <TableHead className="font-semibold text-xs text-[#212121]">Admissão</TableHead>
-                <TableHead className="font-semibold text-xs text-[#212121] text-right">
-                  Status
+              <TableRow className="border-b border-[#E0E0E0] hover:bg-transparent">
+                <TableHead className="w-[72px] text-center font-bold text-xs text-[#212121]">
+                  Foto
+                </TableHead>
+                <TableHead className="font-bold text-xs text-[#212121]">Nome</TableHead>
+                <TableHead className="font-bold text-xs text-[#212121]">Cargo</TableHead>
+                <TableHead className="font-bold text-xs text-[#212121]">Departamento</TableHead>
+                <TableHead className="font-bold text-xs text-[#212121]">Status</TableHead>
+                <TableHead className="font-bold text-xs text-[#212121]">Data de Admissão</TableHead>
+                <TableHead className="w-[100px] text-right font-bold text-xs text-[#212121]">
+                  Ação
                 </TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
               {loading ? (
-                [1, 2, 3, 4, 5].map((i) => (
+                [1, 2, 3, 4, 5, 6].map((i) => (
                   <TableRow key={i}>
-                    <TableCell>
-                      <Skeleton className="h-6 w-32 bg-slate-100" />
+                    <TableCell className="text-center">
+                      <Skeleton className="h-9 w-9 rounded-full mx-auto bg-slate-100" />
                     </TableCell>
                     <TableCell>
-                      <Skeleton className="h-4 w-24 bg-slate-100" />
+                      <Skeleton className="h-4 w-40 bg-slate-100 mb-1" />
+                      <Skeleton className="h-3 w-24 bg-slate-100" />
                     </TableCell>
                     <TableCell>
                       <Skeleton className="h-4 w-32 bg-slate-100" />
@@ -182,70 +362,144 @@ export default function ColaboradoresPage() {
                       <Skeleton className="h-4 w-28 bg-slate-100" />
                     </TableCell>
                     <TableCell>
-                      <Skeleton className="h-4 w-20 bg-slate-100" />
+                      <Skeleton className="h-5 w-16 bg-slate-100" />
                     </TableCell>
                     <TableCell>
-                      <Skeleton className="h-4 w-16 bg-slate-100 ml-auto" />
+                      <Skeleton className="h-4 w-24 bg-slate-100" />
+                    </TableCell>
+                    <TableCell>
+                      <Skeleton className="h-8 w-16 bg-slate-100 ml-auto" />
                     </TableCell>
                   </TableRow>
                 ))
               ) : filtered.length === 0 ? (
                 <TableRow>
-                  <TableCell colSpan={6} className="text-center py-12 text-sm text-[#757575]">
-                    Nenhum colaborador corresponde aos filtros informados.
+                  <TableCell colSpan={7} className="text-center py-16 text-xs text-[#757575]">
+                    <Users className="h-8 w-8 text-[#B0BEC5] mx-auto mb-2 opacity-60" />
+                    <p className="font-semibold text-sm text-[#424242]">
+                      Nenhum colaborador encontrado
+                    </p>
+                    <p className="text-[11px] text-[#757575] mt-0.5">
+                      Tente ajustar os termos da busca ou os filtros aplicados.
+                    </p>
                   </TableCell>
                 </TableRow>
               ) : (
-                filtered.map((c) => (
-                  <TableRow key={c.id} className="border-b border-[#F5F5F5] hover:bg-[#FAFAFA]">
-                    <TableCell>
-                      <div className="flex items-center gap-3">
-                        <Avatar className="h-9 w-9 border border-[#E0E0E0]">
-                          {c.foto_url && <AvatarImage src={c.foto_url} alt={c.nome} />}
-                          <AvatarFallback className="bg-[#E8EEF7] text-[#0D47A1] text-xs font-semibold">
-                            {c.nome.substring(0, 2).toUpperCase()}
+                filtered.map((c) => {
+                  const nomeExibicao = c.nome_completo || c.nome
+                  const iniciais = getIniciais(nomeExibicao)
+
+                  return (
+                    <TableRow
+                      key={c.id}
+                      onClick={() => handleOpenFicha(c)}
+                      className="cursor-pointer border-b border-[#F0F0F0] hover:bg-[#F8FAFC] transition-colors group"
+                    >
+                      {/* Foto (miniatura) */}
+                      <TableCell className="text-center py-3">
+                        <Avatar className="h-9 w-9 border border-[#E0E0E0] mx-auto shadow-xs group-hover:ring-2 group-hover:ring-[#0D47A1]/30 transition-all">
+                          {c.foto_url && (
+                            <AvatarImage
+                              src={c.foto_url}
+                              alt={nomeExibicao}
+                              className="object-cover"
+                            />
+                          )}
+                          <AvatarFallback className="bg-[#E8EEF7] text-[#0D47A1] text-xs font-bold">
+                            {iniciais}
                           </AvatarFallback>
                         </Avatar>
+                      </TableCell>
+
+                      {/* Nome */}
+                      <TableCell className="py-3">
                         <div>
-                          <p className="font-semibold text-xs md:text-sm text-[#212121]">
-                            {c.nome}
+                          <p className="text-xs font-bold text-[#212121] group-hover:text-[#0D47A1] transition-colors">
+                            {nomeExibicao}
                           </p>
-                          <p className="text-[11px] text-[#757575] md:hidden">{c.cargo}</p>
+                          <p className="text-[11px] text-[#757575] font-mono mt-0.5">
+                            CPF: {c.cpf}
+                          </p>
                         </div>
-                      </div>
-                    </TableCell>
+                      </TableCell>
 
-                    <TableCell className="text-xs text-[#212121] font-medium">
-                      {c.departamento}
-                    </TableCell>
+                      {/* Cargo */}
+                      <TableCell className="py-3 text-xs text-[#424242] font-medium">
+                        {c.cargo || 'Não informado'}
+                      </TableCell>
 
-                    <TableCell className="text-xs text-[#757575]">{c.cargo}</TableCell>
+                      {/* Departamento */}
+                      <TableCell className="py-3">
+                        <Badge
+                          variant="outline"
+                          className="bg-[#FAFAFA] text-[#424242] border-[#E0E0E0] text-[11px] font-medium"
+                        >
+                          {c.departamento || 'Geral'}
+                        </Badge>
+                      </TableCell>
 
-                    <TableCell className="text-xs font-mono text-[#757575]">{c.cpf}</TableCell>
+                      {/* Status (Ativo/Inativo) */}
+                      <TableCell className="py-3">
+                        <Badge
+                          variant="outline"
+                          className={`text-[11px] font-semibold capitalize ${
+                            c.status === 'ativo'
+                              ? 'bg-[#E8F5E9] text-[#2E7D32] border-[#2E7D32]/30'
+                              : 'bg-[#FFEBEE] text-[#C62828] border-[#C62828]/30'
+                          }`}
+                        >
+                          {c.status === 'ativo' ? (
+                            <span className="flex items-center gap-1">
+                              <span className="h-1.5 w-1.5 rounded-full bg-[#2E7D32]" />
+                              Ativo
+                            </span>
+                          ) : (
+                            <span className="flex items-center gap-1">
+                              <span className="h-1.5 w-1.5 rounded-full bg-[#C62828]" />
+                              Inativo
+                            </span>
+                          )}
+                        </Badge>
+                      </TableCell>
 
-                    <TableCell className="text-xs text-[#757575]">
-                      {formatDate(c.data_admissao)}
-                    </TableCell>
+                      {/* Data de Admissão */}
+                      <TableCell className="py-3 text-xs text-[#424242] font-medium">
+                        {formatarDataBR(c.data_admissao)}
+                      </TableCell>
 
-                    <TableCell className="text-right">
-                      <Badge
-                        variant="outline"
-                        className={`text-[11px] font-medium capitalize ${
-                          c.status === 'ativo'
-                            ? 'bg-[#E8F5E9] text-[#2E7D32] border-[#2E7D32]/20'
-                            : 'bg-[#FFEBEE] text-[#C62828] border-[#C62828]/20'
-                        }`}
-                      >
-                        {c.status}
-                      </Badge>
-                    </TableCell>
-                  </TableRow>
-                ))
+                      {/* Ação */}
+                      <TableCell className="py-3 text-right">
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={(e) => {
+                            e.stopPropagation()
+                            handleOpenFicha(c)
+                          }}
+                          className="h-8 px-2.5 text-xs text-[#0D47A1] hover:bg-blue-50 font-semibold gap-1"
+                        >
+                          <Eye className="h-3.5 w-3.5" />
+                          <span>Ver Ficha</span>
+                        </Button>
+                      </TableCell>
+                    </TableRow>
+                  )
+                })
               )}
             </TableBody>
           </Table>
         </div>
       </Card>
+
+      {/* Modal Ficha Completa com as 10 abas e registro de auditoria */}
+      <FichaColaboradorModal
+        colaborador={selectedColaborador}
+        open={fichaModalOpen}
+        onClose={() => {
+          setFichaModalOpen(false)
+          setSelectedColaborador(null)
+        }}
+      />
     </div>
   )
 }

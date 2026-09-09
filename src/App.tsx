@@ -159,11 +159,11 @@ const App = () => (
               }
             />
 
-            {/* Gestão de Pessoas (Gestor, RH & Admin) */}
+            {/* Gestão de Pessoas (Base de Colaboradores restrita a RH e Admin) */}
             <Route
               path="/colaboradores"
               element={
-                <ProtectedRoute allowedProfiles={['gestor', 'rh', 'admin']}>
+                <ProtectedRoute allowedProfiles={['rh', 'admin']}>
                   <ColaboradoresPage />
                 </ProtectedRoute>
               }

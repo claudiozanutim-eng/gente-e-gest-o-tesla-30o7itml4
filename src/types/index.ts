@@ -98,6 +98,22 @@ export interface SolicitacaoAlteracao {
   updated?: string
 }
 
+export interface LogAuditoria {
+  id: string
+  tenant_id: string
+  user_id: string
+  acao: string
+  entidade: string
+  entidade_id: string
+  dados_json?: Record<string, unknown> | null
+  data_hora?: string
+  created?: string
+  updated?: string
+  expand?: {
+    user_id?: AppUser
+  }
+}
+
 export type ComunicadoCategoria = 'RH' | 'Empresa' | 'Qualidade' | 'Segurança' | 'Benefícios'
 export type ComunicadoSegmentacaoTipo = 'todos' | 'setor' | 'funcao' | 'gestores'
 

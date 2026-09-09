@@ -7,6 +7,7 @@ import {
   Dependente,
   ContatoEmergencia,
   SolicitacaoAlteracao,
+  LogAuditoria,
 } from '@/types'
 
 export const tenantService = {
@@ -162,6 +163,43 @@ export const solicitacaoService = {
       data_solicitacao: new Date().toISOString(),
     })
     return record
+  },
+}
+
+export const logAuditoriaService = {
+  async registrarLog(data: {
+    tenant_id: string
+    user_id: string
+    acao: string
+    entidade: string
+    entidade_id: string
+    dados_json?: Record<string, unknown>
+    data_hora?: string
+  }): Promise<LogAuditoria | null> {
+    try {
+      const record = await pb.collection('log_auditoria').create<LogAuditoria>({
+        ...data,
+        data_hora: data.data_hora || new Date().toISOString(),
+      })
+      return record
+    } catch (err) {
+      console.warn('Erro ao registrar log de auditoria:', err)
+      return null
+    }
+  },
+
+  async getLogsPorEntidade(entidade: string, entidadeId: string): Promise<LogAuditoria[]> {
+    try {
+      const records = await pb.collection('log_auditoria').getFullList<LogAuditoria>({
+        filter: `entidade = "${entidade}" && entidade_id = "${entidadeId}"`,
+        sort: '-created',
+        expand: 'user_id',
+      })
+      return records
+    } catch (err) {
+      console.warn('Erro ao carregar logs de auditoria:', err)
+      return []
+    }
   },
 }
 

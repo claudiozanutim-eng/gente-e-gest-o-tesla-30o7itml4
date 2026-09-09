@@ -79,7 +79,9 @@ export const Sidebar: React.FC<SidebarProps> = ({
       title: 'Gestão de Pessoas',
       allowedProfiles: ['gestor', 'rh', 'admin'],
       items: [
-        { title: 'Colaboradores', path: '/colaboradores', icon: Users },
+        ...(perfil === 'rh' || perfil === 'admin'
+          ? [{ title: 'Colaboradores', path: '/colaboradores', icon: Users }]
+          : []),
         { title: 'Estrutura', path: '/estrutura', icon: Network },
       ],
     },
