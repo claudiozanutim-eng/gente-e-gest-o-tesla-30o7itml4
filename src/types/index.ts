@@ -30,14 +30,72 @@ export interface Colaborador {
   user_id?: string
   tenant_id: string
   nome: string
+  nome_completo?: string
   cpf: string
+  rg?: string
+  titulo_eleitor?: string
+  cnh?: string
+  reservista?: string
+  data_nascimento?: string
+  estado_civil?: string
+  endereco?: string
+  telefone?: string
+  email?: string
+  pix?: string
+  dados_bancarios?: string
+  nome_pai?: string
+  nome_mae?: string
+  raca_cor?: string
+  sexo?: string
+  deficiencia?: string
   cargo: string
   departamento: string
   data_admissao: string
+  jornada?: string
+  local_trabalho?: string
   status: ColaboradorStatus
   foto_url?: string
   created: string
   updated: string
+}
+
+export interface Dependente {
+  id: string
+  colaborador_id: string
+  tenant_id: string
+  nome: string
+  parentesco: string
+  data_nascimento?: string
+  created?: string
+  updated?: string
+}
+
+export interface ContatoEmergencia {
+  id: string
+  colaborador_id: string
+  tenant_id: string
+  nome: string
+  telefone: string
+  parentesco: string
+  created?: string
+  updated?: string
+}
+
+export type SolicitacaoStatus = 'pendente' | 'aprovada' | 'rejeitada'
+
+export interface SolicitacaoAlteracao {
+  id: string
+  colaborador_id: string
+  tenant_id: string
+  campo: string
+  valor_antigo?: string
+  valor_novo: string
+  status: SolicitacaoStatus
+  data_solicitacao?: string
+  data_resposta?: string
+  motivo_resposta?: string
+  created?: string
+  updated?: string
 }
 
 export type ComunicadoCategoria = 'RH' | 'Empresa' | 'Qualidade' | 'Segurança' | 'Benefícios'

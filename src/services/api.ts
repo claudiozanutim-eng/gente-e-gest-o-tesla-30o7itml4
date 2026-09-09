@@ -1,5 +1,13 @@
 import pb from '@/lib/pocketbase/client'
-import { Tenant, AppUser, Colaborador, UserPerfil } from '@/types'
+import {
+  Tenant,
+  AppUser,
+  Colaborador,
+  UserPerfil,
+  Dependente,
+  ContatoEmergencia,
+  SolicitacaoAlteracao,
+} from '@/types'
 
 export const tenantService = {
   async getTenant(tenantId: string): Promise<Tenant> {
@@ -80,6 +88,78 @@ export const colaboradorService = {
   async updateFotoUrl(colaboradorId: string, fotoUrl: string): Promise<Colaborador> {
     const record = await pb.collection('colaborador').update<Colaborador>(colaboradorId, {
       foto_url: fotoUrl,
+    })
+    return record
+  },
+
+  async getColaboradorById(id: string): Promise<Colaborador> {
+    const record = await pb.collection('colaborador').getOne<Colaborador>(id)
+    return record
+  },
+}
+
+export const dependenteService = {
+  async getDependentesByColaborador(colaboradorId: string): Promise<Dependente[]> {
+    const records = await pb.collection('dependente').getFullList<Dependente>({
+      filter: `colaborador_id = "${colaboradorId}"`,
+      sort: 'nome',
+    })
+    return records
+  },
+
+  async createDependente(data: {
+    colaborador_id: string
+    tenant_id: string
+    nome: string
+    parentesco: string
+    data_nascimento?: string
+  }): Promise<Dependente> {
+    const record = await pb.collection('dependente').create<Dependente>(data)
+    return record
+  },
+}
+
+export const contatoEmergenciaService = {
+  async getContatosByColaborador(colaboradorId: string): Promise<ContatoEmergencia[]> {
+    const records = await pb.collection('contato_emergencia').getFullList<ContatoEmergencia>({
+      filter: `colaborador_id = "${colaboradorId}"`,
+      sort: 'nome',
+    })
+    return records
+  },
+
+  async createContato(data: {
+    colaborador_id: string
+    tenant_id: string
+    nome: string
+    telefone: string
+    parentesco: string
+  }): Promise<ContatoEmergencia> {
+    const record = await pb.collection('contato_emergencia').create<ContatoEmergencia>(data)
+    return record
+  },
+}
+
+export const solicitacaoService = {
+  async getSolicitacoesByColaborador(colaboradorId: string): Promise<SolicitacaoAlteracao[]> {
+    const records = await pb.collection('solicitacao_alteracao').getFullList<SolicitacaoAlteracao>({
+      filter: `colaborador_id = "${colaboradorId}"`,
+      sort: '-created',
+    })
+    return records
+  },
+
+  async createSolicitacao(data: {
+    colaborador_id: string
+    tenant_id: string
+    campo: string
+    valor_antigo?: string
+    valor_novo: string
+  }): Promise<SolicitacaoAlteracao> {
+    const record = await pb.collection('solicitacao_alteracao').create<SolicitacaoAlteracao>({
+      ...data,
+      status: 'pendente',
+      data_solicitacao: new Date().toISOString(),
     })
     return record
   },
