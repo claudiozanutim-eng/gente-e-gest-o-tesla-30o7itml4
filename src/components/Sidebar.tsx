@@ -18,6 +18,7 @@ import {
   Gift,
   FileWarning,
   BarChart3,
+  Award,
 } from 'lucide-react'
 import { useAuth } from '@/context/AuthContext'
 import { UserPerfil, PROFILE_HOME_MAP } from '@/types'
@@ -80,6 +81,16 @@ export const Sidebar: React.FC<SidebarProps> = ({
           path: '/beneficios',
           icon: Gift,
         },
+        // Entrada "Minhas Avaliações" para colaboradores
+        ...(perfil === 'colaborador'
+          ? [
+              {
+                title: 'Minhas Avaliações',
+                path: '/avaliacoes',
+                icon: Award,
+              },
+            ]
+          : []),
       ],
     },
     {
@@ -97,11 +108,18 @@ export const Sidebar: React.FC<SidebarProps> = ({
         ...(perfil === 'rh' || perfil === 'admin'
           ? [
               { title: 'Colaboradores', path: '/colaboradores', icon: Users },
+              { title: 'Avaliações Admin', path: '/avaliacoes/admin', icon: Award },
               { title: 'Pendências Docs', path: '/pendencias-documentais', icon: FileWarning },
               { title: 'Documentos', path: '/documentos', icon: FolderOpen },
               { title: 'Gestão Benefícios', path: '/beneficios/gestao', icon: Gift },
               { title: 'Validação Atestados', path: '/atestados/validacao', icon: ShieldCheck },
               { title: 'Relatórios', path: '/relatorios', icon: BarChart3 },
+            ]
+          : []),
+        ...(perfil === 'gestor'
+          ? [
+              { title: 'Minha Equipe', path: '/minha-equipe', icon: Users },
+              { title: 'Minhas Avaliações', path: '/avaliacoes', icon: Award },
             ]
           : []),
         { title: 'Atestados / Licenças', path: '/atestados', icon: FileText },

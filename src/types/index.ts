@@ -458,3 +458,96 @@ export const BENEFICIOS_CONFIG: Record<BeneficioTipo, BeneficioTipoConfig> = {
     descricaoPadrao: 'Consultas odontológicas, profilaxia e tratamentos gerais.',
   },
 }
+
+// ==========================================
+// MÓDULO: AVALIAÇÃO DE DESEMPENHO (PROMPT 13)
+// ==========================================
+
+export type CicloAvaliacaoStatus = 'pendente' | 'em_andamento' | 'concluido'
+export type CompetenciaTipo = 'geral' | 'especifica'
+export type TipoAvaliador = 'principal' | 'apoio'
+export type AvaliacaoStatus = 'pendente' | 'concluida'
+
+export interface CicloAvaliacao {
+  id: string
+  tenant_id: string
+  nome: string
+  data_inicio: string
+  data_fim: string
+  status: CicloAvaliacaoStatus
+  created?: string
+  updated?: string
+}
+
+export interface Competencia {
+  id: string
+  tenant_id: string
+  nome: string
+  tipo: CompetenciaTipo
+  peso?: number
+  descricao?: string
+  nota_esperada?: number
+  created?: string
+  updated?: string
+}
+
+export interface Avaliacao {
+  id: string
+  ciclo_id: string
+  colaborador_id: string
+  avaliador_id: string
+  tipo_avaliador: TipoAvaliador
+  peso: number
+  status: AvaliacaoStatus
+  comentario?: string
+  nota_final?: number
+  data_avaliacao?: string
+  created?: string
+  updated?: string
+  expand?: {
+    ciclo_id?: CicloAvaliacao
+    colaborador_id?: Colaborador
+    avaliador_id?: Colaborador
+  }
+}
+
+export interface NotaCompetencia {
+  id: string
+  avaliacao_id: string
+  competencia_id: string
+  nota: number
+  comentario?: string
+  created?: string
+  updated?: string
+  expand?: {
+    competencia_id?: Competencia
+    avaliacao_id?: Avaliacao
+  }
+}
+
+export const CICLO_STATUS_CONFIG: Record<
+  CicloAvaliacaoStatus,
+  { label: string; bg: string; text: string; border: string; dotColor: string }
+> = {
+  pendente: {
+    label: 'Pendente',
+    bg: 'bg-slate-100',
+    text: 'text-slate-700',
+    border: 'border-slate-300',
+    dotColor: '#9E9E9E',
+  },
+  em_andamento: {
+    label: 'Em Andamento',
+    bg: 'bg-blue-50',
+    text: 'text-[#0D47A1]',
+    border: 'border-[#0D47A1]/30',
+    dotColor: '#0D47A1',
+  },
+  concluido: {
+    label: 'Concluído',
+    bg: 'bg-emerald-50',
+    text: 'text-emerald-700',
+    border: 'border-emerald-300',
+    dotColor: '#2E7D32',
+  },
+}

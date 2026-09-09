@@ -59,11 +59,19 @@ export default function AtestadosPage() {
 
   // Carrega atestados
   const carregarAtestados = useCallback(async () => {
-    if (!tenantId || !colaboradorId) return
+    if (!tenantId) {
+      setLoading(false)
+      return
+    }
     try {
       setLoading(true)
-      const data = await atestadoService.getAtestadosColaborador(tenantId, colaboradorId)
-      setAtestados(data)
+      if (colaboradorId) {
+        const data = await atestadoService.getAtestadosColaborador(tenantId, colaboradorId)
+        setAtestados(data)
+      } else {
+        // Para perfis administrativos sem ficha de colaborador própria associada
+        setAtestados([])
+      }
     } catch (err) {
       console.error('Erro ao carregar atestados:', err)
       toast({

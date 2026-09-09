@@ -33,6 +33,9 @@ import GestaoBeneficiosPage from '@/pages/modules/GestaoBeneficiosPage'
 import AtestadosPage from '@/pages/modules/AtestadosPage'
 import ValidacaoAtestadosPage from '@/pages/modules/ValidacaoAtestadosPage'
 import RelatoriosPage from '@/pages/RelatoriosPage'
+import MinhasAvaliacoesPage from '@/pages/modules/MinhasAvaliacoesPage'
+import MinhaEquipePage from '@/pages/modules/MinhaEquipePage'
+import AvaliacoesAdminPage from '@/pages/modules/AvaliacoesAdminPage'
 import NotFound from '@/pages/NotFound'
 
 // Root redirect handler based on user profile or login
@@ -284,6 +287,32 @@ const App = () => (
               element={
                 <ProtectedRoute allowedProfiles={['rh', 'admin']}>
                   <ValidacaoAtestadosPage />
+                </ProtectedRoute>
+              }
+            />
+
+            {/* Avaliação de Desempenho (Prompt 13) */}
+            <Route
+              path="/avaliacoes"
+              element={
+                <ProtectedRoute allowedProfiles={['colaborador', 'gestor', 'rh', 'admin']}>
+                  <MinhasAvaliacoesPage />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/minha-equipe"
+              element={
+                <ProtectedRoute allowedProfiles={['gestor', 'rh', 'admin']}>
+                  <MinhaEquipePage />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/avaliacoes/admin"
+              element={
+                <ProtectedRoute allowedProfiles={['rh', 'admin']}>
+                  <AvaliacoesAdminPage />
                 </ProtectedRoute>
               }
             />

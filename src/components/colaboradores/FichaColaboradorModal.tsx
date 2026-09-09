@@ -45,6 +45,7 @@ import {
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Badge } from '@/components/ui/badge'
+import { Button } from '@/components/ui/button'
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card'
 import { Skeleton } from '@/components/ui/skeleton'
@@ -967,13 +968,44 @@ export const FichaColaboradorModal: React.FC<FichaColaboradorModalProps> = ({
               </Card>
             </TabsContent>
 
-            {/* ABA 8: AVALIAÇÕES (Placeholder) */}
-            <TabsContent value="avaliacoes" className="m-0">
-              <TabPlaceholder
-                title="Avaliação de Desempenho e Metas"
-                description="Ciclos 90°/180°/360°, feedbacks 1:1 contínuos, matriz Nine Box e acompanhamento de metas individuais e de equipe."
-                icon={Award}
-              />
+            {/* ABA 8: AVALIAÇÕES (Integração com o Módulo de Avaliação) */}
+            <TabsContent value="avaliacoes" className="m-0 space-y-4">
+              <Card className="border border-[#E0E0E0] bg-white shadow-xs p-6 text-center">
+                <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-xl bg-[#E8EEF7] text-[#0D47A1] mb-3">
+                  <Award className="h-6 w-6" />
+                </div>
+                <h3 className="text-base font-bold text-[#212121]">
+                  Módulo de Avaliação de Desempenho
+                </h3>
+                <p className="text-xs text-[#757575] max-w-md mx-auto mt-1 mb-4">
+                  Consulte os ciclos avaliativos, feedbacks de gestores, notas por competência e
+                  deltas de performance no módulo completo de Avaliação.
+                </p>
+                <div className="flex items-center justify-center gap-2">
+                  <Button
+                    onClick={() => {
+                      onClose()
+                      window.location.href = '/avaliacoes'
+                    }}
+                    className="bg-[#0D47A1] hover:bg-[#0A3A82] text-white text-xs font-semibold h-9 px-4 gap-2"
+                  >
+                    <Award className="h-4 w-4" />
+                    Abrir Minhas Avaliações
+                  </Button>
+                  {(user?.perfil === 'rh' || user?.perfil === 'admin') && (
+                    <Button
+                      variant="outline"
+                      onClick={() => {
+                        onClose()
+                        window.location.href = '/avaliacoes/admin'
+                      }}
+                      className="border-[#E0E0E0] text-[#0D47A1] text-xs font-semibold h-9 px-4 gap-2"
+                    >
+                      Painel Admin do Ciclo
+                    </Button>
+                  )}
+                </div>
+              </Card>
             </TabsContent>
 
             {/* ABA 9: DEMONSTRATIVO (Placeholder) */}
