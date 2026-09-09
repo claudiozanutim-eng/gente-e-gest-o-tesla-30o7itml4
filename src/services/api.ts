@@ -84,3 +84,67 @@ export const colaboradorService = {
     return record
   },
 }
+
+export const comunicadoService = {
+  async getComunicados(tenantId: string): Promise<import('@/types').Comunicado[]> {
+    const records = await pb.collection('comunicado').getFullList<import('@/types').Comunicado>({
+      filter: `tenant_id = "${tenantId}"`,
+      sort: '-data_publicacao,-created',
+    })
+    return records
+  },
+
+  /**
+   * Filtra comunicados visíveis para o colaborador/usuário atual.
+   * Regras:
+   * - RH e Admin: enxergam todos os comunicados do seu tenant.
+   * - Gestores: enxergam comunicados segmentados para 'gestores', 'todos', ou direcionados ao seu setor/função.
+   * - Colaborador comum: NÃO enxerga comunicados segmentados para 'gestores'.
+   * - se segmentacao_tipo = 'todos' -> visível
+   * - se segmentacao_tipo = 'setor' -> visível se departamento/setor for igual
+   * - se segmentacao_tipo = 'funcao' -> visível se cargo/função for igual
+   */
+  filtrarPorPerfil(
+    comunicados: import('@/types').Comunicado[],
+    userPerfil: import('@/types').UserPerfil,
+    colaborador?: import('@/types').Colaborador | null,
+  ): import('@/types').Comunicado[] {
+    // Admin e RH têm visão geral corporativa de todos os comunicados do tenant
+    if (userPerfil === 'admin' || userPerfil === 'rh') {
+      return comunicados
+    }
+
+    const isGestor = userPerfil === 'gestor'
+    const userSetor = (colaborador?.departamento || '').trim().toLowerCase()
+    const userCargo = (colaborador?.cargo || '').trim().toLowerCase()
+
+    return comunicados.filter((item) => {
+      const tipo = item.segmentacao_tipo
+      const valor = (item.segmentacao_valor || '').trim().toLowerCase()
+
+      if (tipo === 'todos') {
+        return true
+      }
+
+      if (tipo === 'gestores') {
+        return isGestor
+      }
+
+      if (tipo === 'setor') {
+        return Boolean(
+          userSetor &&
+          (userSetor === valor || userSetor.includes(valor) || valor.includes(userSetor)),
+        )
+      }
+
+      if (tipo === 'funcao') {
+        return Boolean(
+          userCargo &&
+          (userCargo === valor || userCargo.includes(valor) || valor.includes(userCargo)),
+        )
+      }
+
+      return false
+    })
+  },
+}

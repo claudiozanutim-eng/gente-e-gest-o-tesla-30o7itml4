@@ -22,6 +22,11 @@ import CandidatosPage from '@/pages/modules/CandidatosPage'
 import EstruturaPage from '@/pages/modules/EstruturaPage'
 import PontoPage from '@/pages/modules/PontoPage'
 import EscalasPage from '@/pages/modules/EscalasPage'
+import DocumentosPage from '@/pages/modules/DocumentosPage'
+import MeuPerfilPage from '@/pages/modules/MeuPerfilPage'
+import FeriasPage from '@/pages/modules/FeriasPage'
+import BeneficiosPage from '@/pages/modules/BeneficiosPage'
+import AtestadosPage from '@/pages/modules/AtestadosPage'
 import NotFound from '@/pages/NotFound'
 
 // Root redirect handler based on user profile or login
@@ -186,6 +191,48 @@ const App = () => (
               element={
                 <ProtectedRoute allowedProfiles={['colaborador', 'gestor', 'rh', 'admin']}>
                   <EscalasPage />
+                </ProtectedRoute>
+              }
+            />
+
+            {/* Portal do Colaborador - Atalhos */}
+            <Route
+              path="/meus-documentos"
+              element={
+                <ProtectedRoute allowedProfiles={['colaborador', 'gestor', 'rh', 'admin']}>
+                  <DocumentosPage />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/meu-perfil"
+              element={
+                <ProtectedRoute allowedProfiles={['colaborador', 'gestor', 'rh', 'admin']}>
+                  <MeuPerfilPage />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/minhas-ferias"
+              element={
+                <ProtectedRoute allowedProfiles={['colaborador', 'gestor', 'rh', 'admin']}>
+                  <FeriasPage />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/beneficios"
+              element={
+                <ProtectedRoute allowedProfiles={['colaborador', 'gestor', 'rh', 'admin']}>
+                  <BeneficiosPage />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/atestados"
+              element={
+                <ProtectedRoute allowedProfiles={['colaborador', 'gestor', 'rh', 'admin']}>
+                  <AtestadosPage />
                 </ProtectedRoute>
               }
             />

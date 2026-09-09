@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-09-09T14:07:43.127Z",
+  "generatedAt": "2026-09-09T14:32:46.096Z",
   "collections": [
     {
       "name": "users",
@@ -203,6 +203,84 @@
         "CREATE INDEX idx_colaborador_tenant ON colaborador (tenant_id)",
         "CREATE INDEX idx_colaborador_status ON colaborador (status)",
         "CREATE INDEX idx_colaborador_depto ON colaborador (departamento)"
+      ]
+    },
+    {
+      "name": "comunicado",
+      "type": "base",
+      "apiRules": {
+        "list": "@request.auth.id != '' && tenant_id = @request.auth.tenant_id",
+        "view": "@request.auth.id != '' && tenant_id = @request.auth.tenant_id",
+        "create": "@request.auth.id != '' && tenant_id = @request.auth.tenant_id && (@request.auth.perfil = 'rh' || @request.auth.perfil = 'admin')",
+        "update": "@request.auth.id != '' && tenant_id = @request.auth.tenant_id && (@request.auth.perfil = 'rh' || @request.auth.perfil = 'admin')",
+        "delete": "@request.auth.id != '' && tenant_id = @request.auth.tenant_id && (@request.auth.perfil = 'rh' || @request.auth.perfil = 'admin')"
+      },
+      "fields": [
+        {
+          "name": "tenant_id",
+          "type": "relation",
+          "required": true,
+          "system": false,
+          "collectionRef": "tenant"
+        },
+        {
+          "name": "categoria",
+          "type": "select",
+          "required": true,
+          "system": false,
+          "selectValues": ["RH", "Empresa", "Qualidade", "Segurança", "Benefícios"]
+        },
+        {
+          "name": "titulo",
+          "type": "text",
+          "required": true,
+          "system": false
+        },
+        {
+          "name": "conteudo",
+          "type": "text",
+          "required": true,
+          "system": false
+        },
+        {
+          "name": "segmentacao_tipo",
+          "type": "select",
+          "required": true,
+          "system": false,
+          "selectValues": ["todos", "setor", "funcao", "gestores"]
+        },
+        {
+          "name": "segmentacao_valor",
+          "type": "text",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "data_publicacao",
+          "type": "date",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "created",
+          "type": "autodate",
+          "required": false,
+          "system": false,
+          "autodateTriggers": ["onCreate"]
+        },
+        {
+          "name": "updated",
+          "type": "autodate",
+          "required": false,
+          "system": false,
+          "autodateTriggers": ["onCreate", "onUpdate"]
+        }
+      ],
+      "indexes": [
+        "CREATE INDEX idx_comunicado_tenant ON comunicado (tenant_id)",
+        "CREATE INDEX idx_comunicado_categoria ON comunicado (categoria)",
+        "CREATE INDEX idx_comunicado_segmentacao ON comunicado (segmentacao_tipo)",
+        "CREATE INDEX idx_comunicado_data ON comunicado (data_publicacao DESC)"
       ]
     }
   ]

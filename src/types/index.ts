@@ -40,6 +40,74 @@ export interface Colaborador {
   updated: string
 }
 
+export type ComunicadoCategoria = 'RH' | 'Empresa' | 'Qualidade' | 'Segurança' | 'Benefícios'
+export type ComunicadoSegmentacaoTipo = 'todos' | 'setor' | 'funcao' | 'gestores'
+
+export interface Comunicado {
+  id: string
+  tenant_id: string
+  categoria: ComunicadoCategoria
+  titulo: string
+  conteudo: string
+  segmentacao_tipo: ComunicadoSegmentacaoTipo
+  segmentacao_valor?: string
+  data_publicacao?: string
+  created: string
+  updated: string
+}
+
+export interface CategoriaConfig {
+  label: ComunicadoCategoria
+  color: string // Hex spec
+  bgColor: string // Tailwind bg tint
+  textColor: string // Tailwind text
+  borderColor: string // Tailwind border
+  badgeBg: string
+}
+
+export const COMUNICADO_CATEGORIAS: Record<ComunicadoCategoria, CategoriaConfig> = {
+  RH: {
+    label: 'RH',
+    color: '#1E88E5',
+    bgColor: 'bg-blue-50',
+    textColor: 'text-[#1E88E5]',
+    borderColor: 'border-[#1E88E5]',
+    badgeBg: 'bg-[#1E88E5]',
+  },
+  Empresa: {
+    label: 'Empresa',
+    color: '#546E7A',
+    bgColor: 'bg-slate-50',
+    textColor: 'text-[#546E7A]',
+    borderColor: 'border-[#546E7A]',
+    badgeBg: 'bg-[#546E7A]',
+  },
+  Qualidade: {
+    label: 'Qualidade',
+    color: '#43A047',
+    bgColor: 'bg-emerald-50',
+    textColor: 'text-[#43A047]',
+    borderColor: 'border-[#43A047]',
+    badgeBg: 'bg-[#43A047]',
+  },
+  Segurança: {
+    label: 'Segurança',
+    color: '#FB8C00',
+    bgColor: 'bg-amber-50',
+    textColor: 'text-[#FB8C00]',
+    borderColor: 'border-[#FB8C00]',
+    badgeBg: 'bg-[#FB8C00]',
+  },
+  Benefícios: {
+    label: 'Benefícios',
+    color: '#8E24AA',
+    bgColor: 'bg-purple-50',
+    textColor: 'text-[#8E24AA]',
+    borderColor: 'border-[#8E24AA]',
+    badgeBg: 'bg-[#8E24AA]',
+  },
+}
+
 export const PROFILE_HOME_MAP: Record<UserPerfil, string> = {
   colaborador: '/portal',
   gestor: '/dashboard-equipe',
