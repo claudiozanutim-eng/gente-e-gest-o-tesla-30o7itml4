@@ -23,7 +23,9 @@ interface HeaderProps {
 const ROUTE_TITLES: Record<string, string> = {
   '/portal': 'Meu Portal',
   '/dashboard-equipe': 'Dashboard da Equipe',
+  '/dashboard': 'Dashboard RH',
   '/dashboard-rh': 'Dashboard RH',
+  '/pendencias-documentais': 'Gestão de Pessoas • Pendências Documentais',
   '/admin': 'Administração do Sistema',
   '/admin/tenant': 'Configurações do Tenant',
   '/admin/usuarios': 'Gerenciamento de Usuários',

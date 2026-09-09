@@ -17,6 +17,7 @@ import AdminPage from '@/pages/AdminPage'
 import ColaboradoresPage from '@/pages/ColaboradoresPage'
 import GestaoDocumentosPage from '@/pages/GestaoDocumentosPage'
 import DocumentosImportantesPage from '@/pages/DocumentosImportantesPage'
+import PendenciasDocumentaisPage from '@/pages/PendenciasDocumentaisPage'
 
 // Module placeholders
 import VagasPage from '@/pages/modules/VagasPage'
@@ -51,7 +52,7 @@ function RootRedirect() {
     case 'gestor':
       return <Navigate to="/dashboard-equipe" replace />
     case 'rh':
-      return <Navigate to="/dashboard-rh" replace />
+      return <Navigate to="/dashboard" replace />
     case 'admin':
       return <Navigate to="/admin" replace />
     default:
@@ -109,12 +110,23 @@ const App = () => (
               }
             />
 
-            {/* RH Home */}
+            {/* RH Home - Rota canônica /dashboard e redirect de /dashboard-rh */}
             <Route
-              path="/dashboard-rh"
+              path="/dashboard"
               element={
                 <ProtectedRoute allowedProfiles={['rh', 'admin']}>
                   <DashboardRH />
+                </ProtectedRoute>
+              }
+            />
+            <Route path="/dashboard-rh" element={<Navigate to="/dashboard" replace />} />
+
+            {/* Pendências Documentais (RH & Admin) */}
+            <Route
+              path="/pendencias-documentais"
+              element={
+                <ProtectedRoute allowedProfiles={['rh', 'admin']}>
+                  <PendenciasDocumentaisPage />
                 </ProtectedRoute>
               }
             />

@@ -185,7 +185,7 @@ export const COMUNICADO_CATEGORIAS: Record<ComunicadoCategoria, CategoriaConfig>
 export const PROFILE_HOME_MAP: Record<UserPerfil, string> = {
   colaborador: '/portal',
   gestor: '/dashboard-equipe',
-  rh: '/dashboard-rh',
+  rh: '/dashboard',
   admin: '/admin',
 }
 

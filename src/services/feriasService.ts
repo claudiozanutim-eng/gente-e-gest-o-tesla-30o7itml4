@@ -11,12 +11,12 @@ export interface ColaboradorFeriasStatus {
 
 /**
  * Serviço isolado para cálculo de previsão de férias e prazos concessivos da CLT.
- * 
+ *
  * Regra CLT:
  * - Período aquisitivo 1: 12 meses após a admissão.
  * - Período concessivo 1: Os 12 meses seguintes (limite = admissão + 24 meses).
  * - Ciclos subsequentes: Admissão + 24 meses + (N - 1) * 12 meses.
- * 
+ *
  * Nota de desacoplamento: Como o módulo de férias ainda não existe,
  * "semSolicitacaoAprovada" é considerado true por padrão. Quando o módulo
  * de férias for implementado, basta injetar a checagem das solicitações aprovadas.
