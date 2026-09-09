@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-09-09T16:53:47.903Z",
+  "generatedAt": "2026-09-09T17:21:50.968Z",
   "collections": [
     {
       "name": "users",
@@ -824,6 +824,78 @@
         "CREATE INDEX idx_doc_categoria ON documento (categoria_id)",
         "CREATE INDEX idx_doc_colaborador ON documento (colaborador_id)",
         "CREATE INDEX idx_doc_obrigatorio ON documento (obrigatorio)"
+      ]
+    },
+    {
+      "name": "ciencia_documento",
+      "type": "base",
+      "apiRules": {
+        "list": "@request.auth.id != '' && tenant_id = @request.auth.tenant_id && (colaborador_id.user_id = @request.auth.id || @request.auth.perfil = 'rh' || @request.auth.perfil = 'admin')",
+        "view": "@request.auth.id != '' && tenant_id = @request.auth.tenant_id && (colaborador_id.user_id = @request.auth.id || @request.auth.perfil = 'rh' || @request.auth.perfil = 'admin')",
+        "create": "@request.auth.id != '' && tenant_id = @request.auth.tenant_id && colaborador_id.user_id = @request.auth.id",
+        "update": "@request.auth.id != '' && tenant_id = @request.auth.tenant_id && (@request.auth.perfil = 'rh' || @request.auth.perfil = 'admin' || colaborador_id.user_id = @request.auth.id)",
+        "delete": "@request.auth.id != '' && tenant_id = @request.auth.tenant_id && (@request.auth.perfil = 'rh' || @request.auth.perfil = 'admin')"
+      },
+      "fields": [
+        {
+          "name": "tenant_id",
+          "type": "relation",
+          "required": true,
+          "system": false,
+          "collectionRef": "tenant"
+        },
+        {
+          "name": "documento_id",
+          "type": "relation",
+          "required": true,
+          "system": false,
+          "collectionRef": "documento"
+        },
+        {
+          "name": "colaborador_id",
+          "type": "relation",
+          "required": true,
+          "system": false,
+          "collectionRef": "colaborador"
+        },
+        {
+          "name": "versao_ciente",
+          "type": "text",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "data_hora",
+          "type": "date",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "ip_origem",
+          "type": "text",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "created",
+          "type": "autodate",
+          "required": false,
+          "system": false,
+          "autodateTriggers": ["onCreate"]
+        },
+        {
+          "name": "updated",
+          "type": "autodate",
+          "required": false,
+          "system": false,
+          "autodateTriggers": ["onCreate", "onUpdate"]
+        }
+      ],
+      "indexes": [
+        "CREATE INDEX idx_ciencia_tenant ON ciencia_documento (tenant_id)",
+        "CREATE INDEX idx_ciencia_documento ON ciencia_documento (documento_id)",
+        "CREATE INDEX idx_ciencia_colaborador ON ciencia_documento (colaborador_id)",
+        "CREATE INDEX idx_ciencia_doc_colab ON ciencia_documento (documento_id, colaborador_id)"
       ]
     }
   ]

@@ -66,6 +66,11 @@ export const Sidebar: React.FC<SidebarProps> = ({
           path: PROFILE_HOME_MAP[perfil],
           icon: LayoutDashboard,
         },
+        {
+          title: 'Docs Importantes',
+          path: '/documentos-importantes',
+          icon: ShieldCheck,
+        },
       ],
     },
     {

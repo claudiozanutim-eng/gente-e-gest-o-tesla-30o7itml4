@@ -232,3 +232,19 @@ export interface Documento {
     colaborador_id?: Colaborador
   }
 }
+
+export interface CienciaDocumento {
+  id: string
+  tenant_id: string
+  documento_id: string
+  colaborador_id: string
+  versao_ciente?: string
+  data_hora: string
+  ip_origem?: string
+  created?: string
+  updated?: string
+  expand?: {
+    documento_id?: Documento
+    colaborador_id?: Colaborador
+  }
+}

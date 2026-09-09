@@ -22,8 +22,10 @@ import {
   Legend,
 } from 'recharts'
 import { useAuth } from '@/context/AuthContext'
-import { colaboradorService } from '@/services/api'
-import { Colaborador } from '@/types'
+import { Link } from 'react-router-dom'
+import { FileWarning, ShieldAlert, ArrowRight, FileCheck2 } from 'lucide-react'
+import { colaboradorService, documentoService, cienciaDocumentoService } from '@/services/api'
+import { Colaborador, Documento, CienciaDocumento } from '@/types'
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { Skeleton } from '@/components/ui/skeleton'
@@ -31,6 +33,8 @@ import { Skeleton } from '@/components/ui/skeleton'
 export default function DashboardRH() {
   const { user } = useAuth()
   const [colaboradores, setColaboradores] = useState<Colaborador[]>([])
+  const [documentosObrigatorios, setDocumentosObrigatorios] = useState<Documento[]>([])
+  const [cienciasTenant, setCienciasTenant] = useState<CienciaDocumento[]>([])
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
@@ -38,8 +42,14 @@ export default function DashboardRH() {
       if (!user?.tenant_id) return
       try {
         setLoading(true)
-        const data = await colaboradorService.getColaboradores(user.tenant_id)
-        setColaboradores(data)
+        const [colabs, docs, ciencias] = await Promise.all([
+          colaboradorService.getColaboradores(user.tenant_id),
+          documentoService.getDocumentos(user.tenant_id),
+          cienciaDocumentoService.getCienciasTenant(user.tenant_id),
+        ])
+        setColaboradores(colabs)
+        setDocumentosObrigatorios(docs.filter((d) => d.obrigatorio && !d.colaborador_id))
+        setCienciasTenant(ciencias)
       } catch (err) {
         console.error(err)
       } finally {
@@ -79,6 +89,40 @@ export default function DashboardRH() {
   // Colorful palette per requirement
   const departmentColors = ['#0D47A1', '#1565C0', '#42A5F5', '#90CAF9', '#6A1B9A', '#00897B']
 
+  // Cálculo do KPI de Conformidade / Pessoas sem Ciência na Versão Atual
+  const kpiCienciasPorDoc = documentosObrigatorios.map((doc) => {
+    const versaoDoc = (doc.versao || '1.0').trim()
+    // Identifica quais colaboradores ativos deram ciência nesta versão específica
+    const colabsCientesSet = new Set(
+      cienciasTenant
+        .filter(
+          (c) =>
+            c.documento_id === doc.id &&
+            (c.versao_ciente || '').trim() === versaoDoc &&
+            colaboradores.some(
+              (colab) => colab.id === c.colaborador_id && colab.status === 'ativo',
+            ),
+        )
+        .map((c) => c.colaborador_id),
+    )
+
+    const totalCientes = colabsCientesSet.size
+    const semCiencia = Math.max(0, totalAtivos - totalCientes)
+    const taxaAdesao = totalAtivos > 0 ? Math.round((totalCientes / totalAtivos) * 100) : 100
+
+    return {
+      doc,
+      totalCientes,
+      semCiencia,
+      taxaAdesao,
+      versaoDoc,
+    }
+  })
+
+  // Ordena pelo que tem maior número de pessoas sem ciência (mais urgente)
+  const docsMaisPendentes = [...kpiCienciasPorDoc].sort((a, b) => b.semCiencia - a.semCiencia)
+  const principalPendente = docsMaisPendentes[0]
+
   return (
     <div className="space-y-6">
       {/* Page Header */}
@@ -99,6 +143,105 @@ export default function DashboardRH() {
             Visão Geral RH
           </Badge>
         </div>
+      </div>
+
+      {/* Bloco de KPI de Conformidade: Pessoas sem Ciência de Documentos Obrigatórios */}
+      <div className="space-y-3">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <ShieldAlert className="h-5 w-5 text-amber-600" />
+            <h3 className="text-base font-bold text-[#212121]">
+              Conformidade e Ciência de Documentos
+            </h3>
+          </div>
+          <Link
+            to="/documentos"
+            className="text-xs text-[#0D47A1] font-semibold hover:underline flex items-center gap-1"
+          >
+            Gerenciar no Módulo Documentos
+            <ArrowRight className="h-3.5 w-3.5" />
+          </Link>
+        </div>
+
+        {loading ? (
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            {[1, 2, 3].map((i) => (
+              <Skeleton key={i} className="h-28 w-full bg-slate-100 rounded-xl" />
+            ))}
+          </div>
+        ) : kpiCienciasPorDoc.length === 0 ? (
+          <Card className="border border-[#E0E0E0] bg-white p-4 text-center">
+            <p className="text-xs text-[#757575]">
+              Nenhum documento corporativo obrigatório cadastrado no momento.
+            </p>
+          </Card>
+        ) : (
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+            {kpiCienciasPorDoc.map((item) => (
+              <Card
+                key={item.doc.id}
+                className={`border transition-all shadow-xs bg-white ${
+                  item.semCiencia > 0
+                    ? 'border-amber-300 hover:border-amber-400'
+                    : 'border-emerald-200 hover:border-emerald-300'
+                }`}
+              >
+                <CardContent className="p-4 space-y-3">
+                  <div className="flex items-start justify-between gap-2">
+                    <div className="space-y-0.5">
+                      <span className="text-[10px] font-bold text-[#0D47A1] bg-[#E8EEF7] px-2 py-0.5 rounded">
+                        Versão {item.versaoDoc}
+                      </span>
+                      <h4 className="text-sm font-bold text-[#212121] leading-snug line-clamp-1 mt-1">
+                        {item.doc.nome}
+                      </h4>
+                    </div>
+                    <div
+                      className={`h-8 w-8 rounded-lg flex items-center justify-center shrink-0 ${
+                        item.semCiencia > 0
+                          ? 'bg-amber-100 text-amber-700'
+                          : 'bg-emerald-100 text-[#2E7D32]'
+                      }`}
+                    >
+                      {item.semCiencia > 0 ? (
+                        <FileWarning className="h-4 w-4" />
+                      ) : (
+                        <FileCheck2 className="h-4 w-4" />
+                      )}
+                    </div>
+                  </div>
+
+                  {/* Texto do KPI solicitado: "X pessoas sem ciência do [nome do documento]" */}
+                  <div className="bg-[#FAFAFA] rounded-lg p-2.5 border border-[#F0F0F0] flex items-baseline justify-between">
+                    <div>
+                      <span className="text-xs text-[#757575] font-medium block">
+                        Status de Ciência:
+                      </span>
+                      <p className="text-sm font-extrabold text-[#212121]">
+                        {item.semCiencia === 0 ? (
+                          <span className="text-[#2E7D32]">Todos cientes</span>
+                        ) : (
+                          <span className="text-amber-800">
+                            <strong className="text-base text-amber-900">{item.semCiencia}</strong>{' '}
+                            {item.semCiencia === 1 ? 'pessoa sem ciência' : 'pessoas sem ciência'}
+                          </span>
+                        )}
+                      </p>
+                    </div>
+                    <div className="text-right">
+                      <span className="text-[11px] font-bold text-[#757575]">
+                        {item.taxaAdesao}% cientes
+                      </span>
+                      <span className="block text-[10px] text-[#9E9E9E]">
+                        {item.totalCientes} de {totalAtivos} ativos
+                      </span>
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+            ))}
+          </div>
+        )}
       </div>
 
       {/* KPI Cards */}

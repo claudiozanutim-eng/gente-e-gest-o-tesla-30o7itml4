@@ -134,6 +134,13 @@ export default function PortalColaborador() {
   // Atalhos de navegação do Portal do Colaborador
   const atalhos = [
     {
+      title: 'Docs Importantes',
+      subtitle: 'Normas e ciências',
+      path: '/documentos-importantes',
+      icon: Shield,
+      color: 'bg-blue-50 text-[#0D47A1] border-blue-200 hover:border-[#0D47A1]/50',
+    },
+    {
       title: 'Meus Documentos',
       subtitle: 'Holerites e informes',
       path: '/meus-documentos',
@@ -228,7 +235,7 @@ export default function PortalColaborador() {
           <span className="text-xs text-[#757575]">Acesso direto às suas ferramentas</span>
         </div>
 
-        <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 gap-3.5">
+        <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-6 gap-3.5">
           {atalhos.map((item) => {
             const Icon = item.icon
             return (

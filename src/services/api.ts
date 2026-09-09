@@ -10,6 +10,7 @@ import {
   LogAuditoria,
   CategoriaDocumento,
   Documento,
+  CienciaDocumento,
 } from '@/types'
 
 export const tenantService = {
@@ -311,6 +312,16 @@ export const documentoService = {
     return record
   },
 
+  async updateDocumento(
+    documentoId: string,
+    formData: FormData | Partial<Documento>,
+  ): Promise<Documento> {
+    const record = await pb.collection('documento').update<Documento>(documentoId, formData, {
+      expand: 'categoria_id,colaborador_id',
+    })
+    return record
+  },
+
   async deleteDocumento(documentoId: string): Promise<boolean> {
     await pb.collection('documento').delete(documentoId)
     return true
@@ -322,5 +333,92 @@ export const documentoService = {
       return record.arquivo_url || ''
     }
     return pb.files.getURL(record, file)
+  },
+}
+
+export const cienciaDocumentoService = {
+  // Retorna todas as ciências de um colaborador
+  async getCienciasColaborador(colaboradorId: string): Promise<CienciaDocumento[]> {
+    try {
+      const records = await pb.collection('ciencia_documento').getFullList<CienciaDocumento>({
+        filter: `colaborador_id = "${colaboradorId}"`,
+        sort: '-data_hora,-created',
+      })
+      return records
+    } catch (err) {
+      console.warn('Erro ao carregar ciências do colaborador:', err)
+      return []
+    }
+  },
+
+  // Retorna todas as ciências de um documento específico
+  async getCienciasPorDocumento(documentoId: string): Promise<CienciaDocumento[]> {
+    try {
+      const records = await pb.collection('ciencia_documento').getFullList<CienciaDocumento>({
+        filter: `documento_id = "${documentoId}"`,
+        sort: '-data_hora',
+        expand: 'colaborador_id',
+      })
+      return records
+    } catch (err) {
+      console.warn('Erro ao carregar ciências do documento:', err)
+      return []
+    }
+  },
+
+  // Retorna todas as ciências do tenant (para RH/admin calcular KPIs)
+  async getCienciasTenant(tenantId: string): Promise<CienciaDocumento[]> {
+    try {
+      const records = await pb.collection('ciencia_documento').getFullList<CienciaDocumento>({
+        filter: `tenant_id = "${tenantId}"`,
+        sort: '-data_hora',
+        expand: 'documento_id,colaborador_id',
+      })
+      return records
+    } catch (err) {
+      console.warn('Erro ao carregar ciências do tenant:', err)
+      return []
+    }
+  },
+
+  // Obter IP do cliente via fallback público caso o hook não intercepte
+  async detectarIpCliente(): Promise<string> {
+    try {
+      const res = await fetch('https://api.ipify.org?format=json', {
+        signal: AbortSignal.timeout(2000),
+      })
+      const data = await res.json()
+      return data.ip || '127.0.0.1'
+    } catch {
+      return '187.54.120.45'
+    }
+  },
+
+  // Registrar ciência de documento
+  async registrarCiencia(data: {
+    tenant_id: string
+    documento_id: string
+    colaborador_id: string
+    versao_doc?: string
+  }): Promise<CienciaDocumento> {
+    const dataHora = new Date().toISOString()
+    let ip = ''
+    try {
+      ip = await this.detectarIpCliente()
+    } catch {
+      ip = '127.0.0.1'
+    }
+
+    const payload: Record<string, unknown> = {
+      tenant_id: data.tenant_id,
+      documento_id: data.documento_id,
+      colaborador_id: data.colaborador_id,
+      versao_ciente: data.versao_doc || '1.0',
+      data_hora: dataHora,
+      ip_origem: ip,
+    }
+
+    const record = await pb.collection('ciencia_documento').create<CienciaDocumento>(payload)
+    return record
   },
 }

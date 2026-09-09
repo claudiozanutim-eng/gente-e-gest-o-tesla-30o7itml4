@@ -17,7 +17,13 @@ import {
   File,
   AlertTriangle,
   FolderOpen,
+  Edit,
+  History,
+  CheckCircle2,
+  Clock,
 } from 'lucide-react'
+import { cienciaDocumentoService } from '@/services/api'
+import { CienciaDocumento } from '@/types'
 import { useAuth } from '@/context/AuthContext'
 import { documentoService, logAuditoriaService } from '@/services/api'
 import { CategoriaDocumento, Documento } from '@/types'
@@ -83,6 +89,22 @@ export default function GestaoDocumentosPage() {
   const [docParaExcluir, setDocParaExcluir] = useState<Documento | null>(null)
   const [isDeleting, setIsDeleting] = useState(false)
 
+  // Modal de Edição / Nova Versão de Documento Existente
+  const [docParaEditar, setDocParaEditar] = useState<Documento | null>(null)
+  const [editNome, setEditNome] = useState('')
+  const [editCategoriaId, setEditCategoriaId] = useState('')
+  const [editVersao, setEditVersao] = useState('')
+  const [editObrigatorio, setEditObrigatorio] = useState(false)
+  const [editFile, setEditFile] = useState<File | null>(null)
+  const [editFileError, setEditFileError] = useState<string | null>(null)
+  const [isSavingEdit, setIsSavingEdit] = useState(false)
+  const editFileInputRef = useRef<HTMLInputElement | null>(null)
+
+  // Modal de Histórico de Ciências
+  const [docParaVerCiencias, setDocParaVerCiencias] = useState<Documento | null>(null)
+  const [cienciasDoc, setCienciasDoc] = useState<CienciaDocumento[]>([])
+  const [loadingCiencias, setLoadingCiencias] = useState(false)
+
   const tenantId = user?.tenant_id
 
   const carregarDados = async () => {
@@ -127,6 +149,161 @@ export default function GestaoDocumentosPage() {
       })
     } catch {
       return dateStr
+    }
+  }
+
+  // Formatar versão para exibição
+  const formatarVersao = (versaoStr?: string) => {
+    const raw = (versaoStr || '1.0').trim()
+    if (/^\d+$/.test(raw)) {
+      return raw.padStart(2, '0')
+    }
+    return raw
+  }
+
+  // Incrementar versão automaticamente (ex: "1.0" -> "2.0", "02" -> "03", "2.1" -> "2.2")
+  const sugerirProximaVersao = (v?: string) => {
+    const raw = (v || '1.0').trim()
+    if (/^\d+$/.test(raw)) {
+      const num = parseInt(raw, 10) + 1
+      return String(num).padStart(raw.length > 1 ? raw.length : 2, '0')
+    }
+    const parts = raw.split('.')
+    if (parts.length === 2 && !isNaN(Number(parts[0])) && !isNaN(Number(parts[1]))) {
+      return `${parts[0]}.${parseInt(parts[1], 10) + 1}`
+    }
+    const numFloat = parseFloat(raw)
+    if (!isNaN(numFloat)) {
+      return (numFloat + 1.0).toFixed(1)
+    }
+    return `${raw}.1`
+  }
+
+  // Abrir modal de edição para um documento
+  const handleAbrirEdicao = (doc: Documento) => {
+    setDocParaEditar(doc)
+    setEditNome(doc.nome)
+    setEditCategoriaId(doc.categoria_id)
+    setEditVersao(doc.versao || '1.0')
+    setEditObrigatorio(Boolean(doc.obrigatorio))
+    setEditFile(null)
+    setEditFileError(null)
+    if (editFileInputRef.current) editFileInputRef.current.value = ''
+  }
+
+  // Abrir modal de histórico de ciências
+  const handleAbrirCiencias = async (doc: Documento) => {
+    setDocParaVerCiencias(doc)
+    try {
+      setLoadingCiencias(true)
+      const list = await cienciaDocumentoService.getCienciasPorDocumento(doc.id)
+      setCienciasDoc(list)
+    } catch (err) {
+      console.error(err)
+    } finally {
+      setLoadingCiencias(false)
+    }
+  }
+
+  // Manipular arquivo de nova versão
+  const handleEditFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
+    setEditFileError(null)
+    if (!file) {
+      setEditFile(null)
+      return
+    }
+
+    const tiposPermitidos = ['application/pdf', 'image/png', 'image/jpeg', 'image/jpg']
+    if (!tiposPermitidos.includes(file.type)) {
+      setEditFileError('Formato inválido. Apenas arquivos PDF, PNG ou JPEG são aceitos.')
+      setEditFile(null)
+      if (editFileInputRef.current) editFileInputRef.current.value = ''
+      return
+    }
+
+    const maxBytes = 10 * 1024 * 1024 // 10MB
+    if (file.size > maxBytes) {
+      setEditFileError('Arquivo muito grande. O limite máximo permitido é de 10 MB.')
+      setEditFile(null)
+      if (editFileInputRef.current) editFileInputRef.current.value = ''
+      return
+    }
+
+    setEditFile(file)
+  }
+
+  // Salvar Edição / Nova Versão
+  const handleSalvarEdicao = async (e: React.FormEvent) => {
+    e.preventDefault()
+    if (!docParaEditar || !tenantId) return
+
+    if (!editNome.trim()) {
+      toast({
+        title: 'Título obrigatório',
+        description: 'Informe o título do documento.',
+        variant: 'destructive',
+      })
+      return
+    }
+
+    try {
+      setIsSavingEdit(true)
+      const versaoMudou = (docParaEditar.versao || '').trim() !== editVersao.trim()
+      const formData = new FormData()
+      formData.append('nome', editNome.trim())
+      formData.append('categoria_id', editCategoriaId)
+      formData.append('versao', editVersao.trim() || '1.0')
+      formData.append('obrigatorio', String(editObrigatorio))
+
+      // Se mudou a versão ou subiu novo arquivo, atualiza data_publicacao
+      if (versaoMudou || editFile) {
+        formData.append('data_publicacao', new Date().toISOString())
+      }
+
+      if (editFile) {
+        formData.append('arquivo', editFile)
+      }
+
+      await documentoService.updateDocumento(docParaEditar.id, formData)
+
+      // Registrar auditoria
+      if (user?.id) {
+        await logAuditoriaService.registrarLog({
+          tenant_id: tenantId,
+          user_id: user.id,
+          acao: versaoMudou ? 'atualizacao_versao_documento' : 'edicao_documento',
+          entidade: 'documento',
+          entidade_id: docParaEditar.id,
+          dados_json: {
+            nome: editNome.trim(),
+            versao_antiga: docParaEditar.versao,
+            versao_nova: editVersao.trim(),
+            houve_novo_arquivo: Boolean(editFile),
+            obrigatorio: editObrigatorio,
+          },
+        })
+      }
+
+      toast({
+        title: versaoMudou ? 'Nova versão publicada!' : 'Documento atualizado com sucesso!',
+        description: versaoMudou
+          ? `A Versão ${editVersao.trim()} foi salva. As ciências anteriores foram invalidadas e todos os colaboradores deverão dar ciência novamente.`
+          : `As alterações em "${editNome.trim()}" foram salvas.`,
+      })
+
+      setDocParaEditar(null)
+      setEditFile(null)
+      await carregarDados()
+    } catch (err) {
+      console.error('Erro ao atualizar documento:', err)
+      toast({
+        title: 'Erro na atualização',
+        description: 'Não foi possível salvar as alterações do documento.',
+        variant: 'destructive',
+      })
+    } finally {
+      setIsSavingEdit(false)
     }
   }
 
@@ -634,6 +811,26 @@ export default function GestaoDocumentosPage() {
                           <Button
                             variant="ghost"
                             size="icon"
+                            title="Editar / Nova Versão"
+                            onClick={() => handleAbrirEdicao(doc)}
+                            className="h-8 w-8 text-[#757575] hover:text-[#0D47A1] hover:bg-[#E8EEF7]"
+                          >
+                            <Edit className="h-4 w-4" />
+                          </Button>
+                          {doc.obrigatorio && (
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              title="Histórico de Ciências"
+                              onClick={() => handleAbrirCiencias(doc)}
+                              className="h-8 w-8 text-[#757575] hover:text-emerald-700 hover:bg-emerald-50"
+                            >
+                              <History className="h-4 w-4" />
+                            </Button>
+                          )}
+                          <Button
+                            variant="ghost"
+                            size="icon"
                             title="Baixar documento"
                             onClick={() => handleDownload(doc)}
                             className="h-8 w-8 text-[#757575] hover:text-[#0D47A1] hover:bg-[#E8EEF7]"
@@ -844,6 +1041,322 @@ export default function GestaoDocumentosPage() {
               </Button>
             </DialogFooter>
           </form>
+        </DialogContent>
+      </Dialog>
+
+      {/* Modal de Edição / Nova Versão (RH/Admin) */}
+      <Dialog
+        open={Boolean(docParaEditar)}
+        onOpenChange={(open) => !open && setDocParaEditar(null)}
+      >
+        <DialogContent className="max-w-lg bg-white border border-[#E0E0E0] p-6">
+          <DialogHeader className="text-left space-y-2">
+            <div className="flex items-center gap-2">
+              <div className="h-8 w-8 rounded-lg bg-[#E8EEF7] text-[#0D47A1] flex items-center justify-center font-bold">
+                <Edit className="h-4 w-4" />
+              </div>
+              <DialogTitle className="text-lg font-bold text-[#212121]">
+                Editar Documento / Nova Versão
+              </DialogTitle>
+            </div>
+            <DialogDescription className="text-xs text-[#757575]">
+              Atualize as informações do documento corporativo. Se alterar a versão ou subir um novo
+              arquivo de documento obrigatório,{' '}
+              <strong className="text-[#0D47A1]">
+                as ciências anteriores serão invalidadas e todos os colaboradores deverão dar nova
+                ciência
+              </strong>
+              .
+            </DialogDescription>
+          </DialogHeader>
+
+          <form onSubmit={handleSalvarEdicao} className="space-y-4 pt-2">
+            {/* Categoria */}
+            <div className="space-y-1.5">
+              <Label htmlFor="editCat" className="text-xs font-semibold text-[#212121]">
+                Categoria do Documento <span className="text-red-500">*</span>
+              </Label>
+              <Select value={editCategoriaId} onValueChange={setEditCategoriaId}>
+                <SelectTrigger id="editCat" className="text-xs h-9 bg-white border-[#E0E0E0]">
+                  <SelectValue placeholder="Selecione a categoria..." />
+                </SelectTrigger>
+                <SelectContent className="bg-white">
+                  {categorias.map((cat) => (
+                    <SelectItem key={cat.id} value={cat.id}>
+                      {cat.nome}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+
+            {/* Nome do Documento */}
+            <div className="space-y-1.5">
+              <Label htmlFor="editNome" className="text-xs font-semibold text-[#212121]">
+                Título do Documento <span className="text-red-500">*</span>
+              </Label>
+              <Input
+                id="editNome"
+                value={editNome}
+                onChange={(e) => setEditNome(e.target.value)}
+                className="text-xs h-9 border-[#E0E0E0]"
+                required
+              />
+            </div>
+
+            {/* Versão atual vs Nova Versão */}
+            <div className="space-y-1.5">
+              <div className="flex items-center justify-between">
+                <Label htmlFor="editVersao" className="text-xs font-semibold text-[#212121]">
+                  Versão do Documento
+                </Label>
+                <button
+                  type="button"
+                  onClick={() => setEditVersao(sugerirProximaVersao(editVersao))}
+                  className="text-[11px] text-[#0D47A1] font-semibold hover:underline"
+                >
+                  + Incrementar versão ({sugerirProximaVersao(editVersao)})
+                </button>
+              </div>
+              <Input
+                id="editVersao"
+                placeholder="Ex: 2.0 ou 03"
+                value={editVersao}
+                onChange={(e) => setEditVersao(e.target.value)}
+                className="text-xs h-9 border-[#E0E0E0]"
+              />
+              {docParaEditar && docParaEditar.versao !== editVersao && (
+                <p className="text-[11px] text-amber-700 bg-amber-50 p-2 rounded border border-amber-200">
+                  ⚠️ Alterando versão de <strong>{formatarVersao(docParaEditar.versao)}</strong>{' '}
+                  para <strong>{formatarVersao(editVersao)}</strong>. Isso marcará o documento como
+                  pendente para todos os colaboradores.
+                </p>
+              )}
+            </div>
+
+            {/* Marcador Obrigatório */}
+            <div className="flex items-start space-x-2 pt-1 pb-1">
+              <Checkbox
+                id="editObrigatorio"
+                checked={editObrigatorio}
+                onCheckedChange={(checked) => setEditObrigatorio(Boolean(checked))}
+                className="mt-0.5"
+              />
+              <div className="space-y-0.5">
+                <label
+                  htmlFor="editObrigatorio"
+                  className="text-xs font-bold text-[#212121] cursor-pointer flex items-center gap-1.5"
+                >
+                  <AlertCircle className="h-3.5 w-3.5 text-amber-600" />
+                  Documento Obrigatório (exige ciência dos colaboradores)
+                </label>
+                <p className="text-[11px] text-[#757575]">
+                  Aparece em "Documentos Importantes" com monitoramento de conformidade.
+                </p>
+              </div>
+            </div>
+
+            {/* Substituição opcional do Arquivo */}
+            <div className="space-y-1.5">
+              <Label className="text-xs font-semibold text-[#212121]">
+                Atualizar Arquivo (Opcional - deixe vazio para manter o arquivo atual)
+              </Label>
+
+              <div
+                onClick={() => editFileInputRef.current?.click()}
+                className={`border-2 border-dashed rounded-xl p-4 text-center cursor-pointer transition-colors ${
+                  editFileError
+                    ? 'border-red-300 bg-red-50/50'
+                    : editFile
+                      ? 'border-[#0D47A1] bg-[#E8EEF7]/30'
+                      : 'border-[#E0E0E0] hover:border-[#0D47A1] bg-[#FAFAFA]'
+                }`}
+              >
+                <input
+                  ref={editFileInputRef}
+                  type="file"
+                  accept=".pdf,image/png,image/jpeg,image/jpg"
+                  className="hidden"
+                  onChange={handleEditFileChange}
+                />
+
+                {editFile ? (
+                  <div className="flex items-center justify-between gap-3 text-left">
+                    <div className="flex items-center gap-3 overflow-hidden">
+                      <div className="h-8 w-8 rounded bg-[#0D47A1] text-white flex items-center justify-center shrink-0">
+                        <FileCheck className="h-4 w-4" />
+                      </div>
+                      <div className="truncate">
+                        <p className="text-xs font-bold text-[#212121] truncate">{editFile.name}</p>
+                        <p className="text-[10px] text-[#757575]">
+                          {(editFile.size / (1024 * 1024)).toFixed(2)} MB (Substituirá o arquivo
+                          anterior)
+                        </p>
+                      </div>
+                    </div>
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="icon"
+                      onClick={(e) => {
+                        e.stopPropagation()
+                        setEditFile(null)
+                        if (editFileInputRef.current) editFileInputRef.current.value = ''
+                      }}
+                      className="h-7 w-7 text-[#757575] hover:text-red-600"
+                    >
+                      <X className="h-3.5 w-3.5" />
+                    </Button>
+                  </div>
+                ) : (
+                  <div className="space-y-1 text-center">
+                    <Upload className="h-5 w-5 text-[#757575] mx-auto mb-1" />
+                    <p className="text-xs font-semibold text-[#212121]">
+                      Clique para selecionar um novo arquivo PDF, PNG ou JPEG
+                    </p>
+                    <p className="text-[10px] text-[#757575]">
+                      {docParaEditar?.arquivo
+                        ? `Arquivo atual: ${docParaEditar.arquivo}`
+                        : 'Nenhum arquivo binário anexado atualmente.'}
+                    </p>
+                  </div>
+                )}
+              </div>
+
+              {editFileError && (
+                <div className="flex items-center gap-1.5 text-xs text-red-600 mt-1">
+                  <AlertCircle className="h-3.5 w-3.5 shrink-0" />
+                  <span>{editFileError}</span>
+                </div>
+              )}
+            </div>
+
+            <DialogFooter className="pt-3 gap-2">
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => setDocParaEditar(null)}
+                disabled={isSavingEdit}
+                className="text-xs h-9 border-[#E0E0E0]"
+              >
+                Cancelar
+              </Button>
+              <Button
+                type="submit"
+                disabled={isSavingEdit}
+                className="text-xs h-9 bg-[#0D47A1] hover:bg-[#0A3A82] text-white font-semibold"
+              >
+                {isSavingEdit ? 'Salvando...' : 'Salvar Alterações'}
+              </Button>
+            </DialogFooter>
+          </form>
+        </DialogContent>
+      </Dialog>
+
+      {/* Modal de Histórico de Ciências de um Documento */}
+      <Dialog
+        open={Boolean(docParaVerCiencias)}
+        onOpenChange={(open) => !open && setDocParaVerCiencias(null)}
+      >
+        <DialogContent className="max-w-2xl bg-white border border-[#E0E0E0] p-6">
+          <DialogHeader className="text-left space-y-1">
+            <div className="flex items-center gap-2">
+              <div className="h-8 w-8 rounded-lg bg-emerald-50 text-[#2E7D32] flex items-center justify-center font-bold">
+                <History className="h-4 w-4" />
+              </div>
+              <DialogTitle className="text-lg font-bold text-[#212121]">
+                Registro de Ciências: {docParaVerCiencias?.nome}
+              </DialogTitle>
+            </div>
+            <DialogDescription className="text-xs text-[#757575]">
+              Histórico de confirmações de leitura com data/hora e IP de origem. Versão atual:{' '}
+              <strong className="text-[#0D47A1]">
+                Versão {formatarVersao(docParaVerCiencias?.versao)}
+              </strong>
+              .
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="mt-4">
+            {loadingCiencias ? (
+              <div className="space-y-2 py-4">
+                {[1, 2, 3].map((i) => (
+                  <Skeleton key={i} className="h-10 w-full bg-slate-100" />
+                ))}
+              </div>
+            ) : cienciasDoc.length === 0 ? (
+              <div className="p-8 text-center bg-[#FAFAFA] rounded-xl border border-dashed border-[#E0E0E0]">
+                <Clock className="h-8 w-8 text-[#757575] mx-auto mb-2" />
+                <p className="text-xs font-bold text-[#212121]">Nenhuma ciência registrada ainda</p>
+                <p className="text-[11px] text-[#757575] mt-0.5">
+                  Nenhum colaborador confirmou leitura deste documento até o momento.
+                </p>
+              </div>
+            ) : (
+              <div className="border border-[#E0E0E0] rounded-xl overflow-hidden max-h-[360px] overflow-y-auto">
+                <table className="w-full text-left border-collapse text-xs">
+                  <thead className="bg-[#FAFAFA] border-b border-[#E0E0E0] text-[11px] font-bold text-[#757575] uppercase">
+                    <tr>
+                      <th className="py-2.5 px-3">Colaborador</th>
+                      <th className="py-2.5 px-3">Versão Ciente</th>
+                      <th className="py-2.5 px-3">Status</th>
+                      <th className="py-2.5 px-3">Data/Hora</th>
+                      <th className="py-2.5 px-3">IP Origem</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-[#F0F0F0]">
+                    {cienciasDoc.map((c) => {
+                      const isVersaoAtual =
+                        (c.versao_ciente || '').trim() ===
+                        (docParaVerCiencias?.versao || '1.0').trim()
+                      const colabNome = c.expand?.colaborador_id?.nome || 'Colaborador'
+
+                      return (
+                        <tr key={c.id} className="hover:bg-[#F9FAFB]">
+                          <td className="py-2.5 px-3 font-semibold text-[#212121]">{colabNome}</td>
+                          <td className="py-2.5 px-3 font-mono">
+                            v{formatarVersao(c.versao_ciente)}
+                          </td>
+                          <td className="py-2.5 px-3">
+                            {isVersaoAtual ? (
+                              <Badge className="bg-emerald-100 text-[#2E7D32] border-emerald-300 text-[10px] px-1.5 py-0">
+                                Vigente
+                              </Badge>
+                            ) : (
+                              <Badge
+                                variant="outline"
+                                className="bg-amber-50 text-amber-700 border-amber-300 text-[10px] px-1.5 py-0"
+                              >
+                                Obsoleta
+                              </Badge>
+                            )}
+                          </td>
+                          <td className="py-2.5 px-3 text-[#757575]">
+                            {new Date(c.data_hora).toLocaleString('pt-BR')}
+                          </td>
+                          <td className="py-2.5 px-3 font-mono text-[#616161]">
+                            {c.ip_origem || '-'}
+                          </td>
+                        </tr>
+                      )
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </div>
+
+          <DialogFooter className="pt-2">
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              onClick={() => setDocParaVerCiencias(null)}
+              className="text-xs border-[#E0E0E0]"
+            >
+              Fechar
+            </Button>
+          </DialogFooter>
         </DialogContent>
       </Dialog>
 

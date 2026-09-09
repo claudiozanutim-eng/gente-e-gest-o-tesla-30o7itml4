@@ -16,6 +16,7 @@ import DashboardRH from '@/pages/DashboardRH'
 import AdminPage from '@/pages/AdminPage'
 import ColaboradoresPage from '@/pages/ColaboradoresPage'
 import GestaoDocumentosPage from '@/pages/GestaoDocumentosPage'
+import DocumentosImportantesPage from '@/pages/DocumentosImportantesPage'
 
 // Module placeholders
 import VagasPage from '@/pages/modules/VagasPage'
@@ -205,6 +206,14 @@ const App = () => (
             />
 
             {/* Portal do Colaborador - Atalhos */}
+            <Route
+              path="/documentos-importantes"
+              element={
+                <ProtectedRoute allowedProfiles={['colaborador', 'gestor', 'rh', 'admin']}>
+                  <DocumentosImportantesPage />
+                </ProtectedRoute>
+              }
+            />
             <Route
               path="/meus-documentos"
               element={
