@@ -210,6 +210,20 @@ export const logAuditoriaService = {
       return []
     }
   },
+
+  async getLogsRecentesTenant(tenantId: string, limit: number = 10): Promise<LogAuditoria[]> {
+    try {
+      const records = await pb.collection('log_auditoria').getList<LogAuditoria>(1, limit, {
+        filter: `tenant_id = "${tenantId}"`,
+        sort: '-created',
+        expand: 'user_id',
+      })
+      return records.items
+    } catch (err) {
+      console.warn('Erro ao carregar logs recentes do tenant:', err)
+      return []
+    }
+  },
 }
 
 export const comunicadoService = {
