@@ -316,3 +316,145 @@ export const ATESTADO_STATUS_MAP: Record<AtestadoStatus, AtestadoStatusConfig> =
     borderColor: 'border-[#D32F2F]/40',
   },
 }
+
+export type BeneficioTipo = 'vt' | 'vr' | 'va' | 'plano_saude' | 'seguro_vida' | 'plano_odonto'
+
+export interface Beneficio {
+  id: string
+  tenant_id: string
+  tipo: BeneficioTipo
+  descricao?: string
+  created?: string
+  updated?: string
+}
+
+export interface DetalhesBeneficio {
+  // Gerais / cartões / transporte
+  operadora?: string
+  plano?: string
+  carteirinha?: string
+  rede_credenciada?: string
+  acomodacao?: string
+  abrangencia?: string
+  carencia_restante?: string
+  contato_emergencia?: string
+  dependentes_inclusos?: string[]
+  // VT / VR / VA
+  tipo_transporte?: string
+  numero_cartao?: string
+  dias_uteis?: number
+  tarifa_diaria?: number
+  linha_habitual?: string
+  bandeira?: string
+  valor_diario?: number
+  cartao_final?: string
+  recarga_dia?: string
+  cobertura?: string
+  // Seguro de Vida
+  seguradora?: string
+  apolice?: string
+  valor_cobertura?: number
+  cobertura_morte?: string
+  cobertura_invalidez?: string
+  assistencia_funeral?: string
+  documento_beneficiario_url?: string
+  documento_beneficiario_nome?: string
+  [key: string]: unknown
+}
+
+export interface ColaboradorBeneficio {
+  id: string
+  tenant_id: string
+  colaborador_id: string
+  beneficio_id: string
+  valor?: number
+  detalhes_json?: DetalhesBeneficio
+  created?: string
+  updated?: string
+  expand?: {
+    colaborador_id?: Colaborador
+    beneficio_id?: Beneficio
+    tenant_id?: Tenant
+  }
+}
+
+export interface BeneficioTipoConfig {
+  tipo: BeneficioTipo
+  nome: string
+  emoji: string
+  categoria: string
+  cor: string // Hex spec
+  bgLight: string
+  badgeBg: string
+  badgeText: string
+  descricaoPadrao: string
+}
+
+export const BENEFICIOS_CONFIG: Record<BeneficioTipo, BeneficioTipoConfig> = {
+  vt: {
+    tipo: 'vt',
+    nome: 'Vale Transporte',
+    emoji: '🚌',
+    categoria: 'Mobilidade',
+    cor: '#0288D1',
+    bgLight: 'bg-[#E1F5FE]',
+    badgeBg: 'bg-[#E1F5FE]',
+    badgeText: 'text-[#0277BD]',
+    descricaoPadrao: 'Auxílio deslocamento diário residência / trabalho.',
+  },
+  vr: {
+    tipo: 'vr',
+    nome: 'Vale Refeição',
+    emoji: '🍽️',
+    categoria: 'Alimentação',
+    cor: '#E65100',
+    bgLight: 'bg-[#FFF3E0]',
+    badgeBg: 'bg-[#FFF3E0]',
+    badgeText: 'text-[#E65100]',
+    descricaoPadrao: 'Crédito diário para almoço e refeições.',
+  },
+  va: {
+    tipo: 'va',
+    nome: 'Vale Alimentação',
+    emoji: '🛒',
+    categoria: 'Alimentação',
+    cor: '#2E7D32',
+    bgLight: 'bg-[#E8F5E9]',
+    badgeBg: 'bg-[#E8F5E9]',
+    badgeText: 'text-[#2E7D32]',
+    descricaoPadrao: 'Crédito mensal para supermercados e compras.',
+  },
+  plano_saude: {
+    tipo: 'plano_saude',
+    nome: 'Plano de Saúde',
+    emoji: '🏥',
+    categoria: 'Saúde & Bem-estar',
+    cor: '#D32F2F',
+    bgLight: 'bg-[#FFEBEE]',
+    badgeBg: 'bg-[#FFEBEE]',
+    badgeText: 'text-[#C62828]',
+    descricaoPadrao: 'Assistência médica hospitalar e ambulatorial corporativa.',
+  },
+  seguro_vida: {
+    tipo: 'seguro_vida',
+    nome: 'Seguro de Vida',
+    emoji: '🛡️',
+    categoria: 'Proteção Familiar',
+    cor: '#0D47A1',
+    bgLight: 'bg-[#E8EEF7]',
+    badgeBg: 'bg-[#E8EEF7]',
+    badgeText: 'text-[#0D47A1]',
+    descricaoPadrao: 'Apólice de seguro de vida em grupo e amparo familiar.',
+  },
+  plano_odonto: {
+    tipo: 'plano_odonto',
+    nome: 'Plano Odontológico',
+    emoji: '🦷',
+    categoria: 'Saúde Bucal',
+    cor: '#00897B',
+    bgLight: 'bg-[#E0F2F1]',
+    badgeBg: 'bg-[#E0F2F1]',
+    badgeText: 'text-[#00695C]',
+    descricaoPadrao: 'Consultas odontológicas, profilaxia e tratamentos gerais.',
+  },
+}

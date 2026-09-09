@@ -15,6 +15,7 @@ import {
   Layers,
   FolderOpen,
   FileText,
+  Gift,
 } from 'lucide-react'
 import { useAuth } from '@/context/AuthContext'
 import { UserPerfil, PROFILE_HOME_MAP } from '@/types'
@@ -72,6 +73,11 @@ export const Sidebar: React.FC<SidebarProps> = ({
           path: '/documentos-importantes',
           icon: ShieldCheck,
         },
+        {
+          title: 'Benefícios',
+          path: '/beneficios',
+          icon: Gift,
+        },
       ],
     },
     {
@@ -90,6 +96,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
           ? [
               { title: 'Colaboradores', path: '/colaboradores', icon: Users },
               { title: 'Documentos', path: '/documentos', icon: FolderOpen },
+              { title: 'Gestão Benefícios', path: '/beneficios/gestao', icon: Gift },
               { title: 'Validação Atestados', path: '/atestados/validacao', icon: ShieldCheck },
             ]
           : []),

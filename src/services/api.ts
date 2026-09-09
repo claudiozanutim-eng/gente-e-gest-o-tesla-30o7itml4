@@ -13,6 +13,10 @@ import {
   CienciaDocumento,
   Atestado,
   AtestadoStatus,
+  Beneficio,
+  BeneficioTipo,
+  ColaboradorBeneficio,
+  DetalhesBeneficio,
 } from '@/types'
 
 export const tenantService = {
@@ -496,5 +500,116 @@ export const atestadoService = {
       return pb.files.getURL(record, record.anexo)
     }
     return record.anexo_url || ''
+  },
+}
+
+export const beneficioService = {
+  /**
+   * Retorna os tipos de benefícios cadastrados para o tenant.
+   */
+  async getBeneficiosTenant(tenantId: string): Promise<Beneficio[]> {
+    const records = await pb.collection('beneficio').getFullList<Beneficio>({
+      filter: `tenant_id = "${tenantId}"`,
+      sort: 'tipo',
+    })
+    return records
+  },
+
+  /**
+   * Cria ou atualiza um tipo de benefício para o tenant.
+   */
+  async createBeneficio(data: {
+    tenant_id: string
+    tipo: BeneficioTipo
+    descricao?: string
+  }): Promise<Beneficio> {
+    const record = await pb.collection('beneficio').create<Beneficio>(data)
+    return record
+  },
+
+  async updateBeneficio(
+    beneficioId: string,
+    data: {
+      descricao?: string
+    },
+  ): Promise<Beneficio> {
+    const record = await pb.collection('beneficio').update<Beneficio>(beneficioId, data)
+    return record
+  },
+
+  async deleteBeneficio(beneficioId: string): Promise<boolean> {
+    await pb.collection('beneficio').delete(beneficioId)
+    return true
+  },
+
+  /**
+   * Retorna os benefícios ativos vinculados a um colaborador específico.
+   */
+  async getBeneficiosColaborador(
+    tenantId: string,
+    colaboradorId: string,
+  ): Promise<ColaboradorBeneficio[]> {
+    const records = await pb.collection('colaborador_beneficio').getFullList<ColaboradorBeneficio>({
+      filter: `tenant_id = "${tenantId}" && colaborador_id = "${colaboradorId}"`,
+      sort: '-created',
+      expand: 'beneficio_id,colaborador_id',
+    })
+    return records
+  },
+
+  /**
+   * Retorna todos os vínculos de benefícios do tenant (para RH e Admin).
+   */
+  async getTodosVinculosTenant(tenantId: string): Promise<ColaboradorBeneficio[]> {
+    const records = await pb.collection('colaborador_beneficio').getFullList<ColaboradorBeneficio>({
+      filter: `tenant_id = "${tenantId}"`,
+      sort: '-created',
+      expand: 'beneficio_id,colaborador_id',
+    })
+    return records
+  },
+
+  /**
+   * Cria vínculo de benefício para um colaborador.
+   */
+  async vincularBeneficio(data: {
+    tenant_id: string
+    colaborador_id: string
+    beneficio_id: string
+    valor?: number
+    detalhes_json?: DetalhesBeneficio
+  }): Promise<ColaboradorBeneficio> {
+    const record = await pb.collection('colaborador_beneficio').create<ColaboradorBeneficio>(data, {
+      expand: 'beneficio_id,colaborador_id',
+    })
+    return record
+  },
+
+  /**
+   * Atualiza vínculo existente (valor e/ou detalhes_json).
+   */
+  async updateVinculo(
+    id: string,
+    data: {
+      valor?: number
+      detalhes_json?: DetalhesBeneficio
+      beneficio_id?: string
+      colaborador_id?: string
+    },
+  ): Promise<ColaboradorBeneficio> {
+    const record = await pb
+      .collection('colaborador_beneficio')
+      .update<ColaboradorBeneficio>(id, data, {
+        expand: 'beneficio_id,colaborador_id',
+      })
+    return record
+  },
+
+  /**
+   * Remove vínculo de benefício.
+   */
+  async removerVinculo(id: string): Promise<boolean> {
+    await pb.collection('colaborador_beneficio').delete(id)
+    return true
   },
 }

@@ -28,6 +28,7 @@ import DocumentosPage from '@/pages/modules/DocumentosPage'
 import MeuPerfilPage from '@/pages/modules/MeuPerfilPage'
 import FeriasPage from '@/pages/modules/FeriasPage'
 import BeneficiosPage from '@/pages/modules/BeneficiosPage'
+import GestaoBeneficiosPage from '@/pages/modules/GestaoBeneficiosPage'
 import AtestadosPage from '@/pages/modules/AtestadosPage'
 import ValidacaoAtestadosPage from '@/pages/modules/ValidacaoAtestadosPage'
 import NotFound from '@/pages/NotFound'
@@ -244,6 +245,15 @@ const App = () => (
               element={
                 <ProtectedRoute allowedProfiles={['colaborador', 'gestor', 'rh', 'admin']}>
                   <BeneficiosPage />
+                </ProtectedRoute>
+              }
+            />
+            {/* Gestão de Benefícios exclusiva para RH e Admin */}
+            <Route
+              path="/beneficios/gestao"
+              element={
+                <ProtectedRoute allowedProfiles={['rh', 'admin']}>
+                  <GestaoBeneficiosPage />
                 </ProtectedRoute>
               }
             />
