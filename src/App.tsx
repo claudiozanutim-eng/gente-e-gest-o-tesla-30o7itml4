@@ -32,6 +32,7 @@ import BeneficiosPage from '@/pages/modules/BeneficiosPage'
 import GestaoBeneficiosPage from '@/pages/modules/GestaoBeneficiosPage'
 import AtestadosPage from '@/pages/modules/AtestadosPage'
 import ValidacaoAtestadosPage from '@/pages/modules/ValidacaoAtestadosPage'
+import RelatoriosPage from '@/pages/RelatoriosPage'
 import NotFound from '@/pages/NotFound'
 
 // Root redirect handler based on user profile or login
@@ -283,6 +284,16 @@ const App = () => (
               element={
                 <ProtectedRoute allowedProfiles={['rh', 'admin']}>
                   <ValidacaoAtestadosPage />
+                </ProtectedRoute>
+              }
+            />
+
+            {/* Relatórios e Exportações (RH & Admin) */}
+            <Route
+              path="/relatorios"
+              element={
+                <ProtectedRoute allowedProfiles={['rh', 'admin']}>
+                  <RelatoriosPage />
                 </ProtectedRoute>
               }
             />
