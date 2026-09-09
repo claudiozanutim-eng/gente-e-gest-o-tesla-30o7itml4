@@ -205,3 +205,30 @@ export const PROFILE_BADGE_COLORS: Record<
   rh: { bg: 'bg-[#E0F2F1]', text: 'text-[#00695C]', border: 'border-[#00695C]/30' },
   admin: { bg: 'bg-[#FFEBEE]', text: 'text-[#C62828]', border: 'border-[#C62828]/30' },
 }
+
+export interface CategoriaDocumento {
+  id: string
+  tenant_id: string
+  nome: string
+  created?: string
+  updated?: string
+}
+
+export interface Documento {
+  id: string
+  tenant_id: string
+  categoria_id: string
+  colaborador_id?: string
+  nome: string
+  versao?: string
+  arquivo?: string
+  arquivo_url?: string
+  data_publicacao?: string
+  obrigatorio: boolean
+  created?: string
+  updated?: string
+  expand?: {
+    categoria_id?: CategoriaDocumento
+    colaborador_id?: Colaborador
+  }
+}

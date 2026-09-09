@@ -8,6 +8,8 @@ import {
   ContatoEmergencia,
   SolicitacaoAlteracao,
   LogAuditoria,
+  CategoriaDocumento,
+  Documento,
 } from '@/types'
 
 export const tenantService = {
@@ -264,5 +266,61 @@ export const comunicadoService = {
 
       return false
     })
+  },
+}
+
+export const documentoService = {
+  async getCategorias(tenantId: string): Promise<CategoriaDocumento[]> {
+    const records = await pb.collection('categoria_documento').getFullList<CategoriaDocumento>({
+      filter: `tenant_id = "${tenantId}"`,
+      sort: 'nome',
+    })
+    return records
+  },
+
+  async getDocumentos(tenantId: string, filterCustom?: string): Promise<Documento[]> {
+    const filter = filterCustom
+      ? `tenant_id = "${tenantId}" && (${filterCustom})`
+      : `tenant_id = "${tenantId}"`
+    const records = await pb.collection('documento').getFullList<Documento>({
+      filter,
+      sort: '-created',
+      expand: 'categoria_id,colaborador_id',
+    })
+    return records
+  },
+
+  async getDocumentosColaborador(tenantId: string, colaboradorId?: string): Promise<Documento[]> {
+    // Retorna documentos gerais/corporativos (sem colaborador_id) ou pessoais do próprio colaborador
+    const filter = colaboradorId
+      ? `tenant_id = "${tenantId}" && (colaborador_id = "" || colaborador_id = "${colaboradorId}")`
+      : `tenant_id = "${tenantId}" && colaborador_id = ""`
+
+    const records = await pb.collection('documento').getFullList<Documento>({
+      filter,
+      sort: '-data_publicacao,-created',
+      expand: 'categoria_id,colaborador_id',
+    })
+    return records
+  },
+
+  async createDocumento(formData: FormData): Promise<Documento> {
+    const record = await pb.collection('documento').create<Documento>(formData, {
+      expand: 'categoria_id,colaborador_id',
+    })
+    return record
+  },
+
+  async deleteDocumento(documentoId: string): Promise<boolean> {
+    await pb.collection('documento').delete(documentoId)
+    return true
+  },
+
+  getFileUrl(record: Documento, filename?: string): string {
+    const file = filename || record.arquivo
+    if (!file) {
+      return record.arquivo_url || ''
+    }
+    return pb.files.getURL(record, file)
   },
 }

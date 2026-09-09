@@ -13,6 +13,7 @@ import {
   ChevronRight,
   LayoutDashboard,
   Layers,
+  FolderOpen,
 } from 'lucide-react'
 import { useAuth } from '@/context/AuthContext'
 import { UserPerfil, PROFILE_HOME_MAP } from '@/types'
@@ -80,7 +81,10 @@ export const Sidebar: React.FC<SidebarProps> = ({
       allowedProfiles: ['gestor', 'rh', 'admin'],
       items: [
         ...(perfil === 'rh' || perfil === 'admin'
-          ? [{ title: 'Colaboradores', path: '/colaboradores', icon: Users }]
+          ? [
+              { title: 'Colaboradores', path: '/colaboradores', icon: Users },
+              { title: 'Documentos', path: '/documentos', icon: FolderOpen },
+            ]
           : []),
         { title: 'Estrutura', path: '/estrutura', icon: Network },
       ],

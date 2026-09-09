@@ -15,6 +15,7 @@ import DashboardEquipe from '@/pages/DashboardEquipe'
 import DashboardRH from '@/pages/DashboardRH'
 import AdminPage from '@/pages/AdminPage'
 import ColaboradoresPage from '@/pages/ColaboradoresPage'
+import GestaoDocumentosPage from '@/pages/GestaoDocumentosPage'
 
 // Module placeholders
 import VagasPage from '@/pages/modules/VagasPage'
@@ -159,12 +160,20 @@ const App = () => (
               }
             />
 
-            {/* Gestão de Pessoas (Base de Colaboradores restrita a RH e Admin) */}
+            {/* Gestão de Pessoas (Base de Colaboradores e Documentos restrita a RH e Admin) */}
             <Route
               path="/colaboradores"
               element={
                 <ProtectedRoute allowedProfiles={['rh', 'admin']}>
                   <ColaboradoresPage />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/documentos"
+              element={
+                <ProtectedRoute allowedProfiles={['rh', 'admin']}>
+                  <GestaoDocumentosPage />
                 </ProtectedRoute>
               }
             />
