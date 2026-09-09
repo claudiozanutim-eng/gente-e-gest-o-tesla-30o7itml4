@@ -11,6 +11,8 @@ import {
   CategoriaDocumento,
   Documento,
   CienciaDocumento,
+  Atestado,
+  AtestadoStatus,
 } from '@/types'
 
 export const tenantService = {
@@ -420,5 +422,79 @@ export const cienciaDocumentoService = {
 
     const record = await pb.collection('ciencia_documento').create<CienciaDocumento>(payload)
     return record
+  },
+}
+
+export const atestadoService = {
+  /**
+   * Retorna os atestados do colaborador logado (ou específico).
+   * RLS no PocketBase já garante que colaborador só vê os próprios do seu tenant.
+   */
+  async getAtestadosColaborador(tenantId: string, colaboradorId: string): Promise<Atestado[]> {
+    const records = await pb.collection('atestado').getFullList<Atestado>({
+      filter: `tenant_id = "${tenantId}" && colaborador_id = "${colaboradorId}"`,
+      sort: '-data_envio,-created',
+      expand: 'colaborador_id',
+    })
+    return records
+  },
+
+  /**
+   * Retorna todos os atestados do tenant (para RH e Admin).
+   */
+  async getAtestadosTenant(tenantId: string, filtroStatus?: AtestadoStatus[]): Promise<Atestado[]> {
+    let filter = `tenant_id = "${tenantId}"`
+    if (filtroStatus && filtroStatus.length > 0) {
+      const statusConditions = filtroStatus.map((s) => `status = "${s}"`).join(' || ')
+      filter += ` && (${statusConditions})`
+    }
+
+    const records = await pb.collection('atestado').getFullList<Atestado>({
+      filter,
+      sort: '-data_envio,-created',
+      expand: 'colaborador_id',
+    })
+    return records
+  },
+
+  /**
+   * Envia novo atestado (FormData suportando upload de arquivo).
+   */
+  async enviarAtestado(formData: FormData): Promise<Atestado> {
+    const record = await pb.collection('atestado').create<Atestado>(formData, {
+      expand: 'colaborador_id',
+    })
+    return record
+  },
+
+  /**
+   * Atualiza status e comentário do RH (com registro de data_resposta).
+   */
+  async atualizarStatus(
+    atestadoId: string,
+    data: {
+      status: AtestadoStatus
+      comentario_rh?: string
+      data_resposta?: string
+    },
+  ): Promise<Atestado> {
+    const payload = {
+      ...data,
+      data_resposta: data.data_resposta || new Date().toISOString(),
+    }
+    const record = await pb.collection('atestado').update<Atestado>(atestadoId, payload, {
+      expand: 'colaborador_id',
+    })
+    return record
+  },
+
+  /**
+   * Obtém a URL do arquivo/anexo (seja arquivo físico no PocketBase ou anexo_url).
+   */
+  getFileUrl(record: Atestado): string {
+    if (record.anexo) {
+      return pb.files.getURL(record, record.anexo)
+    }
+    return record.anexo_url || ''
   },
 }

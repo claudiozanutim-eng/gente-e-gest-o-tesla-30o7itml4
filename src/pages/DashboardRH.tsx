@@ -24,8 +24,13 @@ import {
 import { useAuth } from '@/context/AuthContext'
 import { Link } from 'react-router-dom'
 import { FileWarning, ShieldAlert, ArrowRight, FileCheck2 } from 'lucide-react'
-import { colaboradorService, documentoService, cienciaDocumentoService } from '@/services/api'
-import { Colaborador, Documento, CienciaDocumento } from '@/types'
+import {
+  colaboradorService,
+  documentoService,
+  cienciaDocumentoService,
+  atestadoService,
+} from '@/services/api'
+import { Colaborador, Documento, CienciaDocumento, Atestado } from '@/types'
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { Skeleton } from '@/components/ui/skeleton'
@@ -35,6 +40,7 @@ export default function DashboardRH() {
   const [colaboradores, setColaboradores] = useState<Colaborador[]>([])
   const [documentosObrigatorios, setDocumentosObrigatorios] = useState<Documento[]>([])
   const [cienciasTenant, setCienciasTenant] = useState<CienciaDocumento[]>([])
+  const [atestadosTenant, setAtestadosTenant] = useState<Atestado[]>([])
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
@@ -42,14 +48,16 @@ export default function DashboardRH() {
       if (!user?.tenant_id) return
       try {
         setLoading(true)
-        const [colabs, docs, ciencias] = await Promise.all([
+        const [colabs, docs, ciencias, atestados] = await Promise.all([
           colaboradorService.getColaboradores(user.tenant_id),
           documentoService.getDocumentos(user.tenant_id),
           cienciaDocumentoService.getCienciasTenant(user.tenant_id),
+          atestadoService.getAtestadosTenant(user.tenant_id),
         ])
         setColaboradores(colabs)
         setDocumentosObrigatorios(docs.filter((d) => d.obrigatorio && !d.colaborador_id))
         setCienciasTenant(ciencias)
+        setAtestadosTenant(atestados)
       } catch (err) {
         console.error(err)
       } finally {
@@ -67,6 +75,11 @@ export default function DashboardRH() {
     new Set(colaboradores.map((c) => c.departamento).filter(Boolean)),
   )
   const totalDeptos = uniqueDepartments.length
+
+  // KPI de Atestados: contagem de status 'recebido' + 'em_analise'
+  const atestadosAguardandoAprovacao = atestadosTenant.filter(
+    (a) => a.status === 'recebido' || a.status === 'em_analise',
+  ).length
 
   // Chart 1: Distribution by Department
   const deptDataMap: Record<string, number> = {}
@@ -242,6 +255,54 @@ export default function DashboardRH() {
             ))}
           </div>
         )}
+      </div>
+
+      {/* Bloco de Destaque KPI: Atestados Aguardando Aprovação */}
+      <div className="bg-gradient-to-r from-blue-50 via-white to-amber-50/50 rounded-xl border border-blue-200/70 p-4 sm:p-5 shadow-xs">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+          <div className="flex items-center gap-3.5">
+            <div className="h-12 w-12 rounded-xl bg-[#0D47A1] text-white flex items-center justify-center shadow-xs shrink-0">
+              <FileCheck2 className="h-6 w-6" />
+            </div>
+            <div>
+              <div className="flex items-center gap-2">
+                <span className="text-xs font-bold uppercase tracking-wider text-[#0D47A1]">
+                  Atestados Médicos
+                </span>
+                <Badge
+                  variant="outline"
+                  className="bg-amber-100 text-amber-900 border-amber-300 text-[10px] font-bold"
+                >
+                  Triagem & Análise
+                </Badge>
+              </div>
+              <h3 className="text-xl sm:text-2xl font-extrabold text-[#212121] mt-0.5">
+                {loading ? (
+                  <Skeleton className="h-7 w-20 bg-slate-200" />
+                ) : (
+                  <span>
+                    {atestadosAguardandoAprovacao}{' '}
+                    {atestadosAguardandoAprovacao === 1
+                      ? 'atestado aguardando aprovação'
+                      : 'atestados aguardando aprovação'}
+                  </span>
+                )}
+              </h3>
+              <p className="text-xs text-[#757575] mt-0.5">
+                Atestados médicos recebidos ou em análise pelo departamento que demandam validação
+                do RH.
+              </p>
+            </div>
+          </div>
+
+          <Link
+            to="/atestados/validacao"
+            className="inline-flex items-center justify-center gap-2 bg-[#0D47A1] hover:bg-[#0A3A82] text-white text-xs font-bold h-9 px-4 rounded-lg shadow-xs transition-colors shrink-0"
+          >
+            <span>Validar Atestados</span>
+            <ArrowRight className="h-3.5 w-3.5" />
+          </Link>
+        </div>
       </div>
 
       {/* KPI Cards */}

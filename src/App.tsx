@@ -29,6 +29,7 @@ import MeuPerfilPage from '@/pages/modules/MeuPerfilPage'
 import FeriasPage from '@/pages/modules/FeriasPage'
 import BeneficiosPage from '@/pages/modules/BeneficiosPage'
 import AtestadosPage from '@/pages/modules/AtestadosPage'
+import ValidacaoAtestadosPage from '@/pages/modules/ValidacaoAtestadosPage'
 import NotFound from '@/pages/NotFound'
 
 // Root redirect handler based on user profile or login
@@ -251,6 +252,15 @@ const App = () => (
               element={
                 <ProtectedRoute allowedProfiles={['colaborador', 'gestor', 'rh', 'admin']}>
                   <AtestadosPage />
+                </ProtectedRoute>
+              }
+            />
+            {/* Validação de Atestados para RH e Admin */}
+            <Route
+              path="/atestados/validacao"
+              element={
+                <ProtectedRoute allowedProfiles={['rh', 'admin']}>
+                  <ValidacaoAtestadosPage />
                 </ProtectedRoute>
               }
             />

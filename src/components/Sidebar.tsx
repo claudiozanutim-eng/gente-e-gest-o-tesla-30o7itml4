@@ -14,6 +14,7 @@ import {
   LayoutDashboard,
   Layers,
   FolderOpen,
+  FileText,
 } from 'lucide-react'
 import { useAuth } from '@/context/AuthContext'
 import { UserPerfil, PROFILE_HOME_MAP } from '@/types'
@@ -89,8 +90,10 @@ export const Sidebar: React.FC<SidebarProps> = ({
           ? [
               { title: 'Colaboradores', path: '/colaboradores', icon: Users },
               { title: 'Documentos', path: '/documentos', icon: FolderOpen },
+              { title: 'Validação Atestados', path: '/atestados/validacao', icon: ShieldCheck },
             ]
           : []),
+        { title: 'Atestados / Licenças', path: '/atestados', icon: FileText },
         { title: 'Estrutura', path: '/estrutura', icon: Network },
       ],
     },

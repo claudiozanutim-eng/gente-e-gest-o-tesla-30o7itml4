@@ -248,3 +248,71 @@ export interface CienciaDocumento {
     colaborador_id?: Colaborador
   }
 }
+
+export type AtestadoStatus = 'recebido' | 'em_analise' | 'validado' | 'necessita_correcao'
+
+export interface Atestado {
+  id: string
+  collectionId: string
+  collectionName: string
+  tenant_id: string
+  colaborador_id: string
+  data_inicio: string
+  qtd_dias: number
+  anexo?: string
+  anexo_url?: string
+  status: AtestadoStatus
+  comentario_rh?: string
+  data_envio?: string
+  data_resposta?: string
+  created: string
+  updated: string
+  expand?: {
+    colaborador_id?: Colaborador
+    tenant_id?: Tenant
+  }
+}
+
+export interface AtestadoStatusConfig {
+  label: string
+  color: string // Hex spec
+  description: string
+  bgLight: string
+  textColor: string
+  borderColor: string
+}
+
+export const ATESTADO_STATUS_MAP: Record<AtestadoStatus, AtestadoStatusConfig> = {
+  recebido: {
+    label: 'Recebido',
+    color: '#FBC02D',
+    description: 'Aguardando triagem',
+    bgLight: 'bg-[#FFFDE7]',
+    textColor: 'text-[#9A7B00]',
+    borderColor: 'border-[#FBC02D]/40',
+  },
+  em_analise: {
+    label: 'Em análise',
+    color: '#1976D2',
+    description: 'RH está revisando',
+    bgLight: 'bg-[#E3F2FD]',
+    textColor: 'text-[#1565C0]',
+    borderColor: 'border-[#1976D2]/40',
+  },
+  validado: {
+    label: 'Validado',
+    color: '#388E3C',
+    description: 'Aprovado',
+    bgLight: 'bg-[#E8F5E9]',
+    textColor: 'text-[#2E7D32]',
+    borderColor: 'border-[#388E3C]/40',
+  },
+  necessita_correcao: {
+    label: 'Necessita correção',
+    color: '#D32F2F',
+    description: 'Requer reenvio',
+    bgLight: 'bg-[#FFEBEE]',
+    textColor: 'text-[#C62828]',
+    borderColor: 'border-[#D32F2F]/40',
+  },
+}
