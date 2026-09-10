@@ -1,6 +1,6 @@
 import pb from '@/lib/pocketbase/client'
 import { BancoHorasFechamento } from '@/types'
-import { pontoService } from '@/services/pontoService'
+import { pontoService, escalaService } from '@/services/pontoService'
 import { logAuditoriaService, atestadoService, colaboradorService } from '@/services/api'
 import { feriasService } from '@/services/feriasService'
 
@@ -102,10 +102,10 @@ export const bancoHorasService = {
     const [registros, vinculoEscala, atestados, colaborador, solicitacoesFerias] =
       await Promise.all([
         pontoService.getRegistrosMes(tenantId, colaboradorId, ano, mesZeroIndex),
-        pontoService.getEscalaAtivaColaborador(tenantId, colaboradorId),
-        atestadoService.getAtestadosColaborador(colaboradorId).catch(() => []),
+        escalaService.getEscalaAtivaColaborador(tenantId, colaboradorId),
+        atestadoService.getAtestadosColaborador(tenantId, colaboradorId).catch(() => []),
         colaboradorService.getColaboradorById(colaboradorId).catch(() => undefined),
-        feriasService.getSolicitacoes(tenantId).catch(() => []),
+        feriasService.listarSolicitacoes({ tenantId }).catch(() => []),
       ])
 
     const feriasColaborador = solicitacoesFerias.filter(
@@ -203,7 +203,7 @@ export const bancoHorasService = {
     const apuracao = await this.calcularSaldoMes(tenantId, colaboradorId, ano, mes)
     const dataFechamento = new Date().toISOString()
 
-    // 3. Salvar registro
+    // 3. Salvar registro no banco
     const registro = await pb.collection('banco_horas_fechamento').create<BancoHorasFechamento>({
       tenant_id: tenantId,
       colaborador_id: colaboradorId,

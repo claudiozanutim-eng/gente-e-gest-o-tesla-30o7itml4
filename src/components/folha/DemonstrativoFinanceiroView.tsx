@@ -160,7 +160,9 @@ export const DemonstrativoFinanceiroView: React.FC<DemonstrativoFinanceiroViewPr
       const [listaPeriodicos, listaPontuais, colabDados] = await Promise.all([
         folhaService.getPeriodicosColaborador(tenantId, colaboradorId),
         folhaService.getPontuaisColaborador(tenantId, colaboradorId),
-        colaborador ? Promise.resolve(colaborador) : colaboradorService.getColaboradorById(colaboradorId),
+        colaborador
+          ? Promise.resolve(colaborador)
+          : colaboradorService.getColaboradorById(colaboradorId),
       ])
       setPeriodicos(listaPeriodicos)
       setPontuais(listaPontuais)
