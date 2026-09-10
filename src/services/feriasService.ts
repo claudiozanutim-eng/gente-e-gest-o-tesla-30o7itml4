@@ -196,7 +196,8 @@ export const feriasService = {
           diasAteLimite: diasParaVencer,
           mesesParaVencer,
           status,
-        })      }
+        })
+      }
     }
 
     colaboradoresProximos.sort((a, b) => a.diasParaVencer - b.diasParaVencer)

@@ -56,7 +56,7 @@ import { Skeleton } from '@/components/ui/skeleton'
 interface LinhaGestaoPonto {
   colaborador: Colaborador
   escala?: EscalaTrabalho
-  status: 'presente' | 'ausente' | 'nao_registrado' | 'atestado' | 'folga'
+  status: 'presente' | 'ausente' | 'nao_registrado' | 'atestado' | 'folga' | 'ferias'
   registrosHoje: RegistroPonto[]
   primeiraEntrada?: string
   ultimaSaida?: string
@@ -518,6 +518,9 @@ export default function GestaoPontoPage() {
                   <SelectItem value="atestado" className="text-xs">
                     Atestado
                   </SelectItem>
+                  <SelectItem value="ferias" className="text-xs">
+                    Férias
+                  </SelectItem>
                   <SelectItem value="folga" className="text-xs">
                     Folga
                   </SelectItem>
@@ -825,7 +828,7 @@ export default function GestaoPontoPage() {
                                 className="bg-purple-50 text-purple-800 border-purple-300 text-[10px] font-bold"
                               >
                                 <Sparkles className="h-3 w-3 mr-1" />
-                                Férias Aprovadas
+                                Férias
                               </Badge>
                             </td>
                           ) : isFolga ? (

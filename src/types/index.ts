@@ -722,6 +722,8 @@ export type SolicitacaoFeriasStatus = 'pendente' | 'aprovada' | 'rejeitada' | 'c
 
 export interface SolicitacaoFerias {
   id: string
+  collectionId?: string
+  collectionName?: string
   tenant_id: string
   colaborador_id: string
   data_inicio: string // ISO date (YYYY-MM-DD)

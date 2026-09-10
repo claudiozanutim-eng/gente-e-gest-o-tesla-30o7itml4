@@ -94,36 +94,35 @@ export default function FeriasPage() {
   }, [carregarSolicitacoes])
 
   // Realtime subscription para atualizações automáticas
-  useRealtime<SolicitacaoFerias>('solicitacao_ferias', (e) => {
+  useRealtime('solicitacao_ferias', (e) => {
     if (!colaboradorId) return
+    const rec = e.record as unknown as SolicitacaoFerias
 
-    if (e.record.colaborador_id === colaboradorId) {
+    if (rec.colaborador_id === colaboradorId) {
       if (e.action === 'create') {
         setSolicitacoes((prev) => {
-          if (prev.some((s) => s.id === e.record.id)) return prev
-          return [e.record, ...prev]
+          if (prev.some((s) => s.id === rec.id)) return prev
+          return [rec, ...prev]
         })
       } else if (e.action === 'update') {
-        setSolicitacoes((prev) =>
-          prev.map((s) => (s.id === e.record.id ? { ...s, ...e.record } : s)),
-        )
-        if (e.record.status === 'aprovada') {
+        setSolicitacoes((prev) => prev.map((s) => (s.id === rec.id ? { ...s, ...rec } : s)))
+        if (rec.status === 'aprovada') {
           toast({
             title: 'Férias aprovadas!',
             description: `Sua solicitação de férias para o período foi aprovada pelo gestor.`,
             className: 'border-l-4 border-l-[#388E3C]',
           })
-        } else if (e.record.status === 'rejeitada') {
+        } else if (rec.status === 'rejeitada') {
           toast({
             title: 'Solicitação de férias recusada',
-            description: e.record.comentario_gestor
-              ? `Motivo: ${e.record.comentario_gestor}`
+            description: rec.comentario_gestor
+              ? `Motivo: ${rec.comentario_gestor}`
               : 'Sua solicitação de férias foi recusada pelo gestor.',
             variant: 'destructive',
           })
         }
       } else if (e.action === 'delete') {
-        setSolicitacoes((prev) => prev.filter((s) => s.id !== e.record.id))
+        setSolicitacoes((prev) => prev.filter((s) => s.id !== rec.id))
       }
     }
   })

@@ -110,19 +110,18 @@ export default function AprovacoesFeriasPage() {
   }, [carregarDados])
 
   // Realtime subscription
-  useRealtime<SolicitacaoFerias>('solicitacao_ferias', (e) => {
-    if (e.record.tenant_id === tenantId) {
+  useRealtime('solicitacao_ferias', (e) => {
+    const rec = e.record as unknown as SolicitacaoFerias
+    if (rec.tenant_id === tenantId) {
       if (e.action === 'create') {
         setSolicitacoes((prev) => {
-          if (prev.some((s) => s.id === e.record.id)) return prev
-          return [e.record, ...prev]
+          if (prev.some((s) => s.id === rec.id)) return prev
+          return [rec, ...prev]
         })
       } else if (e.action === 'update') {
-        setSolicitacoes((prev) =>
-          prev.map((s) => (s.id === e.record.id ? { ...s, ...e.record } : s)),
-        )
+        setSolicitacoes((prev) => prev.map((s) => (s.id === rec.id ? { ...s, ...rec } : s)))
       } else if (e.action === 'delete') {
-        setSolicitacoes((prev) => prev.filter((s) => s.id !== e.record.id))
+        setSolicitacoes((prev) => prev.filter((s) => s.id !== rec.id))
       }
     }
   })

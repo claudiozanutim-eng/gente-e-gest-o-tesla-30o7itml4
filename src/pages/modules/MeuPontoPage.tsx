@@ -180,6 +180,7 @@ export default function MeuPontoPage() {
     let totalMs = 0
     let diasTrabalhados = 0
     let diasAtestado = 0
+    let diasFerias = 0
     let saldoTotalMs = 0
 
     espelhoMes.forEach((dia) => {
@@ -189,6 +190,9 @@ export default function MeuPontoPage() {
       }
       if (dia.ausenciaTipo === 'atestado') {
         diasAtestado++
+      }
+      if (dia.ausenciaTipo === 'ferias') {
+        diasFerias++
       }
       if (!dia.isFuturo && dia.isDiaEscalado) {
         saldoTotalMs += dia.saldoMs
@@ -200,6 +204,7 @@ export default function MeuPontoPage() {
       totalFormatado: pontoService.formatarHorasMinutos(totalMs),
       diasTrabalhados,
       diasAtestado,
+      diasFerias,
       saldoTotalMs,
       saldoTotalFormatado:
         saldoTotalMs >= 0
@@ -536,9 +541,13 @@ export default function MeuPontoPage() {
               Ausências Justificadas
             </span>
             <div className="text-xl font-extrabold text-[#212121] mt-0.5">
-              {metricasMes.diasAtestado}
+              {metricasMes.diasAtestado + metricasMes.diasFerias}
             </div>
-            <p className="text-[10px] text-[#757575]">Atestados homologados</p>
+            <p className="text-[10px] text-[#757575]">
+              {metricasMes.diasFerias > 0
+                ? `${metricasMes.diasFerias}d férias, ${metricasMes.diasAtestado}d atestado`
+                : 'Atestados homologados'}
+            </p>
           </div>
 
           <div className="bg-white p-3 rounded-lg border border-[#E0E0E0]">
@@ -618,7 +627,7 @@ export default function MeuPontoPage() {
                             className="bg-purple-50 text-purple-800 border-purple-300 text-[10px] font-bold"
                           >
                             <Sparkles className="h-3 w-3 mr-1" />
-                            Férias Aprovadas
+                            Férias
                           </Badge>
                         </td>
                       ) : isFolga ? (

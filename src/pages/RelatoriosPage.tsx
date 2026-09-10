@@ -358,10 +358,9 @@ export default function RelatoriosPage() {
     const analise = feriasService.analisarFeriasProximas(
       colaboradores.filter((c) => c.status === 'ativo'),
       new Date(),
-      90,
     )
 
-    return analise.todosStatus
+    return analise.colaboradoresProximos
       .filter((s) => {
         const c = s.colaborador
         if (filtroDepto !== 'todos' && c.departamento !== filtroDepto) return false
