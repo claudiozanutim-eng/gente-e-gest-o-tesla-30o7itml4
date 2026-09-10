@@ -15,6 +15,7 @@ import {
 } from '@/components/ui/card'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import { PROFILE_HOME_MAP } from '@/types'
+import { TESLA_LOGO_URL } from '@/lib/logoAsset'
 
 export default function LoginPage() {
   const [email, setEmail] = useState('')
@@ -63,14 +64,18 @@ export default function LoginPage() {
         <div className="w-full max-w-md animate-fade-in">
           {/* Brand header */}
           <div className="mb-6 flex flex-col items-center text-center">
-            <div className="mb-3 flex h-12 w-12 items-center justify-center rounded-xl bg-[#0D47A1] text-white shadow-md shadow-[#0D47A1]/20">
-              <Layers className="h-6 w-6" />
+            <div className="mb-3 relative group">
+              <img
+                src={TESLA_LOGO_URL}
+                alt="Logotipo Tesla Mecatrônica"
+                className="h-20 w-20 rounded-full object-cover shadow-lg border-2 border-[#0D47A1]/20 bg-[#06152b] ring-4 ring-white"
+              />
             </div>
-            <h1 className="text-xl font-bold tracking-tight text-[#212121]">
+            <h1 className="text-2xl font-bold tracking-tight text-[#212121]">
               Gente e Gestão Tesla
             </h1>
-            <p className="text-xs font-semibold uppercase tracking-wider text-[#0D47A1]">
-              Plataforma SaaS de RH para PMEs
+            <p className="text-xs font-semibold uppercase tracking-wider text-[#0D47A1] mt-1">
+              Tesla Mecatrônica • Plataforma RH
             </p>
           </div>
 

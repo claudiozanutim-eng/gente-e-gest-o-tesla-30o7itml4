@@ -7,6 +7,7 @@ import { Button } from '@/components/ui/button'
 import { NotificacoesDropdown } from '@/components/NotificacoesDropdown'
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
 import { Badge } from '@/components/ui/badge'
+import { TESLA_LOGO_URL } from '@/lib/logoAsset'
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -83,7 +84,14 @@ export const Header: React.FC<HeaderProps> = ({ onToggleMobileMenu, collapsed })
         >
           <Menu className="h-5 w-5" />
         </Button>
-        <div>
+        <div className="flex items-center gap-2.5">
+          {collapsed && (
+            <img
+              src={TESLA_LOGO_URL}
+              alt="Logo Tesla"
+              className="hidden md:inline-block h-7 w-7 rounded-full object-cover border border-[#0D47A1]/20 shadow-xs"
+            />
+          )}
           <h1 className="text-lg md:text-xl font-bold text-[#212121] tracking-tight">
             {currentTitle}
           </h1>

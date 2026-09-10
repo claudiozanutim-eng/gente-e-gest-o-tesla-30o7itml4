@@ -30,6 +30,7 @@ import { useAuth } from '@/context/AuthContext'
 import { usePermission } from '@/hooks/usePermission'
 import { UserPerfil, PROFILE_HOME_MAP } from '@/types'
 import { Button } from '@/components/ui/button'
+import { TESLA_LOGO_URL } from '@/lib/logoAsset'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 
 interface SidebarProps {
@@ -237,18 +238,22 @@ export const Sidebar: React.FC<SidebarProps> = ({
     <div className="flex h-full flex-col justify-between bg-white border-r border-[#E0E0E0] select-none">
       {/* Brand & Logo Header */}
       <div>
-        <div className="flex h-16 items-center justify-between px-4 border-b border-[#E0E0E0]">
-          <div className="flex items-center gap-3 overflow-hidden">
-            <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-[#0D47A1] text-white font-bold shadow-sm">
-              <Layers className="h-5 w-5" />
+        <div className="flex h-16 items-center justify-between px-3 border-b border-[#E0E0E0]">
+          <div className="flex items-center gap-2.5 overflow-hidden">
+            <div className="relative shrink-0 flex items-center justify-center">
+              <img
+                src={TESLA_LOGO_URL}
+                alt="Logotipo Tesla Mecatrônica"
+                className="h-10 w-10 rounded-full object-cover shadow-sm border border-[#0D47A1]/20 bg-[#06152b]"
+              />
             </div>
             {!collapsed && (
               <div className="flex flex-col truncate">
-                <span className="text-[15px] font-bold tracking-tight text-[#212121] leading-tight">
-                  Gente & Gestão
+                <span className="text-[14px] font-bold tracking-tight text-[#212121] leading-tight truncate">
+                  Tesla Mecatrônica
                 </span>
-                <span className="text-[11px] font-semibold text-[#0D47A1] uppercase tracking-wider">
-                  Tesla RH
+                <span className="text-[10.5px] font-semibold text-[#0D47A1] uppercase tracking-wider">
+                  Gente e Gestão
                 </span>
               </div>
             )}
@@ -320,9 +325,16 @@ export const Sidebar: React.FC<SidebarProps> = ({
       {/* Footer info in sidebar */}
       {!collapsed && (
         <div className="p-4 border-t border-[#E0E0E0] bg-[#FAFAFA] text-center">
-          <p className="text-[11px] text-[#757575] leading-snug">Plataforma SaaS Multi-tenant</p>
+          <div className="flex items-center justify-center gap-1.5 mb-1">
+            <img
+              src={TESLA_LOGO_URL}
+              alt="Logo"
+              className="h-3.5 w-3.5 rounded-full object-cover opacity-80"
+            />
+            <p className="text-[11px] text-[#757575] leading-snug font-medium">Tesla Mecatrônica</p>
+          </div>
           <p className="text-[10px] font-medium text-[#0D47A1]" title="Versão do Sistema">
-            Tesla RH v0.0.22
+            Tesla RH v0.0.24
           </p>
         </div>
       )}

@@ -1,6 +1,7 @@
 import * as XLSX from 'xlsx'
 import { jsPDF } from 'jspdf'
 import autoTable from 'jspdf-autotable'
+import { getTeslaLogoBase64 } from './logoAsset'
 
 export interface ColumnDefinition<T = any> {
   header: string
@@ -239,12 +240,20 @@ export async function exportToPdf<T = any>(options: ExportReportOptions<T>): Pro
     return columns.map((col) => formatCellValue(col, item))
   })
 
+  // Carrega logotipo em base64 com antecedência
+  let logoBase64: string | null = null
+  try {
+    logoBase64 = await getTeslaLogoBase64()
+  } catch (e) {
+    console.warn('Não foi possível obter logo para o relatório PDF:', e)
+  }
+
   // Executa o autoTable com cabeçalho de página e rodapé configurados
   autoTable(doc, {
     head: tableHeaders,
     body: tableBody,
-    startY: 42,
-    margin: { top: 42, bottom: 20, left: 14, right: 14 },
+    startY: 44,
+    margin: { top: 44, bottom: 20, left: 14, right: 14 },
     theme: 'striped',
     styles: {
       font: 'helvetica',
@@ -267,44 +276,55 @@ export async function exportToPdf<T = any>(options: ExportReportOptions<T>): Pro
       // 1. Cabeçalho Corporativo no topo de cada página
       doc.saveGraphicsState?.()
 
-      // Barra superior decorativa
+      // Barra superior decorativa azul corporativo
       doc.setFillColor(13, 71, 161)
-      doc.rect(14, 10, pageWidth - 28, 1.5, 'F')
+      doc.rect(14, 8, pageWidth - 28, 1.5, 'F')
 
-      // Logotipo estilizado "Gente e Gestão Tesla"
+      // Logotipo oficial Tesla Mecatrônica
+      let headerTextX = 14
+      if (logoBase64) {
+        try {
+          doc.addImage(logoBase64, 'JPEG', 14, 11, 13, 13)
+          headerTextX = 30
+        } catch (e) {
+          headerTextX = 14
+        }
+      }
+
+      // Logotipo e Identidade "Tesla Mecatrônica • Gente e Gestão"
       doc.setFont('helvetica', 'bold')
-      doc.setFontSize(13)
+      doc.setFontSize(12)
       doc.setTextColor(13, 71, 161)
-      doc.text('GENTE E GESTÃO TESLA', 14, 18)
+      doc.text('TESLA MECATRÔNICA', headerTextX, 17)
 
       doc.setFont('helvetica', 'normal')
       doc.setFontSize(8)
       doc.setTextColor(117, 117, 117)
-      doc.text('Plataforma RH Multi-tenant', 14, 22)
+      doc.text('Gente e Gestão • Plataforma RH Multi-tenant', headerTextX, 22)
 
       // Data de geração à direita do topo
       doc.setFont('helvetica', 'normal')
       doc.setFontSize(8)
       doc.setTextColor(117, 117, 117)
-      doc.text(`Gerado em: ${dataHoraGeracao}`, pageWidth - 14, 18, { align: 'right' })
+      doc.text(`Gerado em: ${dataHoraGeracao}`, pageWidth - 14, 17, { align: 'right' })
 
       // Título do relatório
       doc.setFont('helvetica', 'bold')
-      doc.setFontSize(14)
+      doc.setFontSize(13)
       doc.setTextColor(33, 33, 33)
       doc.text(`Relatório: ${reportTitle}`, 14, 31)
 
       // Período e total de registros
       doc.setFont('helvetica', 'normal')
-      doc.setFontSize(9)
+      doc.setFontSize(8.5)
       doc.setTextColor(97, 97, 97)
       const subInfo = `${periodoStr}  •  Total de Registros: ${data.length}`
-      doc.text(subInfo, 14, 36)
+      doc.text(subInfo, 14, 37)
 
       // Linha separadora antes da tabela
       doc.setDrawColor(224, 224, 224)
       doc.setLineWidth(0.5)
-      doc.line(14, 39, pageWidth - 14, 39)
+      doc.line(14, 40, pageWidth - 14, 40)
 
       // 2. Rodapé com numeração de página
       const footerY = pageHeight - 10

@@ -3,6 +3,7 @@ import autoTable from 'jspdf-autotable'
 import { Colaborador, Tenant, HoleriteRegistro } from '@/types'
 import { formatDataPtBr, formatMoedaPtBr } from './exportReports'
 import pb from './pocketbase/client'
+import { getTeslaLogoBase64 } from './logoAsset'
 
 export interface ItemHolerite {
   descritivo: string
@@ -168,27 +169,40 @@ export async function gerarHoleritePDF(dados: DadosHoleritePDF): Promise<{
       timestampIso: dataEmissao.toISOString(),
     }))
 
-  // 1. Cabeçalho Corporativo (#0D47A1)
+  // 1. Cabeçalho Corporativo (#0D47A1) com Logotipo Oficial da Tesla Mecatrônica
   doc.setFillColor(13, 71, 161)
   doc.rect(margin, 12, pageWidth - margin * 2, 24, 'F')
 
+  // Inserção do logotipo oficial circular no cabeçalho do holerite
+  let textLeftOffset = margin + 6
+  try {
+    const logoBase64 = await getTeslaLogoBase64()
+    if (logoBase64) {
+      // Desenha o logo com 18x18 mm centralizado verticalmente na faixa de 24mm
+      doc.addImage(logoBase64, 'JPEG', margin + 4, 15, 18, 18)
+      textLeftOffset = margin + 25
+    }
+  } catch (err) {
+    console.warn('Não foi possível renderizar imagem do logotipo no holerite:', err)
+  }
+
   doc.setTextColor(255, 255, 255)
   doc.setFont('helvetica', 'bold')
-  doc.setFontSize(13)
-  doc.text('GENTE E GESTÃO TESLA', margin + 6, 20)
+  doc.setFontSize(12.5)
+  doc.text('TESLA MECATRÔNICA — GENTE E GESTÃO', textLeftOffset, 20)
 
   doc.setFont('helvetica', 'normal')
-  doc.setFontSize(8.5)
+  doc.setFontSize(8)
   const razaoSocial = dados.tenant?.razao_social || 'Tesla Tecnologia e Serviços S.A.'
   const cnpj = dados.tenant?.cnpj ? `CNPJ: ${dados.tenant.cnpj}` : 'CNPJ: 12.345.678/0001-90'
-  doc.text(`${razaoSocial}  |  ${cnpj}`, margin + 6, 26)
-  doc.text('Sistema Integrado de Gestão de Pessoas & Departamento Pessoal', margin + 6, 31)
+  doc.text(`${razaoSocial}  |  ${cnpj}`, textLeftOffset, 25.5)
+  doc.text('Sistema Integrado de Gestão de Pessoas & Departamento Pessoal', textLeftOffset, 30)
 
   // Caixa da Competência no lado direito do cabeçalho
   doc.setFont('helvetica', 'bold')
-  doc.setFontSize(11)
+  doc.setFontSize(10.5)
   doc.text('DEMONSTRATIVO DE PAGAMENTO', pageWidth - margin - 6, 20, { align: 'right' })
-  doc.setFontSize(10)
+  doc.setFontSize(9.5)
   doc.text(`COMPETÊNCIA: ${compStr}`, pageWidth - margin - 6, 27, { align: 'right' })
 
   // 2. Quadro Dados do Colaborador
