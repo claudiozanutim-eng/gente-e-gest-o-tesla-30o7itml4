@@ -925,3 +925,43 @@ export interface OnboardingEtapaDef {
   link: string
   botaoTexto: string
 }
+
+// ----------------------------------------------------
+// Metas de Cobertura por Departamento (v0.0.29)
+// ----------------------------------------------------
+export interface MetaCoberturaDepartamento {
+  id: string
+  collectionId?: string
+  collectionName?: string
+  tenant_id: string
+  departamento: string
+  meta_percentual: number // 0 a 100
+  atualizado_por?: string
+  created: string
+  updated: string
+  expand?: {
+    atualizado_por?: AppUser
+  }
+}
+
+// ----------------------------------------------------
+// Orçamento de Folha e Ciclos Futuros (v0.0.29)
+// ----------------------------------------------------
+export interface OrcamentoFolha {
+  id: string
+  collectionId?: string
+  collectionName?: string
+  tenant_id: string
+  ano: number
+  mes: number
+  competencia: string // YYYY-MM
+  valor_orcado_folha: number
+  valor_orcado_banco_horas?: number
+  observacao?: string
+  criado_por?: string
+  created: string
+  updated: string
+  expand?: {
+    criado_por?: AppUser
+  }
+}

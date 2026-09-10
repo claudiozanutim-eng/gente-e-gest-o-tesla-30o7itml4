@@ -17,6 +17,11 @@ import {
   ArrowDownRight,
   Sparkles,
   Info,
+  Sliders,
+  Check,
+  PlusCircle,
+  Edit2,
+  Target,
 } from 'lucide-react'
 import {
   BarChart,
@@ -39,9 +44,22 @@ import {
   LancamentoPontual,
   BancoHorasFechamento,
   CompensacaoBancoHoras,
+  OrcamentoFolha,
 } from '@/types'
 import pb from '@/lib/pocketbase/client'
 import { folhaService } from '@/services/folhaService'
+import { orcamentoFolhaService } from '@/services/orcamentoFolhaService'
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+  DialogFooter,
+} from '@/components/ui/dialog'
+import { Input } from '@/components/ui/input'
+import { Label } from '@/components/ui/label'
+import { Textarea } from '@/components/ui/textarea'
 import { bancoHorasService } from '@/services/bancoHorasService'
 import { compensacaoService } from '@/services/compensacaoService'
 import { feriasService, ColaboradorFeriasStatus } from '@/services/feriasService'
@@ -101,6 +119,22 @@ export const DashboardFinanceiroPage: React.FC = () => {
   const [fechamentosBanco, setFechamentosBanco] = useState<BancoHorasFechamento[]>([])
   const [compensacoes, setCompensacoes] = useState<CompensacaoBancoHoras[]>([])
   const [feriasProximas, setFeriasProximas] = useState<ColaboradorFeriasStatus[]>([])
+  const [orcamentos, setOrcamentos] = useState<OrcamentoFolha[]>([])
+
+  // Modal de Orçamento
+  const [modalOrcamentoAberto, setModalOrcamentoAberto] = useState<boolean>(false)
+  const [orcamentoEditandoAno, setOrcamentoEditandoAno] = useState<number>(agora.getFullYear())
+  const [orcamentoEditandoMes, setOrcamentoEditandoMes] = useState<number>(agora.getMonth() + 1)
+  const [formValorFolha, setFormValorFolha] = useState<string>('')
+  const [formValorBanco, setFormValorBanco] = useState<string>('')
+  const [formObs, setFormObs] = useState<string>('')
+  const [salvandoOrcamento, setSalvandoOrcamento] = useState<boolean>(false)
+
+  // Apenas admin_rh e admin têm permissão de orçamento
+  const podeGerenciarOrcamento = useMemo(() => {
+    const p = user?.perfil
+    return p === 'admin_rh' || p === 'admin'
+  }, [user?.perfil])
 
   // Carregar todos os dados necessários
   const carregarDadosFinanceiros = useCallback(async () => {
@@ -108,12 +142,13 @@ export const DashboardFinanceiroPage: React.FC = () => {
     setLoading(true)
 
     try {
-      const [colabs, pers, ponts, fBank, comps] = await Promise.all([
+      const [colabs, pers, ponts, fBank, comps, orcs] = await Promise.all([
         colaboradorService.getColaboradores(tenantId),
         folhaService.getPeriodicosTenant(tenantId),
         folhaService.getPontuaisTenant(tenantId),
         bancoHorasService.getAllFechamentosTenant(tenantId).catch(() => []),
         compensacaoService.getCompensacoesTenant(tenantId).catch(() => []),
+        orcamentoFolhaService.getOrcamentosTenant(tenantId).catch(() => []),
       ])
 
       setColaboradores(colabs)
@@ -121,6 +156,7 @@ export const DashboardFinanceiroPage: React.FC = () => {
       setPontuais(ponts)
       setFechamentosBanco(fBank)
       setCompensacoes(comps)
+      setOrcamentos(orcs)
 
       // Analisar férias próximas (saldo concessivo a vencer nos próximos 90 dias)
       try {
@@ -250,11 +286,218 @@ export const DashboardFinanceiroPage: React.FC = () => {
     }))
   }, [colaboradores, periodicos, pontuais, anoCompetencia, mesCompetencia])
 
+  // Mapa de orçamentos por competência ("YYYY-MM")
+  const mapaOrcamentos = useMemo(() => {
+    const map = new Map<string, OrcamentoFolha>()
+    orcamentos.forEach((o) => {
+      map.set(o.competencia, o)
+    })
+    return map
+  }, [orcamentos])
+
+  // Abrir modal de cadastro/edição de orçamento
+  const abrirModalOrcamento = (ano: number, mes: number) => {
+    const comp = `${ano}-${String(mes).padStart(2, '0')}`
+    const existente = mapaOrcamentos.get(comp)
+
+    setOrcamentoEditandoAno(ano)
+    setOrcamentoEditandoMes(mes)
+    setFormValorFolha(existente ? String(existente.valor_orcado_folha) : '')
+    setFormValorBanco(
+      existente && existente.valor_orcado_banco_horas !== undefined
+        ? String(existente.valor_orcado_banco_horas)
+        : '',
+    )
+    setFormObs(existente?.observacao || '')
+    setModalOrcamentoAberto(true)
+  }
+
+  // Salvar orçamento
+  const handleSalvarOrcamento = async (e: React.FormEvent) => {
+    e.preventDefault()
+    const valorFolhaNum = parseFloat(formValorFolha.replace(',', '.'))
+    if (isNaN(valorFolhaNum) || valorFolhaNum <= 0) {
+      toast({
+        title: 'Valor inválido',
+        description: 'O valor orçado da folha deve ser um número positivo maior que zero.',
+        variant: 'destructive',
+      })
+      return
+    }
+
+    let valorBancoNum = 0
+    if (formValorBanco.trim()) {
+      valorBancoNum = parseFloat(formValorBanco.replace(',', '.'))
+      if (isNaN(valorBancoNum) || valorBancoNum < 0) {
+        toast({
+          title: 'Valor de banco de horas inválido',
+          description: 'O valor orçado para banco de horas deve ser zero ou positivo.',
+          variant: 'destructive',
+        })
+        return
+      }
+    }
+
+    setSalvandoOrcamento(true)
+    try {
+      const rec = await orcamentoFolhaService.salvarOrcamento({
+        tenantId,
+        ano: orcamentoEditandoAno,
+        mes: orcamentoEditandoMes,
+        valorOrcadoFolha: valorFolhaNum,
+        valorOrcadoBancoHoras: valorBancoNum,
+        observacao: formObs,
+        userId: user?.id,
+      })
+
+      // Atualizar lista local
+      setOrcamentos((prev) => {
+        const filtrado = prev.filter((o) => o.competencia !== rec.competencia)
+        return [...filtrado, rec]
+      })
+
+      setModalOrcamentoAberto(false)
+      toast({
+        title: 'Orçamento gravado',
+        description: `Orçamento da competência ${String(orcamentoEditandoMes).padStart(
+          2,
+          '0',
+        )}/${orcamentoEditandoAno} salvo com sucesso.`,
+      })
+    } catch (err) {
+      console.error('Erro ao salvar orçamento de folha:', err)
+      toast({
+        title: 'Erro ao salvar orçamento',
+        description: 'Não foi possível registrar o orçamento. Verifique permissões.',
+        variant: 'destructive',
+      })
+    } finally {
+      setSalvandoOrcamento(false)
+    }
+  }
+
   // =========================================================================
-  // 4. GRÁFICO DE LINHA: EVOLUÇÃO DO VALOR LÍQUIDO DA FOLHA NOS ÚLTIMOS 6 MESES
+  // 4. CICLOS FUTUROS & ORÇADO VS. REALIZADO (Competência Atual + Próximos 3 Meses)
+  // =========================================================================
+  const ciclosOrcadoVsRealizado = useMemo(() => {
+    const colabPeriodicosMap = new Map<string, LancamentoPeriodico[]>()
+    for (const p of periodicos) {
+      const list = colabPeriodicosMap.get(p.colaborador_id) || []
+      list.push(p)
+      colabPeriodicosMap.set(p.colaborador_id, list)
+    }
+
+    const colabPontuaisMap = new Map<string, LancamentoPontual[]>()
+    for (const p of pontuais) {
+      const list = colabPontuaisMap.get(p.colaborador_id) || []
+      list.push(p)
+      colabPontuaisMap.set(p.colaborador_id, list)
+    }
+
+    const hojeData = new Date()
+    const anoAtualReal = hojeData.getFullYear()
+    const mesAtualReal = hojeData.getMonth() + 1 // 1..12
+
+    // Gerar 4 ciclos: competência selecionada (i=0) + próximos 3 meses (i=1,2,3)
+    const ciclos: {
+      ano: number
+      mes: number
+      competenciaKey: string
+      mesNome: string
+      label: string
+      isCompetenciaSelecionada: boolean
+      isFuturo: boolean
+      orcadoFolha?: number
+      orcadoBanco?: number
+      realizadoFolha?: number
+      temRealizado: boolean
+      variacaoRs?: number
+      variacaoPct?: number
+      estourou: boolean
+      dentroDoOrcado: boolean
+    }[] = []
+
+    const refDate = new Date(anoCompetencia, mesCompetencia - 1, 1)
+
+    for (let i = 0; i < 4; i++) {
+      const cicloDate = new Date(refDate.getFullYear(), refDate.getMonth() + i, 1)
+      const a = cicloDate.getFullYear()
+      const m = cicloDate.getMonth() + 1
+      const compKey = `${a}-${String(m).padStart(2, '0')}`
+
+      // Verificar se é mês estritamente futuro em relação à data do sistema
+      const isFuturo = a > anoAtualReal || (a === anoAtualReal && m > mesAtualReal)
+
+      // Orçamento cadastrado
+      const orc = mapaOrcamentos.get(compKey)
+      const orcadoFolha = orc?.valor_orcado_folha
+      const orcadoBanco = orc?.valor_orcado_banco_horas
+
+      // Calcular realizado
+      let sumLiquido = 0
+      let qtdLancamentos = 0
+      colaboradores.forEach((colab) => {
+        const colabPers = colabPeriodicosMap.get(colab.id) || []
+        const colabPonts = colabPontuaisMap.get(colab.id) || []
+        const res = folhaService.calcularResumoFinanceiro(colabPers, colabPonts, a, m)
+        sumLiquido += res.valorLiquido
+        qtdLancamentos += res.quantidadePeriodicos + res.quantidadePontuais
+      })
+
+      // Considera que tem realizado se houver lançamentos ou se for o mês corrente/passado
+      const temRealizado = !isFuturo || qtdLancamentos > 0
+      const realizadoFolha = temRealizado ? Math.round(sumLiquido * 100) / 100 : undefined
+
+      let variacaoRs: number | undefined
+      let variacaoPct: number | undefined
+      let estourou = false
+      let dentroDoOrcado = false
+
+      if (orcadoFolha !== undefined && realizadoFolha !== undefined) {
+        // Variação = Realizado - Orçado (se positivo, estourou)
+        variacaoRs = Math.round((realizadoFolha - orcadoFolha) * 100) / 100
+        variacaoPct = orcadoFolha > 0 ? (variacaoRs / orcadoFolha) * 100 : 0
+        estourou = realizadoFolha > orcadoFolha
+        dentroDoOrcado = realizadoFolha <= orcadoFolha
+      }
+
+      const mesItem = mesesOpcoes.find((item) => item.value === m)
+
+      ciclos.push({
+        ano: a,
+        mes: m,
+        competenciaKey: compKey,
+        mesNome: mesItem?.label || '',
+        label: `${mesItem?.label} de ${a}`,
+        isCompetenciaSelecionada: i === 0,
+        isFuturo,
+        orcadoFolha,
+        orcadoBanco,
+        realizadoFolha,
+        temRealizado,
+        variacaoRs,
+        variacaoPct,
+        estourou,
+        dentroDoOrcado,
+      })
+    }
+
+    return ciclos
+  }, [
+    anoCompetencia,
+    mesCompetencia,
+    colaboradores,
+    periodicos,
+    pontuais,
+    mapaOrcamentos,
+    mesesOpcoes,
+  ])
+
+  // =========================================================================
+  // 5. GRÁFICO DE LINHA: EVOLUÇÃO DO VALOR LÍQUIDO DA FOLHA (6 MESES) COM LINHA PONTILHADA DE ORÇADO
   // =========================================================================
   const dadosEvolucaoUltimos6Meses = useMemo(() => {
-    const ultimos6: { ano: number; mes: number; label: string }[] = []
+    const ultimos6: { ano: number; mes: number; label: string; compKey: string }[] = []
     const refDate = new Date(anoCompetencia, mesCompetencia - 1, 1)
 
     for (let i = 5; i >= 0; i--) {
@@ -278,6 +521,7 @@ export const DashboardFinanceiroPage: React.FC = () => {
       ultimos6.push({
         ano: a,
         mes: m,
+        compKey: `${a}-${String(m).padStart(2, '0')}`,
         label: `${nomesCurtos[m - 1]}/${String(a).slice(2)}`,
       })
     }
@@ -296,7 +540,7 @@ export const DashboardFinanceiroPage: React.FC = () => {
       colabPontuaisMap.set(p.colaborador_id, list)
     }
 
-    return ultimos6.map(({ ano, mes, label }) => {
+    return ultimos6.map(({ ano, mes, label, compKey }) => {
       let sumLiquido = 0
       let sumProventos = 0
       let sumDescontos = 0
@@ -310,17 +554,20 @@ export const DashboardFinanceiroPage: React.FC = () => {
         sumDescontos += res.totalDescontos
       })
 
+      const orc = mapaOrcamentos.get(compKey)
+
       return {
         competencia: label,
         liquido: Math.round(sumLiquido * 100) / 100,
         proventos: Math.round(sumProventos * 100) / 100,
         descontos: Math.round(sumDescontos * 100) / 100,
+        orcado: orc ? orc.valor_orcado_folha : undefined,
       }
     })
-  }, [anoCompetencia, mesCompetencia, colaboradores, periodicos, pontuais])
+  }, [anoCompetencia, mesCompetencia, colaboradores, periodicos, pontuais, mapaOrcamentos])
 
   // =========================================================================
-  // 5. PAINEL "COMPENSAÇÕES NO MÊS"
+  // 6. PAINEL "COMPENSAÇÕES NO MÊS"
   // =========================================================================
   const compensacoesNoMes = useMemo(() => {
     const compStr = `${anoCompetencia}-${String(mesCompetencia).padStart(2, '0')}`
@@ -365,7 +612,7 @@ export const DashboardFinanceiroPage: React.FC = () => {
   }, [compensacoes, anoCompetencia, mesCompetencia])
 
   // =========================================================================
-  // 6. PAINEL "PROVISÃO DE FÉRIAS" (Estimativa simples = Remuneração + 1/3)
+  // 7. PAINEL "PROVISÃO DE FÉRIAS" (Estimativa simples = Remuneração + 1/3)
   // Próximos 90 dias com saldo concessivo a vencer
   // Restrição permanente: sem INSS/IRRF/FGTS
   // =========================================================================
@@ -426,7 +673,7 @@ export const DashboardFinanceiroPage: React.FC = () => {
   }, [feriasProximas, periodicos])
 
   // =========================================================================
-  // 7. EXPORTAÇÃO PDF OFICIAL COM LOGO TESLA, ZEBRA STRIPES E RODAPÉ
+  // 8. EXPORTAÇÃO PDF OFICIAL COM LOGO TESLA, ZEBRA STRIPES E RODAPÉ
   // =========================================================================
   const handleExportarPdf = async () => {
     setExportingPdf(true)
@@ -565,9 +812,14 @@ export const DashboardFinanceiroPage: React.FC = () => {
           doc.setFont('helvetica', 'normal')
           doc.setFontSize(9)
           doc.setTextColor(80, 80, 80)
-          const kpisTexto = `Total Proventos: ${formatMoedaPtBr(totalProventosMes)}  |  Total Descontos: ${formatMoedaPtBr(totalDescontosMes)}  |  Valor Líquido: ${formatMoedaPtBr(valorLiquidoMes)}  |  Saldo Banco Horas: ${saldoTotalBancoHorasEmpresa > 0 ? `+${saldoTotalBancoHorasEmpresa}h` : `${saldoTotalBancoHorasEmpresa}h`}`
+          const orcAtual = mapaOrcamentos.get(
+            `${anoCompetencia}-${String(mesCompetencia).padStart(2, '0')}`,
+          )
+          const orcadoTexto = orcAtual
+            ? `  |  Orçado: ${formatMoedaPtBr(orcAtual.valor_orcado_folha)}`
+            : ''
+          const kpisTexto = `Total Proventos: ${formatMoedaPtBr(totalProventosMes)}  |  Total Descontos: ${formatMoedaPtBr(totalDescontosMes)}  |  Valor Líquido: ${formatMoedaPtBr(valorLiquidoMes)}${orcadoTexto}  |  Saldo Banco Horas: ${saldoTotalBancoHorasEmpresa > 0 ? `+${saldoTotalBancoHorasEmpresa}h` : `${saldoTotalBancoHorasEmpresa}h`}`
           doc.text(kpisTexto, 14, 38)
-
           const infoProvisao = `Provisão de Férias (90 dias): ${formatMoedaPtBr(provisaoFeriasProximos90Dias.totalEstimado)} (${provisaoFeriasProximos90Dias.qtdColaboradores} colaboradores a vencer — estimativa simples remuneração + 1/3 sem encargos)`
           doc.setFontSize(8)
           doc.setTextColor(100, 100, 100)
@@ -902,18 +1154,17 @@ export const DashboardFinanceiroPage: React.FC = () => {
             )}
           </CardContent>
         </Card>
-
-        {/* Gráfico 2: Linha - Evolução do Valor Líquido nos Últimos 6 Meses */}
+        {/* Gráfico 2: Linha - Evolução do Valor Líquido nos Últimos 6 Meses com Orçado */}
         <Card className="border border-slate-200 bg-white shadow-xs">
           <CardHeader className="p-4 sm:p-5 border-b border-slate-100">
             <div className="flex items-center justify-between">
               <div>
                 <CardTitle className="text-base font-bold text-slate-900 flex items-center gap-2">
                   <TrendingUp className="h-5 w-5 text-[#0D47A1]" />
-                  Evolução do Valor Líquido da Folha (6 Meses)
+                  Evolução da Folha &amp; Orçado (6 Meses)
                 </CardTitle>
                 <CardDescription className="text-xs text-slate-500 mt-0.5">
-                  Tendência histórica do desembolso líquido total da folha
+                  Histórico do valor líquido realizado vs. linha pontilhada de meta orçada
                 </CardDescription>
               </div>
             </div>
@@ -939,7 +1190,7 @@ export const DashboardFinanceiroPage: React.FC = () => {
                       tickFormatter={(val) => `R$ ${(val / 1000).toFixed(0)}k`}
                     />
                     <RechartsTooltip
-                      formatter={(val: any) => formatMoedaPtBr(Number(val))}
+                      formatter={(val: any, name: any) => [formatMoedaPtBr(Number(val)), name]}
                       contentStyle={{
                         backgroundColor: '#ffffff',
                         borderColor: '#e2e8f0',
@@ -952,7 +1203,7 @@ export const DashboardFinanceiroPage: React.FC = () => {
                     <Line
                       type="monotone"
                       dataKey="liquido"
-                      name="Valor Líquido (R$)"
+                      name="Valor Líquido Realizado (R$)"
                       stroke="#0D47A1"
                       strokeWidth={3}
                       dot={{ r: 5, fill: '#0D47A1' }}
@@ -960,11 +1211,21 @@ export const DashboardFinanceiroPage: React.FC = () => {
                     />
                     <Line
                       type="monotone"
+                      dataKey="orcado"
+                      name="Meta Orçada (R$)"
+                      stroke="#f59e0b"
+                      strokeWidth={2}
+                      strokeDasharray="5 5"
+                      dot={{ r: 4, fill: '#f59e0b' }}
+                      connectNulls
+                    />
+                    <Line
+                      type="monotone"
                       dataKey="proventos"
                       name="Proventos Brutos (R$)"
                       stroke="#10b981"
                       strokeWidth={1.5}
-                      strokeDasharray="4 4"
+                      strokeDasharray="2 2"
                       dot={{ r: 3, fill: '#10b981' }}
                     />
                   </LineChart>
@@ -972,8 +1233,179 @@ export const DashboardFinanceiroPage: React.FC = () => {
               </div>
             )}
           </CardContent>
-        </Card>
+        </Card>{' '}
       </div>
+
+      {/* NOVO PAINEL: Orçado vs. Realizado & Ciclos Futuros (Competência Selecionada + 3 Meses) */}
+      <Card className="border border-slate-200 bg-white shadow-xs">
+        <CardHeader className="p-4 sm:p-5 border-b border-slate-100 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+          <div>
+            <div className="flex items-center gap-2">
+              <CardTitle className="text-base font-bold text-slate-900 flex items-center gap-2">
+                <Target className="h-5 w-5 text-[#0D47A1]" />
+                Orçado vs. Realizado &amp; Ciclos Futuros
+              </CardTitle>
+              <Badge
+                variant="outline"
+                className="bg-blue-50 text-[#0D47A1] border-blue-200 text-xs font-bold"
+              >
+                Planejamento &amp; Controle
+              </Badge>
+            </div>
+            <CardDescription className="text-xs text-slate-500 mt-0.5">
+              Acompanhamento de metas orçamentárias de folha para o ciclo selecionado e os próximos
+              3 meses projetados.
+            </CardDescription>
+          </div>
+
+          {podeGerenciarOrcamento && (
+            <Button
+              size="sm"
+              onClick={() => abrirModalOrcamento(anoCompetencia, mesCompetencia)}
+              className="gap-1.5 bg-[#0D47A1] hover:bg-[#0b3c8a] text-white text-xs font-semibold shrink-0"
+            >
+              <PlusCircle className="h-4 w-4" />
+              Definir / Editar Orçamento
+            </Button>
+          )}
+        </CardHeader>
+
+        <CardContent className="p-4 sm:p-5">
+          {loading ? (
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+              <Skeleton className="h-44 w-full rounded-xl" />
+              <Skeleton className="h-44 w-full rounded-xl" />
+              <Skeleton className="h-44 w-full rounded-xl" />
+              <Skeleton className="h-44 w-full rounded-xl" />
+            </div>
+          ) : (
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+              {ciclosOrcadoVsRealizado.map((ciclo) => {
+                const temOrcamento = ciclo.orcadoFolha !== undefined
+                const temReal = ciclo.temRealizado && ciclo.realizadoFolha !== undefined
+
+                return (
+                  <div
+                    key={ciclo.competenciaKey}
+                    className={`rounded-xl border p-4 flex flex-col justify-between transition-all ${
+                      ciclo.isCompetenciaSelecionada
+                        ? 'border-[#0D47A1] bg-blue-50/20 shadow-xs'
+                        : 'border-slate-200 bg-white hover:border-slate-300'
+                    }`}
+                  >
+                    <div>
+                      {/* Topo do Card de Ciclo */}
+                      <div className="flex items-center justify-between gap-1 mb-2">
+                        <span className="font-bold text-xs text-slate-900 capitalize">
+                          {ciclo.mesNome} / {ciclo.ano}
+                        </span>
+                        <div className="flex items-center gap-1">
+                          {ciclo.isCompetenciaSelecionada && (
+                            <Badge className="bg-[#0D47A1] text-white text-[9px] px-1.5 py-0 h-4 font-bold">
+                              Selecionada
+                            </Badge>
+                          )}
+                          {ciclo.isFuturo && (
+                            <Badge
+                              variant="outline"
+                              className="border-purple-300 bg-purple-50 text-purple-700 text-[9px] px-1.5 py-0 h-4 font-semibold"
+                            >
+                              Previsto
+                            </Badge>
+                          )}
+                        </div>
+                      </div>
+
+                      {/* Valores: Orçado vs Realizado */}
+                      <div className="space-y-2.5 my-3 text-xs">
+                        <div className="flex items-center justify-between">
+                          <span className="text-slate-500 font-medium">Orçado:</span>
+                          <span className="font-bold text-slate-800 font-mono">
+                            {temOrcamento
+                              ? formatMoedaPtBr(ciclo.orcadoFolha || 0)
+                              : 'Não cadastrado'}
+                          </span>
+                        </div>
+
+                        {ciclo.orcadoBanco !== undefined && ciclo.orcadoBanco > 0 && (
+                          <div className="flex items-center justify-between text-[11px] text-slate-500">
+                            <span>Orçado B. Horas:</span>
+                            <span className="font-mono">{formatMoedaPtBr(ciclo.orcadoBanco)}</span>
+                          </div>
+                        )}
+
+                        <div className="flex items-center justify-between">
+                          <span className="text-slate-500 font-medium">Realizado:</span>
+                          {temReal ? (
+                            <span className="font-bold text-slate-900 font-mono">
+                              {formatMoedaPtBr(ciclo.realizadoFolha || 0)}
+                            </span>
+                          ) : (
+                            <Badge
+                              variant="outline"
+                              className="border-dashed border-slate-300 text-slate-400 text-[10px] font-normal"
+                            >
+                              Sem dados
+                            </Badge>
+                          )}
+                        </div>
+
+                        {/* Variação em R$ e % */}
+                        {temOrcamento && temReal && (
+                          <div
+                            className={`p-2 rounded-lg border text-xs mt-2 ${
+                              ciclo.estourou
+                                ? 'bg-rose-50 border-rose-200 text-rose-800'
+                                : 'bg-emerald-50 border-emerald-200 text-emerald-800'
+                            }`}
+                          >
+                            <div className="flex items-center justify-between font-bold">
+                              <span>Variação:</span>
+                              <span className="font-mono">
+                                {ciclo.variacaoRs !== undefined && ciclo.variacaoRs > 0 ? '+' : ''}
+                                {formatMoedaPtBr(ciclo.variacaoRs || 0)}
+                              </span>
+                            </div>
+                            <div className="flex items-center justify-between text-[11px] mt-0.5">
+                              <span>Desvio %:</span>
+                              <span className="font-bold font-mono">
+                                {ciclo.variacaoPct !== undefined && ciclo.variacaoPct > 0
+                                  ? '+'
+                                  : ''}
+                                {ciclo.variacaoPct?.toFixed(1)}%
+                              </span>
+                            </div>
+                            <p className="text-[10px] mt-1 font-semibold">
+                              {ciclo.estourou
+                                ? '⚠ Estourou o orçamento planejado'
+                                : '✓ Realizado dentro do orçado'}
+                            </p>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+
+                    {/* Rodapé do Card com Ação de Edição */}
+                    {podeGerenciarOrcamento && (
+                      <div className="pt-2 border-t border-slate-100 flex items-center justify-between mt-2">
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => abrirModalOrcamento(ciclo.ano, ciclo.mes)}
+                          className="h-6 px-2 text-[11px] text-[#0D47A1] hover:bg-blue-50 w-full justify-center gap-1 font-semibold"
+                        >
+                          <Edit2 className="h-3 w-3" />
+                          {temOrcamento ? 'Editar Orçado' : 'Cadastrar Orçado'}
+                        </Button>
+                      </div>
+                    )}
+                  </div>
+                )
+              })}
+            </div>
+          )}
+        </CardContent>
+      </Card>
 
       {/* Grid de Painéis: Compensações no Mês + Provisão de Férias */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
@@ -1128,6 +1560,102 @@ export const DashboardFinanceiroPage: React.FC = () => {
           </CardContent>
         </Card>
       </div>
+
+      {/* Modal para Definir / Editar Orçamento de Competência */}
+      <Dialog open={modalOrcamentoAberto} onOpenChange={setModalOrcamentoAberto}>
+        <DialogContent className="sm:max-w-md bg-white">
+          <DialogHeader>
+            <DialogTitle className="text-base font-bold text-slate-900 flex items-center gap-2">
+              <Target className="h-5 w-5 text-[#0D47A1]" />
+              Definir Orçamento de Folha
+            </DialogTitle>
+            <DialogDescription className="text-xs text-slate-500">
+              Cadastre a meta orçada de desembolso para a competência{' '}
+              <strong>
+                {mesesOpcoes.find((m) => m.value === orcamentoEditandoMes)?.label} de{' '}
+                {orcamentoEditandoAno}
+              </strong>
+              .
+            </DialogDescription>
+          </DialogHeader>
+
+          <form onSubmit={handleSalvarOrcamento} className="space-y-4 pt-2">
+            <div className="space-y-1.5">
+              <Label htmlFor="valorFolha" className="text-xs font-bold text-slate-700">
+                Valor Orçado da Folha (R$) <span className="text-red-500">*</span>
+              </Label>
+              <Input
+                id="valorFolha"
+                type="number"
+                step="0.01"
+                min="0.01"
+                required
+                value={formValorFolha}
+                onChange={(e) => setFormValorFolha(e.target.value)}
+                placeholder="Ex: 48500.00"
+                className="h-9 text-xs"
+              />
+              <p className="text-[11px] text-slate-400">
+                Total previsto para o desembolso líquido da folha no mês.
+              </p>
+            </div>
+
+            <div className="space-y-1.5">
+              <Label htmlFor="valorBanco" className="text-xs font-semibold text-slate-700">
+                Orçado de Banco de Horas (R$) (Opcional)
+              </Label>
+              <Input
+                id="valorBanco"
+                type="number"
+                step="0.01"
+                min="0"
+                value={formValorBanco}
+                onChange={(e) => setFormValorBanco(e.target.value)}
+                placeholder="Ex: 500.00"
+                className="h-9 text-xs"
+              />
+              <p className="text-[11px] text-slate-400">
+                Provisão financeira para eventuais pagamentos ou acertos de banco.
+              </p>
+            </div>
+
+            <div className="space-y-1.5">
+              <Label htmlFor="obs" className="text-xs font-semibold text-slate-700">
+                Observações / Justificativa (Opcional)
+              </Label>
+              <Textarea
+                id="obs"
+                rows={2}
+                value={formObs}
+                onChange={(e) => setFormObs(e.target.value)}
+                placeholder="Ex: Aprovado no comitê orçamentário anual de 2026."
+                className="text-xs resize-none"
+              />
+            </div>
+
+            <DialogFooter className="pt-2 flex items-center justify-end gap-2">
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={() => setModalOrcamentoAberto(false)}
+                className="text-xs"
+              >
+                Cancelar
+              </Button>
+              <Button
+                type="submit"
+                size="sm"
+                disabled={salvandoOrcamento}
+                className="bg-[#0D47A1] hover:bg-[#0b3c8a] text-white text-xs font-semibold gap-1.5"
+              >
+                <Check className="h-3.5 w-3.5" />
+                {salvandoOrcamento ? 'Salvando...' : 'Salvar Orçamento'}
+              </Button>
+            </DialogFooter>
+          </form>
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }

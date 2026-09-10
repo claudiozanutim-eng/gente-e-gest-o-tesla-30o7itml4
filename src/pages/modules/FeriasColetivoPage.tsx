@@ -11,6 +11,9 @@ import {
   RefreshCw,
   Info,
   Building,
+  Target,
+  Sliders,
+  Check,
 } from 'lucide-react'
 import { useAuth } from '@/context/AuthContext'
 import {
@@ -19,9 +22,12 @@ import {
   ColaboradorEscala,
   DepartamentoEscala,
   EscalaTrabalho,
+  MetaCoberturaDepartamento,
 } from '@/types'
 import pb from '@/lib/pocketbase/client'
 import { pontoService, escalaService } from '@/services/pontoService'
+import { metaCoberturaService } from '@/services/metaCoberturaService'
+import { Input } from '@/components/ui/input'
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
@@ -62,6 +68,16 @@ export const FeriasColetivoPage: React.FC = () => {
   const [feriasAprovadas, setFeriasAprovadas] = useState<SolicitacaoFerias[]>([])
   const [escalasInfo, setEscalasInfo] = useState<Map<string, ColaboradorEscalaInfo>>(new Map())
   const [departamentoFiltro, setDepartamentoFiltro] = useState<string>('todos')
+  const [metasCobertura, setMetasCobertura] = useState<Map<string, number>>(new Map())
+  const [salvandoMeta, setSalvandoMeta] = useState<boolean>(false)
+  const [metaInputValor, setMetaInputValor] = useState<string>('')
+  const [departamentoEdicaoMeta, setDepartamentoEdicaoMeta] = useState<string>('')
+
+  // Permissão para definir meta (apenas rh, admin_rh, admin)
+  const podeGerenciarMetas = useMemo(() => {
+    const p = user?.perfil
+    return p === 'rh' || p === 'admin_rh' || p === 'admin'
+  }, [user?.perfil])
 
   // Lista de departamentos disponíveis
   const departamentosDisponiveis = useMemo(() => {
@@ -98,15 +114,23 @@ export const FeriasColetivoPage: React.FC = () => {
       })
       setFeriasAprovadas(ferias)
 
-      // 3. Carregar escalas: vínculos individuais + escalas de departamentos
-      const [vinculosIndividuais, escalasDeptos] = await Promise.all([
+      // 3. Carregar escalas: vínculos individuais + escalas de departamentos + metas de cobertura
+      const [vinculosIndividuais, escalasDeptos, metasDb] = await Promise.all([
         pb.collection('colaborador_escala').getFullList<ColaboradorEscala>({
           filter: `tenant_id = "${tenantId}"`,
           sort: '-data_inicio',
           expand: 'escala_id',
         }),
         escalaService.getEscalasDepartamento(tenantId),
+        metaCoberturaService.getMetasTenant(tenantId),
       ])
+
+      // Mapear metas de cobertura por departamento
+      const mapaMetas = new Map<string, number>()
+      for (const m of metasDb) {
+        mapaMetas.set(m.departamento, m.meta_percentual)
+      }
+      setMetasCobertura(mapaMetas)
 
       // Mapa de escalas por departamento
       const mapaDeptos = new Map<string, DepartamentoEscala>()
@@ -312,28 +336,89 @@ export const FeriasColetivoPage: React.FC = () => {
     [feriasAprovadas, escalasInfo],
   )
 
+  // Salvar ou atualizar meta de cobertura de um departamento
+  const handleSalvarMeta = async (depto: string, valorStr: string) => {
+    const valorNum = parseFloat(valorStr)
+    if (isNaN(valorNum) || valorNum < 0 || valorNum > 100) {
+      toast({
+        title: 'Valor inválido',
+        description: 'A meta de cobertura deve ser um percentual entre 0 e 100%.',
+        variant: 'destructive',
+      })
+      return
+    }
+
+    setSalvandoMeta(true)
+    try {
+      await metaCoberturaService.salvarMeta({
+        tenantId,
+        departamento: depto,
+        metaPercentual: valorNum,
+        userId: user?.id,
+      })
+
+      setMetasCobertura((prev) => {
+        const next = new Map(prev)
+        next.set(depto, Math.round(valorNum))
+        return next
+      })
+
+      setDepartamentoEdicaoMeta('')
+      setMetaInputValor('')
+
+      toast({
+        title: 'Meta atualizada',
+        description: `A meta mínima de cobertura do setor ${depto} foi definida para ${Math.round(
+          valorNum,
+        )}%.`,
+      })
+    } catch (err) {
+      console.error('Erro ao salvar meta de cobertura:', err)
+      toast({
+        title: 'Erro ao salvar meta',
+        description: 'Não foi possível gravar a meta de cobertura no sistema.',
+        variant: 'destructive',
+      })
+    } finally {
+      setSalvandoMeta(false)
+    }
+  }
+
   // Cálculo consolidado de cobertura por departamento para cada dia do mês
   // Cruzamento: disponível de fato = NÃO está de férias E dia de trabalho segundo a escala
+  // Regras de threshold com meta:
+  // - Se meta definida:
+  //   * percentual < 70% da meta OU disponiveis === 0 OU percentual <= 20% => crítico/vermelho
+  //   * percentual < meta (ligeiramente abaixo) => amarelo
+  //   * percentual >= meta => normal (verde/neutro)
+  // - Se meta não definida:
+  //   * crítico/vermelho se <= 20% ou zero, amarelo se <= 50%
   const coberturaPorDepartamento = useMemo(() => {
     const resultado = new Map<
       string,
       {
         totalEquipe: number
+        metaDefinida?: number
         dias: {
           diaIso: string
           diaNumero: number
           totalEquipe: number
           disponiveis: number
           percentualDisponivel: number
-          isCritico: boolean // <= 20% ou zero
+          statusSeveridade: 'critico' | 'abaixo_meta' | 'normal'
+          isCritico: boolean // <= 20% ou zero ou bem abaixo da meta
+          isAbaixoMeta: boolean // abaixo da meta mas não no vermelho crítico
           isZero: boolean
         }[]
         diasCriticosCount: number
+        diasAbaixoMetaCount: number
       }
     >()
 
     colaboradoresPorDepartamento.forEach((membros, depto) => {
       const totalEquipe = membros.length
+      const meta = metasCobertura.get(depto)
+
       const diasDet = diasDoMes.map((d) => {
         let disponiveis = 0
         membros.forEach((m) => {
@@ -344,8 +429,37 @@ export const FeriasColetivoPage: React.FC = () => {
         })
 
         const percentualDisponivel = totalEquipe > 0 ? (disponiveis / totalEquipe) * 100 : 0
-        const isCritico = totalEquipe > 0 && percentualDisponivel <= 20
         const isZero = disponiveis === 0
+
+        let statusSeveridade: 'critico' | 'abaixo_meta' | 'normal' = 'normal'
+        let isCritico = false
+        let isAbaixoMeta = false
+
+        if (meta !== undefined) {
+          // Meta definida pelo RH
+          // Bem abaixo: cobertura zero, <= 20%, ou < 70% da meta
+          const thresholdCritico = Math.max(20, meta * 0.7)
+          if (isZero || percentualDisponivel <= 20 || percentualDisponivel < thresholdCritico) {
+            statusSeveridade = 'critico'
+            isCritico = true
+          } else if (percentualDisponivel < meta) {
+            statusSeveridade = 'abaixo_meta'
+            isAbaixoMeta = true
+          } else {
+            statusSeveridade = 'normal'
+          }
+        } else {
+          // Comportamento original sem meta
+          if (isZero || (totalEquipe > 0 && percentualDisponivel <= 20)) {
+            statusSeveridade = 'critico'
+            isCritico = true
+          } else if (percentualDisponivel <= 50) {
+            statusSeveridade = 'abaixo_meta'
+            isAbaixoMeta = true
+          } else {
+            statusSeveridade = 'normal'
+          }
+        }
 
         return {
           diaIso: d.diaIso,
@@ -353,22 +467,27 @@ export const FeriasColetivoPage: React.FC = () => {
           totalEquipe,
           disponiveis,
           percentualDisponivel,
+          statusSeveridade,
           isCritico,
+          isAbaixoMeta,
           isZero,
         }
       })
 
       const diasCriticosCount = diasDet.filter((d) => d.isCritico).length
+      const diasAbaixoMetaCount = diasDet.filter((d) => d.isAbaixoMeta).length
 
       resultado.set(depto, {
         totalEquipe,
+        metaDefinida: meta,
         dias: diasDet,
         diasCriticosCount,
+        diasAbaixoMetaCount,
       })
     })
 
     return resultado
-  }, [colaboradoresPorDepartamento, diasDoMes, avaliarDiaColaborador])
+  }, [colaboradoresPorDepartamento, diasDoMes, avaliarDiaColaborador, metasCobertura])
 
   return (
     <div className="space-y-6 max-w-[100rem] mx-auto p-4 sm:p-6 lg:p-8">
@@ -467,7 +586,7 @@ export const FeriasColetivoPage: React.FC = () => {
         </div>
       </div>
 
-      {/* Legenda Corporativa */}
+      {/* Legenda Corporativa e Alertas de Meta */}
       <div className="flex flex-wrap items-center justify-between gap-3 p-3 bg-white border border-slate-200 rounded-xl text-xs">
         <div className="flex flex-wrap items-center gap-4">
           <span className="font-bold text-slate-700">Legenda da Grade:</span>
@@ -491,19 +610,31 @@ export const FeriasColetivoPage: React.FC = () => {
           </div>
         </div>
 
-        <div className="flex items-center gap-3">
-          <span className="font-bold text-slate-700">Alerta de Cobertura:</span>
+        <div className="flex flex-wrap items-center gap-3">
+          <span className="font-bold text-slate-700">Painel de Cobertura vs Meta:</span>
           <div className="flex items-center gap-1.5">
             <div className="w-4 h-4 rounded bg-rose-500 border border-rose-600" />
-            <span className="text-rose-700 font-semibold">Crítico (≤ 20% da equipe ou zero)</span>
+            <span className="text-rose-700 font-semibold">
+              Crítico (&lt;70% da meta ou ≤20% / zero)
+            </span>
+          </div>
+          <div className="flex items-center gap-1.5">
+            <div className="w-4 h-4 rounded bg-amber-200 border border-amber-300" />
+            <span className="text-amber-800 font-semibold">Ligeiramente abaixo (&lt; meta)</span>
+          </div>
+          <div className="flex items-center gap-1.5">
+            <div className="w-4 h-4 rounded bg-emerald-100 border border-emerald-300" />
+            <span className="text-emerald-800 font-semibold">Meta atingida (≥ meta)</span>
           </div>
         </div>
       </div>
 
-      {/* Resumos Textuais de Cobertura por Departamento */}
+      {/* Resumos Textuais de Cobertura por Departamento com Metas */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
         {Array.from(coberturaPorDepartamento.entries()).map(([depto, cob]) => {
           const temCriticos = cob.diasCriticosCount > 0
+          const temAbaixoMeta = cob.diasAbaixoMetaCount > 0
+          const meta = cob.metaDefinida
 
           return (
             <Card
@@ -511,17 +642,25 @@ export const FeriasColetivoPage: React.FC = () => {
               className={`border transition-all ${
                 temCriticos
                   ? 'border-rose-300 bg-rose-50/50 shadow-xs'
-                  : 'border-slate-200 bg-white shadow-xs'
+                  : temAbaixoMeta
+                    ? 'border-amber-300 bg-amber-50/40 shadow-xs'
+                    : 'border-slate-200 bg-white shadow-xs'
               }`}
             >
               <CardContent className="p-3.5 flex items-start gap-3">
                 <div
                   className={`p-2 rounded-lg shrink-0 ${
-                    temCriticos ? 'bg-rose-100 text-rose-700' : 'bg-emerald-100 text-emerald-700'
+                    temCriticos
+                      ? 'bg-rose-100 text-rose-700'
+                      : temAbaixoMeta
+                        ? 'bg-amber-100 text-amber-700'
+                        : 'bg-emerald-100 text-emerald-700'
                   }`}
                 >
                   {temCriticos ? (
                     <AlertTriangle className="h-5 w-5" />
+                  ) : temAbaixoMeta ? (
+                    <Info className="h-5 w-5" />
                   ) : (
                     <CheckCircle2 className="h-5 w-5" />
                   )}
@@ -529,16 +668,35 @@ export const FeriasColetivoPage: React.FC = () => {
                 <div className="min-w-0 flex-1">
                   <div className="flex items-center justify-between gap-1">
                     <p className="font-bold text-slate-900 text-xs truncate">{depto}</p>
-                    <Badge
-                      variant="outline"
-                      className={`text-[10px] font-bold ${
-                        temCriticos
-                          ? 'bg-rose-100 text-rose-800 border-rose-300'
-                          : 'bg-emerald-100 text-emerald-800 border-emerald-300'
-                      }`}
-                    >
-                      {cob.totalEquipe} colaboradores
-                    </Badge>
+                    <div className="flex items-center gap-1.5">
+                      {meta !== undefined ? (
+                        <Badge
+                          variant="outline"
+                          className="text-[10px] font-bold bg-blue-50 text-[#0D47A1] border-blue-200"
+                        >
+                          Meta: {meta}%
+                        </Badge>
+                      ) : (
+                        <Badge
+                          variant="outline"
+                          className="text-[10px] font-medium text-slate-500 border-slate-200"
+                        >
+                          Sem meta
+                        </Badge>
+                      )}
+                      <Badge
+                        variant="outline"
+                        className={`text-[10px] font-bold ${
+                          temCriticos
+                            ? 'bg-rose-100 text-rose-800 border-rose-300'
+                            : temAbaixoMeta
+                              ? 'bg-amber-100 text-amber-800 border-amber-300'
+                              : 'bg-emerald-100 text-emerald-800 border-emerald-300'
+                        }`}
+                      >
+                        {cob.totalEquipe} colab.
+                      </Badge>
+                    </div>
                   </div>
                   <p className="text-xs text-slate-600 mt-1 leading-snug">
                     {temCriticos ? (
@@ -546,13 +704,31 @@ export const FeriasColetivoPage: React.FC = () => {
                         Em <strong>{nomeMesAnoCapitalizado}</strong>, o setor {depto} tem{' '}
                         <strong className="text-rose-700 font-black">
                           {cob.diasCriticosCount} dia(s) com cobertura crítica
+                        </strong>
+                        {temAbaixoMeta && (
+                          <span>
+                            {' '}
+                            e{' '}
+                            <strong className="text-amber-800 font-bold">
+                              {cob.diasAbaixoMetaCount} dia(s) abaixo da meta
+                            </strong>
+                          </span>
+                        )}
+                        {meta !== undefined ? ` (meta: ${meta}%).` : ' (≤20% ou zero).'}
+                      </span>
+                    ) : temAbaixoMeta ? (
+                      <span>
+                        Em <strong>{nomeMesAnoCapitalizado}</strong>, o setor {depto} tem{' '}
+                        <strong className="text-amber-800 font-bold">
+                          {cob.diasAbaixoMetaCount} dia(s) abaixo da meta mínima
                         </strong>{' '}
-                        (folgas + férias reduzem a equipe para ≤ 20%).
+                        de {meta ?? 50}%, sem dias críticos graves.
                       </span>
                     ) : (
                       <span>
                         Em <strong>{nomeMesAnoCapitalizado}</strong>, o setor {depto} mantém
-                        cobertura adequada em todos os dias do mês.
+                        cobertura em conformidade{' '}
+                        {meta !== undefined ? `com a meta de ${meta}%` : 'com os padrões'}.
                       </span>
                     )}
                   </p>
@@ -590,7 +766,7 @@ export const FeriasColetivoPage: React.FC = () => {
                 className="border border-slate-200 bg-white shadow-sm overflow-hidden"
               >
                 <CardHeader className="bg-slate-50/70 border-b border-slate-200 p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-2">
-                  <div className="flex items-center gap-2.5">
+                  <div className="flex items-center gap-2.5 flex-wrap">
                     <Building className="h-5 w-5 text-[#0D47A1]" />
                     <CardTitle className="text-base font-bold text-slate-900">
                       Departamento: {depto}
@@ -601,15 +777,102 @@ export const FeriasColetivoPage: React.FC = () => {
                     >
                       {membros.length} colaborador(es)
                     </Badge>
+
+                    {/* Badge da Meta Atual */}
+                    {cobDepto?.metaDefinida !== undefined ? (
+                      <Badge
+                        variant="outline"
+                        className="text-xs border-blue-200 bg-blue-50 text-[#0D47A1] font-bold flex items-center gap-1"
+                      >
+                        <Target className="h-3 w-3" />
+                        Meta Mínima: {cobDepto.metaDefinida}%
+                      </Badge>
+                    ) : (
+                      <Badge
+                        variant="outline"
+                        className="text-xs border-slate-200 text-slate-500 font-normal"
+                      >
+                        Meta padrão (≤20% crítico)
+                      </Badge>
+                    )}
                   </div>
-                  {cobDepto && cobDepto.diasCriticosCount > 0 && (
-                    <div className="flex items-center gap-1.5 text-xs text-rose-700 font-bold bg-rose-50 border border-rose-200 px-2.5 py-1 rounded-md">
-                      <AlertTriangle className="h-3.5 w-3.5" />
-                      <span>
-                        {cobDepto.diasCriticosCount} dia(s) com cobertura crítica neste mês
-                      </span>
-                    </div>
-                  )}
+
+                  {/* Ações e Formulário de Definição de Meta (visível apenas para rh/admin_rh/admin) */}
+                  <div className="flex items-center gap-2 flex-wrap">
+                    {cobDepto &&
+                      (cobDepto.diasCriticosCount > 0 || cobDepto.diasAbaixoMetaCount > 0) && (
+                        <div className="flex items-center gap-1.5 text-xs font-bold px-2.5 py-1 rounded-md bg-rose-50 text-rose-700 border border-rose-200">
+                          <AlertTriangle className="h-3.5 w-3.5" />
+                          <span>
+                            {cobDepto.diasCriticosCount > 0 &&
+                              `${cobDepto.diasCriticosCount} crítico(s)`}
+                            {cobDepto.diasCriticosCount > 0 &&
+                              cobDepto.diasAbaixoMetaCount > 0 &&
+                              ' • '}
+                            {cobDepto.diasAbaixoMetaCount > 0 &&
+                              `${cobDepto.diasAbaixoMetaCount} abaixo da meta`}
+                          </span>
+                        </div>
+                      )}
+
+                    {podeGerenciarMetas && (
+                      <div className="flex items-center gap-1.5 bg-white border border-slate-200 rounded-lg p-1">
+                        {departamentoEdicaoMeta === depto ? (
+                          <div className="flex items-center gap-1">
+                            <span className="text-[11px] font-semibold text-slate-600 pl-1">
+                              Meta %:
+                            </span>
+                            <Input
+                              type="number"
+                              min="0"
+                              max="100"
+                              value={metaInputValor}
+                              onChange={(e) => setMetaInputValor(e.target.value)}
+                              placeholder="70"
+                              className="h-7 w-16 text-xs px-1.5 text-center font-bold"
+                            />
+                            <Button
+                              size="sm"
+                              className="h-7 px-2 bg-[#0D47A1] hover:bg-[#0b3c8a] text-white text-xs gap-1"
+                              disabled={salvandoMeta}
+                              onClick={() => handleSalvarMeta(depto, metaInputValor)}
+                            >
+                              <Check className="h-3.5 w-3.5" />
+                              Salvar
+                            </Button>
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              className="h-7 px-2 text-xs text-slate-500"
+                              onClick={() => setDepartamentoEdicaoMeta('')}
+                            >
+                              Cancelar
+                            </Button>
+                          </div>
+                        ) : (
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            className="h-7 text-xs font-semibold text-[#0D47A1] hover:bg-blue-50 gap-1.5 px-2"
+                            onClick={() => {
+                              setDepartamentoEdicaoMeta(depto)
+                              setMetaInputValor(
+                                cobDepto?.metaDefinida !== undefined
+                                  ? String(cobDepto.metaDefinida)
+                                  : '70',
+                              )
+                            }}
+                            title="Definir meta de cobertura mínima para este departamento"
+                          >
+                            <Sliders className="h-3.5 w-3.5" />
+                            {cobDepto?.metaDefinida !== undefined
+                              ? 'Ajustar Meta'
+                              : 'Definir Meta de Cobertura'}
+                          </Button>
+                        )}
+                      </div>
+                    )}
+                  </div>
                 </CardHeader>
 
                 <CardContent className="p-0">
@@ -761,15 +1024,22 @@ export const FeriasColetivoPage: React.FC = () => {
 
                             {cobDepto.dias.map((dCob, idx) => {
                               const isCritico = dCob.isCritico
+                              const isAbaixoMeta = dCob.isAbaixoMeta
                               const isZero = dCob.isZero
+                              const metaDef = cobDepto.metaDefinida
 
                               let cobCellBg = 'bg-slate-50 text-slate-700'
                               if (isZero) {
                                 cobCellBg = 'bg-rose-600 text-white font-black'
                               } else if (isCritico) {
                                 cobCellBg = 'bg-rose-500 text-white font-black'
-                              } else if (dCob.percentualDisponivel <= 50) {
-                                cobCellBg = 'bg-amber-100 text-amber-900 font-bold'
+                              } else if (isAbaixoMeta) {
+                                cobCellBg = 'bg-amber-200 text-amber-950 font-bold'
+                              } else if (
+                                metaDef !== undefined &&
+                                dCob.percentualDisponivel >= metaDef
+                              ) {
+                                cobCellBg = 'bg-emerald-50 text-emerald-900 font-semibold'
                               }
 
                               return (
@@ -783,7 +1053,7 @@ export const FeriasColetivoPage: React.FC = () => {
                                         <span className="text-xs leading-none">
                                           {dCob.disponiveis}
                                         </span>
-                                        <span className="text-[9px] opacity-80 leading-none mt-0.5">
+                                        <span className="text-[9px] opacity-85 leading-none mt-0.5">
                                           {Math.round(dCob.percentualDisponivel)}%
                                         </span>
                                       </div>
@@ -797,10 +1067,25 @@ export const FeriasColetivoPage: React.FC = () => {
                                         Disponíveis: {dCob.disponiveis} de {dCob.totalEquipe} (
                                         {Math.round(dCob.percentualDisponivel)}%)
                                       </div>
+                                      {metaDef !== undefined && (
+                                        <div className="text-[11px] text-slate-300">
+                                          Meta configurada: {metaDef}%
+                                        </div>
+                                      )}
                                       {isCritico && (
                                         <div className="text-rose-300 font-bold mt-0.5 flex items-center gap-1">
                                           <AlertTriangle className="h-3 w-3" />
-                                          Atenção: Disponibilidade crítica (≤ 20%)!
+                                          {isZero
+                                            ? 'Crítico: Cobertura ZERO (ninguém trabalhando)!'
+                                            : metaDef !== undefined
+                                              ? `Crítico: Cobertura muito abaixo da meta (<70% da meta)!`
+                                              : 'Crítico: Disponibilidade crítica (≤ 20%)!'}
+                                        </div>
+                                      )}
+                                      {!isCritico && isAbaixoMeta && (
+                                        <div className="text-amber-300 font-bold mt-0.5 flex items-center gap-1">
+                                          <Info className="h-3 w-3" />
+                                          Atenção: Cobertura abaixo da meta ({metaDef ?? 50}%)
                                         </div>
                                       )}
                                     </TooltipContent>
