@@ -700,10 +700,57 @@ export interface LancamentoPontual {
   quantidade: number // Valor em reais - positivo provento, negativo desconto
   data: string // ISO date
   comentario?: string
+  origem_automatica?: boolean
+  solicitacao_ferias_id?: string
   created: string
   updated: string
   expand?: {
     colaborador_id?: Colaborador
+  }
+}
+
+// ----------------------------------------------------
+// Registro de Holerite Emitido & Assinatura Eletrônica
+// ----------------------------------------------------
+export interface HoleriteRegistro {
+  id: string
+  tenant_id: string
+  colaborador_id: string
+  competencia: string // 'MM/AAAA' ou 'AAAA-MM'
+  total_proventos: number
+  total_descontos: number
+  total_liquido: number
+  codigo_verificacao: string // Hash truncado SHA-256
+  data_emissao: string
+  created?: string
+  updated?: string
+  expand?: {
+    colaborador_id?: Colaborador
+    tenant_id?: Tenant
+  }
+}
+
+// ----------------------------------------------------
+// Banco de Horas & Fechamento Mensal
+// ----------------------------------------------------
+export interface BancoHorasFechamento {
+  id: string
+  tenant_id: string
+  colaborador_id: string
+  competencia: string // "AAAA-MM"
+  horas_trabalhadas_ms: number
+  horas_escaladas_ms: number
+  saldo_ms: number
+  horas_credito_ms: number
+  horas_debito_ms: number
+  status: 'fechado'
+  data_fechamento: string
+  comentario_rh?: string
+  created?: string
+  updated?: string
+  expand?: {
+    colaborador_id?: Colaborador
+    tenant_id?: Tenant
   }
 }
 

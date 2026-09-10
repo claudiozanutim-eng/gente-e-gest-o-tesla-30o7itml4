@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-09-10T09:59:37.153Z",
+  "generatedAt": "2026-09-10T10:20:43.158Z",
   "collections": [
     {
       "name": "users",
@@ -1706,9 +1706,9 @@
       "apiRules": {
         "list": "@request.auth.id != '' && tenant_id = @request.auth.tenant_id && (@request.auth.perfil = 'rh' || @request.auth.perfil = 'admin_rh' || @request.auth.perfil = 'admin' || colaborador_id.user_id = @request.auth.id)",
         "view": "@request.auth.id != '' && tenant_id = @request.auth.tenant_id && (@request.auth.perfil = 'rh' || @request.auth.perfil = 'admin_rh' || @request.auth.perfil = 'admin' || colaborador_id.user_id = @request.auth.id)",
-        "create": "@request.auth.id != '' && tenant_id = @request.auth.tenant_id && (@request.auth.perfil = 'admin_rh' || @request.auth.perfil = 'admin')",
-        "update": "@request.auth.id != '' && tenant_id = @request.auth.tenant_id && (@request.auth.perfil = 'admin_rh' || @request.auth.perfil = 'admin')",
-        "delete": "@request.auth.id != '' && tenant_id = @request.auth.tenant_id && (@request.auth.perfil = 'admin_rh' || @request.auth.perfil = 'admin')"
+        "create": "@request.auth.id != '' && tenant_id = @request.auth.tenant_id && (@request.auth.perfil = 'rh' || @request.auth.perfil = 'admin_rh' || @request.auth.perfil = 'admin')",
+        "update": "@request.auth.id != '' && tenant_id = @request.auth.tenant_id && (@request.auth.perfil = 'rh' || @request.auth.perfil = 'admin_rh' || @request.auth.perfil = 'admin')",
+        "delete": "@request.auth.id != '' && tenant_id = @request.auth.tenant_id && (@request.auth.perfil = 'rh' || @request.auth.perfil = 'admin_rh' || @request.auth.perfil = 'admin')"
       },
       "fields": [
         {
@@ -1762,6 +1762,18 @@
           "required": false,
           "system": false,
           "autodateTriggers": ["onCreate", "onUpdate"]
+        },
+        {
+          "name": "origem_automatica",
+          "type": "bool",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "solicitacao_ferias_id",
+          "type": "text",
+          "required": false,
+          "system": false
         }
       ],
       "indexes": [
@@ -1870,6 +1882,191 @@
         "CREATE INDEX idx_ferias_colab ON solicitacao_ferias (colaborador_id)",
         "CREATE INDEX idx_ferias_status ON solicitacao_ferias (status)",
         "CREATE INDEX idx_ferias_data_inicio ON solicitacao_ferias (data_inicio)"
+      ]
+    },
+    {
+      "name": "holerite_registro",
+      "type": "base",
+      "apiRules": {
+        "list": "@request.auth.id != '' && tenant_id = @request.auth.tenant_id && (@request.auth.perfil = 'rh' || @request.auth.perfil = 'admin_rh' || @request.auth.perfil = 'admin' || colaborador_id.user_id = @request.auth.id)",
+        "view": "@request.auth.id != '' && tenant_id = @request.auth.tenant_id && (@request.auth.perfil = 'rh' || @request.auth.perfil = 'admin_rh' || @request.auth.perfil = 'admin' || colaborador_id.user_id = @request.auth.id)",
+        "create": "@request.auth.id != '' && tenant_id = @request.auth.tenant_id && (@request.auth.perfil = 'rh' || @request.auth.perfil = 'admin_rh' || @request.auth.perfil = 'admin' || colaborador_id.user_id = @request.auth.id)",
+        "update": "@request.auth.id != '' && tenant_id = @request.auth.tenant_id && (@request.auth.perfil = 'rh' || @request.auth.perfil = 'admin_rh' || @request.auth.perfil = 'admin')",
+        "delete": "@request.auth.id != '' && tenant_id = @request.auth.tenant_id && (@request.auth.perfil = 'admin_rh' || @request.auth.perfil = 'admin')"
+      },
+      "fields": [
+        {
+          "name": "tenant_id",
+          "type": "relation",
+          "required": true,
+          "system": false,
+          "collectionRef": "tenant"
+        },
+        {
+          "name": "colaborador_id",
+          "type": "relation",
+          "required": true,
+          "system": false,
+          "collectionRef": "colaborador"
+        },
+        {
+          "name": "competencia",
+          "type": "text",
+          "required": true,
+          "system": false
+        },
+        {
+          "name": "total_proventos",
+          "type": "number",
+          "required": true,
+          "system": false
+        },
+        {
+          "name": "total_descontos",
+          "type": "number",
+          "required": true,
+          "system": false
+        },
+        {
+          "name": "total_liquido",
+          "type": "number",
+          "required": true,
+          "system": false
+        },
+        {
+          "name": "codigo_verificacao",
+          "type": "text",
+          "required": true,
+          "system": false
+        },
+        {
+          "name": "data_emissao",
+          "type": "date",
+          "required": true,
+          "system": false
+        },
+        {
+          "name": "created",
+          "type": "autodate",
+          "required": false,
+          "system": false,
+          "autodateTriggers": ["onCreate"]
+        },
+        {
+          "name": "updated",
+          "type": "autodate",
+          "required": false,
+          "system": false,
+          "autodateTriggers": ["onCreate", "onUpdate"]
+        }
+      ],
+      "indexes": [
+        "CREATE INDEX idx_holerite_tenant ON holerite_registro (tenant_id)",
+        "CREATE INDEX idx_holerite_colab ON holerite_registro (colaborador_id)",
+        "CREATE INDEX idx_holerite_comp ON holerite_registro (competencia)",
+        "CREATE INDEX idx_holerite_codigo ON holerite_registro (codigo_verificacao)"
+      ]
+    },
+    {
+      "name": "banco_horas_fechamento",
+      "type": "base",
+      "apiRules": {
+        "list": "@request.auth.id != '' && tenant_id = @request.auth.tenant_id && (@request.auth.perfil = 'rh' || @request.auth.perfil = 'admin_rh' || @request.auth.perfil = 'admin' || colaborador_id.user_id = @request.auth.id || (@request.auth.perfil = 'gestor' && colaborador_id.departamento != '' && colaborador_id.departamento = @request.auth.colaborador_via_user_id.departamento))",
+        "view": "@request.auth.id != '' && tenant_id = @request.auth.tenant_id && (@request.auth.perfil = 'rh' || @request.auth.perfil = 'admin_rh' || @request.auth.perfil = 'admin' || colaborador_id.user_id = @request.auth.id || (@request.auth.perfil = 'gestor' && colaborador_id.departamento != '' && colaborador_id.departamento = @request.auth.colaborador_via_user_id.departamento))",
+        "create": "@request.auth.id != '' && tenant_id = @request.auth.tenant_id && (@request.auth.perfil = 'rh' || @request.auth.perfil = 'admin_rh' || @request.auth.perfil = 'admin')",
+        "update": "@request.auth.id != '' && tenant_id = @request.auth.tenant_id && (@request.auth.perfil = 'rh' || @request.auth.perfil = 'admin_rh' || @request.auth.perfil = 'admin')",
+        "delete": "@request.auth.id != '' && tenant_id = @request.auth.tenant_id && (@request.auth.perfil = 'admin_rh' || @request.auth.perfil = 'admin')"
+      },
+      "fields": [
+        {
+          "name": "tenant_id",
+          "type": "relation",
+          "required": true,
+          "system": false,
+          "collectionRef": "tenant"
+        },
+        {
+          "name": "colaborador_id",
+          "type": "relation",
+          "required": true,
+          "system": false,
+          "collectionRef": "colaborador"
+        },
+        {
+          "name": "competencia",
+          "type": "text",
+          "required": true,
+          "system": false
+        },
+        {
+          "name": "horas_trabalhadas_ms",
+          "type": "number",
+          "required": true,
+          "system": false
+        },
+        {
+          "name": "horas_escaladas_ms",
+          "type": "number",
+          "required": true,
+          "system": false
+        },
+        {
+          "name": "saldo_ms",
+          "type": "number",
+          "required": true,
+          "system": false
+        },
+        {
+          "name": "horas_credito_ms",
+          "type": "number",
+          "required": true,
+          "system": false
+        },
+        {
+          "name": "horas_debito_ms",
+          "type": "number",
+          "required": true,
+          "system": false
+        },
+        {
+          "name": "status",
+          "type": "select",
+          "required": true,
+          "system": false,
+          "selectValues": ["fechado"]
+        },
+        {
+          "name": "data_fechamento",
+          "type": "date",
+          "required": true,
+          "system": false
+        },
+        {
+          "name": "comentario_rh",
+          "type": "text",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "created",
+          "type": "autodate",
+          "required": false,
+          "system": false,
+          "autodateTriggers": ["onCreate"]
+        },
+        {
+          "name": "updated",
+          "type": "autodate",
+          "required": false,
+          "system": false,
+          "autodateTriggers": ["onCreate", "onUpdate"]
+        }
+      ],
+      "indexes": [
+        "CREATE INDEX idx_bh_tenant ON banco_horas_fechamento (tenant_id)",
+        "CREATE INDEX idx_bh_colab ON banco_horas_fechamento (colaborador_id)",
+        "CREATE INDEX idx_bh_comp ON banco_horas_fechamento (competencia)",
+        "CREATE UNIQUE INDEX idx_bh_colab_comp ON banco_horas_fechamento (colaborador_id, competencia)"
       ]
     }
   ]

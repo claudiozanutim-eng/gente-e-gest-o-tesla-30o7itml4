@@ -40,6 +40,8 @@ import MinhaEquipePage from '@/pages/modules/MinhaEquipePage'
 import AvaliacoesAdminPage from '@/pages/modules/AvaliacoesAdminPage'
 import DemonstrativoPage from '@/pages/DemonstrativoPage'
 import GestaoFolhaPage from '@/pages/GestaoFolhaPage'
+import BancoHorasColaboradorPage from '@/pages/modules/BancoHorasColaboradorPage'
+import FechamentoBancoHorasPage from '@/pages/modules/FechamentoBancoHorasPage'
 import GestaoComunicadosPage from '@/pages/modules/GestaoComunicadosPage'
 import AlteracoesPendentesPage from '@/pages/modules/AlteracoesPendentesPage'
 import AdminConfiguracoesPage from '@/pages/modules/AdminConfiguracoesPage'
@@ -280,6 +282,26 @@ const App = () => (
               element={
                 <ProtectedRoute allowedProfiles={['admin_rh', 'admin']}>
                   <EscalasPage />
+                </ProtectedRoute>
+              }
+            />
+            {/* Banco de Horas (Colaborador - Self-service) */}
+            <Route
+              path="/banco-horas"
+              element={
+                <ProtectedRoute
+                  allowedProfiles={['colaborador', 'gestor', 'rh', 'admin_rh', 'admin']}
+                >
+                  <BancoHorasColaboradorPage />
+                </ProtectedRoute>
+              }
+            />
+            {/* Fechamento Banco de Horas (RH / Admin RH / Admin) */}
+            <Route
+              path="/banco-horas/fechamento"
+              element={
+                <ProtectedRoute allowedProfiles={['rh', 'admin_rh', 'admin']}>
+                  <FechamentoBancoHorasPage />
                 </ProtectedRoute>
               }
             />

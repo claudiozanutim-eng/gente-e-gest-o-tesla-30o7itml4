@@ -190,6 +190,7 @@ export default function AprovacoesFeriasPage() {
       const atualizada = await feriasService.aprovarSolicitacao(
         modalAprovar.id,
         comentarioAprovacao.trim() || undefined,
+        user.id,
       )
 
       // Registrar auditoria
@@ -222,7 +223,7 @@ export default function AprovacoesFeriasPage() {
 
       toast({
         title: 'Solicitação aprovada',
-        description: `As férias de ${colabAlvo?.nome || 'colaborador'} foram aprovadas com sucesso.`,
+        description: `As férias de ${colabAlvo?.nome || 'colaborador'} foram aprovadas com sucesso e os lançamentos foram gerados na folha.`,
       })
 
       setModalAprovar(null)

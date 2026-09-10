@@ -142,6 +142,13 @@ export default function PortalColaborador() {
       color: 'bg-blue-50 text-[#0D47A1] border-blue-200 hover:border-[#0D47A1]/50',
     },
     {
+      title: 'Banco de Horas',
+      subtitle: 'Saldo e fechamentos',
+      path: '/banco-horas',
+      icon: Clock,
+      color: 'bg-blue-50 text-[#0D47A1] border-blue-200 hover:border-[#0D47A1]/50',
+    },
+    {
       title: 'Demonstrativo',
       subtitle: 'Holerite e proventos',
       path: '/demonstrativo',
@@ -246,7 +253,7 @@ export default function PortalColaborador() {
           <span className="text-xs text-[#757575]">Acesso direto às suas ferramentas</span>
         </div>
 
-        <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-8 gap-3.5">
+        <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-3 lg:grid-cols-9 gap-3">
           {atalhos.map((item) => {
             const Icon = item.icon
             return (

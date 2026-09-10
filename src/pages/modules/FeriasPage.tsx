@@ -301,15 +301,16 @@ export default function FeriasPage() {
     }
   }
 
-  // Cancelar solicitação pendente
+  // Cancelar solicitação pendente ou aprovada
   const handleCancelarSolicitacao = async (id: string) => {
     try {
       setCancelingId(id)
-      const atualizada = await feriasService.cancelarSolicitacao(id)
+      const atualizada = await feriasService.cancelarSolicitacao(id, user?.id)
       setSolicitacoes((prev) => prev.map((s) => (s.id === id ? { ...s, ...atualizada } : s)))
       toast({
         title: 'Solicitação cancelada',
-        description: 'A solicitação de férias foi cancelada com sucesso.',
+        description:
+          'A solicitação de férias foi cancelada com sucesso e eventuais lançamentos na folha foram estornados.',
       })
     } catch (err) {
       console.error('Erro ao cancelar solicitação:', err)

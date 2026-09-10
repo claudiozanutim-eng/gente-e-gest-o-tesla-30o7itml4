@@ -1,5 +1,6 @@
-import { pb } from '@/lib/pocketbase/client'
+import pb from '@/lib/pocketbase/client'
 import { Colaborador, SolicitacaoFerias, PeriodoAquisitivoFerias } from '@/types'
+import { logAuditoriaService } from '@/services/api'
 
 export interface ColaboradorFeriasStatus {
   colaborador: Colaborador
@@ -98,15 +99,158 @@ export const feriasService = {
   },
 
   /**
-   * Aprova solicitação de férias
+   * Gera lançamentos automáticos de férias na folha de pagamento do colaborador
    */
-  async aprovarSolicitacao(id: string, comentarioGestor?: string): Promise<SolicitacaoFerias> {
+  async gerarLancamentosFolhaFerias(
+    solicitacao: SolicitacaoFerias,
+    userId?: string,
+  ): Promise<void> {
+    try {
+      const tenantId = solicitacao.tenant_id
+      const colabId = solicitacao.colaborador_id
+      const solId = solicitacao.id
+      const dataInicioStr = solicitacao.data_inicio
+      const comp = dataInicioStr.slice(0, 7) // 'AAAA-MM'
+
+      // 1. Verificar idempotência
+      const existentes = await pb.collection('lancamento_pontual').getFullList({
+        filter: `solicitacao_ferias_id = "${solId}"`,
+      })
+
+      if (existentes.length > 0) {
+        return
+      }
+
+      // 2. Buscar remuneração mensal do colaborador
+      let salarioMensal = 0
+      try {
+        const periodicos = await pb.collection('lancamento_periodico').getFullList({
+          filter: `colaborador_id = "${colabId}" && descritivo ~ "Remuneração"`,
+          sort: '-created',
+        })
+        if (periodicos.length > 0) {
+          salarioMensal = Number(periodicos[0].quantidade) || 0
+        }
+      } catch {
+        /* intentionally ignored */
+      }
+
+      const dias = solicitacao.dias || 0
+      const valorDiaria = salarioMensal > 0 ? salarioMensal / 30 : 0
+      const valorFeriasBase = valorDiaria * dias
+      const tercoConstitucional = valorFeriasBase / 3
+      const valorTotalFerias = Math.round((valorFeriasBase + tercoConstitucional) * 100) / 100
+
+      const dFimFormatada = solicitacao.data_fim ? solicitacao.data_fim.slice(0, 10) : ''
+      const dInicioFormatada = dataInicioStr.slice(0, 10)
+
+      // Criar lançamento principal de férias
+      await pb.collection('lancamento_pontual').create({
+        tenant_id: tenantId,
+        colaborador_id: colabId,
+        descritivo: `Férias — ${comp}`,
+        quantidade: valorTotalFerias,
+        data: dataInicioStr,
+        origem_automatica: true,
+        solicitacao_ferias_id: solId,
+        comentario: `Gerado automaticamente pela aprovação de férias (${dias} dias: ${dInicioFormatada} a ${dFimFormatada})`,
+      })
+
+      // Se houver abono pecuniário (vender dias)
+      const temAbono = solicitacao.abono_pecuniario || solicitacao.vender_20_dias
+      if (temAbono) {
+        const diasAbono = solicitacao.vender_20_dias ? 20 : 10
+        const valorAbonoBase = valorDiaria * diasAbono
+        const tercoAbono = valorAbonoBase / 3
+        const valorTotalAbono = Math.round((valorAbonoBase + tercoAbono) * 100) / 100
+
+        await pb.collection('lancamento_pontual').create({
+          tenant_id: tenantId,
+          colaborador_id: colabId,
+          descritivo: 'Abono Pecuniário de Férias',
+          quantidade: valorTotalAbono,
+          data: dataInicioStr,
+          origem_automatica: true,
+          solicitacao_ferias_id: solId,
+          comentario: `Gerado automaticamente pela aprovação de abono pecuniário (${diasAbono} dias)`,
+        })
+      }
+
+      // Log de auditoria
+      if (userId) {
+        await logAuditoriaService.registrarLog({
+          tenant_id: tenantId,
+          user_id: userId,
+          acao: 'Geração automática de lançamentos de férias na folha',
+          entidade: 'solicitacao_ferias',
+          entidade_id: solId,
+          dados_json: {
+            colaborador_id: colabId,
+            dias,
+            abono: temAbono,
+            valor_ferias: valorTotalFerias,
+          },
+        })
+      }
+    } catch (err) {
+      console.error('Erro ao gerar lançamentos automáticos de férias na folha:', err)
+    }
+  },
+
+  /**
+   * Estorna/remove lançamentos automáticos da folha caso as férias aprovadas sejam canceladas
+   */
+  async estornarLancamentosFolhaFerias(
+    solicitacaoId: string,
+    tenantId: string,
+    userId?: string,
+  ): Promise<void> {
+    try {
+      const lancamentos = await pb.collection('lancamento_pontual').getFullList({
+        filter: `solicitacao_ferias_id = "${solicitacaoId}"`,
+      })
+
+      for (const l of lancamentos) {
+        await pb.collection('lancamento_pontual').delete(l.id)
+      }
+
+      if (lancamentos.length > 0 && userId) {
+        await logAuditoriaService.registrarLog({
+          tenant_id: tenantId,
+          user_id: userId,
+          acao: 'Estorno de lançamentos automáticos de férias na folha',
+          entidade: 'solicitacao_ferias',
+          entidade_id: solicitacaoId,
+          dados_json: {
+            qtd_removidos: lancamentos.length,
+            lancamentos_ids: lancamentos.map((l) => l.id),
+          },
+        })
+      }
+    } catch (err) {
+      console.error('Erro ao estornar lançamentos automáticos de férias da folha:', err)
+    }
+  },
+
+  /**
+   * Aprova solicitação de férias e gera lançamentos na folha
+   */
+  async aprovarSolicitacao(
+    id: string,
+    comentarioGestor?: string,
+    userId?: string,
+  ): Promise<SolicitacaoFerias> {
     const payload: Partial<SolicitacaoFerias> = {
       status: 'aprovada',
       data_resposta: new Date().toISOString(),
       comentario_gestor: comentarioGestor || undefined,
     }
-    return await pb.collection('solicitacao_ferias').update<SolicitacaoFerias>(id, payload)
+    const record = await pb.collection('solicitacao_ferias').update<SolicitacaoFerias>(id, payload)
+
+    // Disparar geração automática na folha
+    await this.gerarLancamentosFolhaFerias(record, userId)
+
+    return record
   },
 
   /**
@@ -125,13 +269,27 @@ export const feriasService = {
   },
 
   /**
-   * Cancela uma solicitação de férias pendente pelo colaborador
+   * Cancela uma solicitação de férias pelo colaborador ou RH (com estorno se já estava aprovada)
    */
-  async cancelarSolicitacao(id: string): Promise<SolicitacaoFerias> {
-    return await pb.collection('solicitacao_ferias').update<SolicitacaoFerias>(id, {
+  async cancelarSolicitacao(id: string, userId?: string): Promise<SolicitacaoFerias> {
+    // Obter registro antes de cancelar para saber o tenant e se estava aprovada
+    let registroAnterior: SolicitacaoFerias | null = null
+    try {
+      registroAnterior = await pb.collection('solicitacao_ferias').getOne<SolicitacaoFerias>(id)
+    } catch {
+      /* intentionally ignored */
+    }
+
+    const record = await pb.collection('solicitacao_ferias').update<SolicitacaoFerias>(id, {
       status: 'cancelada',
       data_resposta: new Date().toISOString(),
     })
+
+    if (registroAnterior && registroAnterior.tenant_id) {
+      await this.estornarLancamentosFolhaFerias(id, registroAnterior.tenant_id, userId)
+    }
+
+    return record
   },
 
   /**

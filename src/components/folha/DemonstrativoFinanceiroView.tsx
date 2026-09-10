@@ -14,7 +14,22 @@ import {
   Plus,
   RefreshCw,
   Info,
+  Download,
+  Loader2,
+  ShieldCheck,
+  Search,
+  Check,
 } from 'lucide-react'
+import { Input } from '@/components/ui/input'
+import { toast } from '@/hooks/use-toast'
+import {
+  gerarHoleritePDF,
+  salvarRegistroHolerite,
+  verificarCodigoHolerite,
+  ItemHolerite,
+} from '@/lib/holeritePdfService'
+import { tenantService, logAuditoriaService, colaboradorService } from '@/services/api'
+import { useAuth } from '@/context/AuthContext'
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
@@ -113,9 +128,23 @@ export const DemonstrativoFinanceiroView: React.FC<DemonstrativoFinanceiroViewPr
   const [mesSelecionado, setMesSelecionado] = useState<number>(defaultMes)
   const [anoSelecionado, setAnoSelecionado] = useState<number>(defaultAno)
 
+  const { user } = useAuth()
   const [loading, setLoading] = useState<boolean>(true)
   const [periodicos, setPeriodicos] = useState<LancamentoPeriodico[]>([])
   const [pontuais, setPontuais] = useState<LancamentoPontual[]>([])
+  const [colaboradorCompleto, setColaboradorCompleto] = useState<Colaborador | null>(
+    colaborador || null,
+  )
+  const [gerandoPdf, setGerandoPdf] = useState(false)
+
+  // Verificador de código de autenticidade no RH
+  const [codigoBusca, setCodigoBusca] = useState('')
+  const [verificandoCodigo, setVerificandoCodigo] = useState(false)
+  const [resultadoVerificacao, setResultadoVerificacao] = useState<{
+    encontrado: boolean
+    mensagem: string
+    dados?: any
+  } | null>(null)
 
   // Estado para exclusão com confirmação
   const [itemParaExcluir, setItemParaExcluir] = useState<{
@@ -128,18 +157,20 @@ export const DemonstrativoFinanceiroView: React.FC<DemonstrativoFinanceiroViewPr
     if (!colaboradorId || !tenantId) return
     setLoading(true)
     try {
-      const [listaPeriodicos, listaPontuais] = await Promise.all([
+      const [listaPeriodicos, listaPontuais, colabDados] = await Promise.all([
         folhaService.getPeriodicosColaborador(tenantId, colaboradorId),
         folhaService.getPontuaisColaborador(tenantId, colaboradorId),
+        colaborador ? Promise.resolve(colaborador) : colaboradorService.getColaboradorById(colaboradorId),
       ])
       setPeriodicos(listaPeriodicos)
       setPontuais(listaPontuais)
+      if (colabDados) setColaboradorCompleto(colabDados)
     } catch (err) {
       console.error('Erro ao carregar lançamentos da folha:', err)
     } finally {
       setLoading(false)
     }
-  }, [tenantId, colaboradorId])
+  }, [tenantId, colaboradorId, colaborador])
 
   useEffect(() => {
     carregarDados()
@@ -168,6 +199,168 @@ export const DemonstrativoFinanceiroView: React.FC<DemonstrativoFinanceiroViewPr
   }, [pontuais, anoSelecionado, mesSelecionado])
 
   const [mostrarTodosPontuais, setMostrarTodosPontuais] = useState(false)
+
+  const handleBaixarHolerite = async () => {
+    if (!colaboradorCompleto) {
+      toast({
+        title: 'Atenção',
+        description: 'Dados do colaborador não encontrados para gerar o holerite.',
+        variant: 'destructive',
+      })
+      return
+    }
+
+    setGerandoPdf(true)
+    try {
+      // 1. Obter dados da empresa (tenant)
+      const tenantData = await tenantService.getTenant(tenantId).catch(() => null)
+
+      // 2. Mapear Proventos e Descontos vigentes no mês
+      const proventos: ItemHolerite[] = []
+      const descontos: ItemHolerite[] = []
+
+      // Periódicos vigentes
+      periodicos.forEach((p) => {
+        if (folhaService.isPeriodicoVigenteNoMes(p, anoSelecionado, mesSelecionado)) {
+          if (p.quantidade >= 0) {
+            proventos.push({
+              descritivo: p.descritivo,
+              tipo: 'provento',
+              valor: p.quantidade,
+              origem: 'periodico',
+            })
+          } else {
+            descontos.push({
+              descritivo: p.descritivo,
+              tipo: 'desconto',
+              valor: p.quantidade,
+              origem: 'periodico',
+            })
+          }
+        }
+      })
+
+      // Pontuais do mês
+      pontuaisDoMes.forEach((item) => {
+        if (item.quantidade >= 0) {
+          proventos.push({
+            descritivo: item.descritivo,
+            tipo: 'provento',
+            valor: item.quantidade,
+            origem: 'pontual',
+            origemAutomatica: item.origem_automatica,
+            comentario: item.comentario,
+          })
+        } else {
+          descontos.push({
+            descritivo: item.descritivo,
+            tipo: 'desconto',
+            valor: item.quantidade,
+            origem: 'pontual',
+            origemAutomatica: item.origem_automatica,
+            comentario: item.comentario,
+          })
+        }
+      })
+
+      const compStr = `${String(mesSelecionado).padStart(2, '0')}/${anoSelecionado}`
+      const compAnoMes = `${anoSelecionado}-${String(mesSelecionado).padStart(2, '0')}`
+
+      // 3. Gerar PDF
+      const resultadoPdf = await gerarHoleritePDF({
+        tenant: tenantData,
+        colaborador: colaboradorCompleto,
+        competenciaMes: mesSelecionado,
+        competenciaAno: anoSelecionado,
+        proventos,
+        descontos,
+        totalProventos: resumoFinanceiro.totalProventos,
+        totalDescontos: resumoFinanceiro.totalDescontos,
+        totalLiquido: resumoFinanceiro.valorLiquido,
+      })
+
+      // 4. Salvar registro na coleção holerite_registro
+      try {
+        await salvarRegistroHolerite({
+          tenantId,
+          colaboradorId: colaboradorCompleto.id,
+          competencia: compAnoMes,
+          totalProventos: resumoFinanceiro.totalProventos,
+          totalDescontos: resumoFinanceiro.totalDescontos,
+          totalLiquido: resumoFinanceiro.valorLiquido,
+          codigoVerificacao: resultadoPdf.codigoVerificacao,
+          dataEmissao: resultadoPdf.dataEmissao,
+        })
+      } catch (e) {
+        console.warn('Registro em holerite_registro não persistido:', e)
+      }
+
+      // 5. Registrar log de auditoria
+      if (user?.id) {
+        try {
+          await logAuditoriaService.registrarLog({
+            tenant_id: tenantId,
+            user_id: user.id,
+            acao: 'EMISSAO_HOLERITE_PDF',
+            entidade: 'holerite',
+            entidade_id: colaboradorCompleto.id,
+            dados_json: {
+              colaborador: colaboradorCompleto.nome,
+              competencia: compStr,
+              codigo_verificacao: resultadoPdf.codigoVerificacao,
+              total_liquido: resumoFinanceiro.valorLiquido,
+            },
+          })
+        } catch {
+          /* intentionally ignored */
+        }
+      }
+
+      toast({
+        title: 'Holerite gerado com sucesso',
+        description: `Arquivo ${resultadoPdf.nomeArquivo} baixado com código de verificação ${resultadoPdf.codigoVerificacao}.`,
+      })
+    } catch (err: any) {
+      console.error('Erro ao gerar holerite PDF:', err)
+      toast({
+        title: 'Erro ao gerar holerite',
+        description: err?.message || 'Falha ao processar o documento PDF.',
+        variant: 'destructive',
+      })
+    } finally {
+      setGerandoPdf(false)
+    }
+  }
+
+  const handleVerificarCodigo = async (e?: React.FormEvent) => {
+    if (e) e.preventDefault()
+    if (!codigoBusca.trim()) return
+
+    setVerificandoCodigo(true)
+    setResultadoVerificacao(null)
+    try {
+      const registro = await verificarCodigoHolerite(codigoBusca.trim())
+      if (registro) {
+        setResultadoVerificacao({
+          encontrado: true,
+          mensagem: `Documento AUTÊNTICO! Emitido em ${new Date(registro.data_emissao).toLocaleDateString('pt-BR')} para competência ${registro.competencia}. Líquido: ${formatMoedaPtBr(registro.total_liquido)}.`,
+          dados: registro,
+        })
+      } else {
+        setResultadoVerificacao({
+          encontrado: false,
+          mensagem: 'Código NÃO localizado ou inválido no registro de holerites deste tenant.',
+        })
+      }
+    } catch (err) {
+      setResultadoVerificacao({
+        encontrado: false,
+        mensagem: 'Erro ao consultar autenticidade.',
+      })
+    } finally {
+      setVerificandoCodigo(false)
+    }
+  }
 
   const handleConfirmarExclusao = async () => {
     if (!itemParaExcluir) return
@@ -258,30 +451,22 @@ export const DemonstrativoFinanceiroView: React.FC<DemonstrativoFinanceiroViewPr
             <RefreshCw className={`h-3.5 w-3.5 ${loading ? 'animate-spin' : ''}`} />
           </Button>
 
-          {/* Placeholder "Holerite em PDF (em breve)" respeitando a restrição explícita */}
-          <Tooltip delayDuration={200}>
-            <TooltipTrigger asChild>
-              <Button
-                variant="outline"
-                size="sm"
-                className="h-9 text-xs border-[#E0E0E0] text-[#757575] opacity-80 cursor-not-allowed gap-1.5"
-                onClick={(e) => e.preventDefault()}
-              >
-                <FileText className="h-3.5 w-3.5 text-[#0D47A1]" />
-                Holerite em PDF
-                <Badge
-                  variant="secondary"
-                  className="bg-amber-100 text-amber-800 text-[9px] py-0 px-1 font-medium"
-                >
-                  Em breve
-                </Badge>
-              </Button>
-            </TooltipTrigger>
-            <TooltipContent className="bg-[#212121] text-white text-xs max-w-xs">
-              A exportação oficial de holerite assinado em PDF com layout bancário estará disponível
-              na Fase 2 do módulo financeiro.
-            </TooltipContent>
-          </Tooltip>
+          {/* Botão Baixar Holerite (PDF) */}
+          <Button
+            variant="default"
+            size="sm"
+            onClick={handleBaixarHolerite}
+            disabled={gerandoPdf || loading}
+            className="h-9 text-xs bg-[#0D47A1] hover:bg-[#0B3D91] text-white gap-1.5 shadow-sm font-semibold"
+            title="Baixar holerite oficial da competência selecionada em PDF"
+          >
+            {gerandoPdf ? (
+              <Loader2 className="h-3.5 w-3.5 animate-spin" />
+            ) : (
+              <Download className="h-3.5 w-3.5" />
+            )}
+            {gerandoPdf ? 'Gerando...' : 'Baixar Holerite (PDF)'}
+          </Button>
         </div>
       </div>
 
@@ -651,8 +836,16 @@ export const DemonstrativoFinanceiroView: React.FC<DemonstrativoFinanceiroViewPr
                       }`}
                     >
                       <TableCell className="font-semibold text-[#212121] py-3">
-                        <div className="flex items-center gap-1.5">
+                        <div className="flex items-center gap-1.5 flex-wrap">
                           <span>{item.descritivo}</span>
+                          {item.origem_automatica && (
+                            <Badge
+                              variant="outline"
+                              className="text-[10px] py-0 px-1.5 bg-blue-50 text-[#0D47A1] border-blue-200 font-semibold"
+                            >
+                              Automático (férias)
+                            </Badge>
+                          )}
                           {isDesconto ? (
                             <Badge
                               variant="outline"
@@ -741,18 +934,93 @@ export const DemonstrativoFinanceiroView: React.FC<DemonstrativoFinanceiroViewPr
         </CardContent>
       </Card>
 
+      {/* Verificação de Autenticidade do Holerite (RH / Gestão) */}
+      {canManage && (
+        <Card className="border border-blue-200 bg-slate-50/70 shadow-xs">
+          <CardHeader className="p-4 pb-2">
+            <div className="flex items-center gap-2">
+              <ShieldCheck className="h-4 w-4 text-[#0D47A1]" />
+              <CardTitle className="text-xs font-bold text-[#0D47A1] uppercase tracking-wider">
+                Verificação de Autenticidade de Holerite Eletrônico
+              </CardTitle>
+            </div>
+            <CardDescription className="text-xs text-[#616161]">
+              Informe o código de verificação impresso no rodapé do holerite (ex:
+              XXXX-XXXX-XXXX-XXXX) para conferir a autenticidade e integridade dos valores.
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="p-4 pt-1 space-y-3">
+            <form
+              onSubmit={handleVerificarCodigo}
+              className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2"
+            >
+              <Input
+                placeholder="Código de verificação (ex: A1B2-C3D4-E5F6-7890)"
+                value={codigoBusca}
+                onChange={(e) => setCodigoBusca(e.target.value)}
+                className="h-9 text-xs bg-white uppercase font-mono max-w-sm"
+              />
+              <Button
+                type="submit"
+                size="sm"
+                disabled={verificandoCodigo || !codigoBusca.trim()}
+                className="h-9 text-xs bg-[#0D47A1] hover:bg-[#0B3D91] text-white gap-1.5"
+              >
+                {verificandoCodigo ? (
+                  <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                ) : (
+                  <Search className="h-3.5 w-3.5" />
+                )}
+                Verificar Código
+              </Button>
+            </form>
+
+            {resultadoVerificacao && (
+              <div
+                className={`p-3 rounded-lg border text-xs flex items-start gap-2 ${
+                  resultadoVerificacao.encontrado
+                    ? 'bg-emerald-50 border-emerald-200 text-emerald-800'
+                    : 'bg-rose-50 border-rose-200 text-rose-800'
+                }`}
+              >
+                {resultadoVerificacao.encontrado ? (
+                  <Check className="h-4 w-4 shrink-0 text-emerald-600 mt-0.5" />
+                ) : (
+                  <AlertCircle className="h-4 w-4 shrink-0 text-rose-600 mt-0.5" />
+                )}
+                <div>
+                  <p className="font-semibold">{resultadoVerificacao.mensagem}</p>
+                  {resultadoVerificacao.dados?.expand?.colaborador_id && (
+                    <p className="text-[11px] mt-1 text-slate-700">
+                      Colaborador:{' '}
+                      <strong>
+                        {resultadoVerificacao.dados.expand.colaborador_id.nome_completo ||
+                          resultadoVerificacao.dados.expand.colaborador_id.nome}
+                      </strong>{' '}
+                      (CPF: {resultadoVerificacao.dados.expand.colaborador_id.cpf})
+                    </p>
+                  )}
+                </div>
+              </div>
+            )}
+          </CardContent>
+        </Card>
+      )}
+
       {/* Nota Informativa sobre regras de negócio e Fase 2 */}
       <div className="p-3 bg-blue-50/60 rounded-lg border border-blue-100 text-xs text-[#0D47A1] flex items-start gap-2.5">
         <Info className="h-4 w-4 shrink-0 mt-0.5" />
         <div className="space-y-0.5">
-          <p className="font-semibold">Regras de Apuração do Demonstrativo</p>
+          <p className="font-semibold">
+            Regras de Apuração do Demonstrativo & Assinatura Eletrônica
+          </p>
           <p className="text-[11px] text-slate-600 leading-relaxed">
             • Lançamentos com valor positivo são computados como Proventos (créditos); lançamentos
             com valor negativo são computados como Descontos (débitos).
-            <br />• Lançamentos periódicos cuja vigência não cubra o mês de referência são excluídos
-            do cálculo do Líquido automaticamente.
-            <br />• Encargos de FGTS, INSS e IRRF detalhados serão integrados nas próximas fases da
-            plataforma.
+            <br />• O holerite gerado em PDF conta com assinatura eletrônica e hash de autenticidade
+            único auditável pelo RH.
+            <br />• Lançamentos de férias aprovadas são integrados e sinalizados como
+            &quot;Automático (férias)&quot;.
           </p>
         </div>
       </div>

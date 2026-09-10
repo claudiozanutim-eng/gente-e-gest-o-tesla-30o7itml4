@@ -181,6 +181,16 @@ export const Sidebar: React.FC<SidebarProps> = ({
       allowedProfiles: ['colaborador', 'gestor', 'rh', 'admin_rh', 'admin'],
       items: [
         { title: 'Meu Ponto', path: '/ponto', icon: Clock },
+        { title: 'Banco de Horas', path: '/banco-horas', icon: Clock },
+        ...(isRHOrAbove
+          ? [
+              {
+                title: 'Fechamento Banco Horas',
+                path: '/banco-horas/fechamento',
+                icon: CalendarDays,
+              },
+            ]
+          : []),
         ...(isRHOrAbove || isGestor
           ? [{ title: 'Gestão de Ponto', path: '/ponto/gestao', icon: CheckCircle2 }]
           : []),
