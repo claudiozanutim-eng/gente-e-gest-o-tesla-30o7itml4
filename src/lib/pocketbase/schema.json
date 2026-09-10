@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-09-10T11:42:11.060Z",
+  "generatedAt": "2026-09-10T12:08:13.624Z",
   "collections": [
     {
       "name": "users",
@@ -1478,6 +1478,32 @@
           "required": false,
           "system": false,
           "autodateTriggers": ["onCreate", "onUpdate"]
+        },
+        {
+          "name": "tipo",
+          "type": "select",
+          "required": false,
+          "system": false,
+          "selectValues": ["semanal", "especial"]
+        },
+        {
+          "name": "modelo_especial",
+          "type": "select",
+          "required": false,
+          "system": false,
+          "selectValues": ["12x36", "revezamento"]
+        },
+        {
+          "name": "ciclo_dias",
+          "type": "number",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "ciclo_dias_trabalho",
+          "type": "number",
+          "required": false,
+          "system": false
         }
       ],
       "indexes": [
@@ -2251,6 +2277,220 @@
         "CREATE INDEX idx_notif_destinatario ON notificacao (destinatario_id)",
         "CREATE INDEX idx_notif_lida ON notificacao (lida)",
         "CREATE INDEX idx_notif_created ON notificacao (created DESC)"
+      ]
+    },
+    {
+      "name": "smtp_config",
+      "type": "base",
+      "apiRules": {
+        "list": "@request.auth.id != '' && tenant_id = @request.auth.tenant_id && @request.auth.perfil = 'admin'",
+        "view": "@request.auth.id != '' && tenant_id = @request.auth.tenant_id && @request.auth.perfil = 'admin'",
+        "create": "@request.auth.id != '' && tenant_id = @request.auth.tenant_id && @request.auth.perfil = 'admin'",
+        "update": "@request.auth.id != '' && tenant_id = @request.auth.tenant_id && @request.auth.perfil = 'admin'",
+        "delete": "@request.auth.id != '' && tenant_id = @request.auth.tenant_id && @request.auth.perfil = 'admin'"
+      },
+      "fields": [
+        {
+          "name": "tenant_id",
+          "type": "relation",
+          "required": true,
+          "system": false,
+          "collectionRef": "tenant"
+        },
+        {
+          "name": "host",
+          "type": "text",
+          "required": true,
+          "system": false
+        },
+        {
+          "name": "porta",
+          "type": "number",
+          "required": true,
+          "system": false
+        },
+        {
+          "name": "usuario",
+          "type": "text",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "senha",
+          "type": "text",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "remetente_nome",
+          "type": "text",
+          "required": true,
+          "system": false
+        },
+        {
+          "name": "remetente_email",
+          "type": "text",
+          "required": true,
+          "system": false
+        },
+        {
+          "name": "ativo",
+          "type": "bool",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "tls",
+          "type": "bool",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "created",
+          "type": "autodate",
+          "required": false,
+          "system": false,
+          "autodateTriggers": ["onCreate"]
+        },
+        {
+          "name": "updated",
+          "type": "autodate",
+          "required": false,
+          "system": false,
+          "autodateTriggers": ["onCreate", "onUpdate"]
+        }
+      ],
+      "indexes": [
+        "CREATE INDEX idx_smtp_tenant ON smtp_config (tenant_id)",
+        "CREATE INDEX idx_smtp_ativo ON smtp_config (ativo)"
+      ]
+    },
+    {
+      "name": "email_log",
+      "type": "base",
+      "apiRules": {
+        "list": "@request.auth.id != '' && tenant_id = @request.auth.tenant_id && @request.auth.perfil = 'admin'",
+        "view": "@request.auth.id != '' && tenant_id = @request.auth.tenant_id && @request.auth.perfil = 'admin'",
+        "create": "@request.auth.id != '' && tenant_id = @request.auth.tenant_id",
+        "update": "@request.auth.id != '' && tenant_id = @request.auth.tenant_id && @request.auth.perfil = 'admin'",
+        "delete": "@request.auth.id != '' && tenant_id = @request.auth.tenant_id && @request.auth.perfil = 'admin'"
+      },
+      "fields": [
+        {
+          "name": "tenant_id",
+          "type": "relation",
+          "required": true,
+          "system": false,
+          "collectionRef": "tenant"
+        },
+        {
+          "name": "destinatario",
+          "type": "text",
+          "required": true,
+          "system": false
+        },
+        {
+          "name": "assunto",
+          "type": "text",
+          "required": true,
+          "system": false
+        },
+        {
+          "name": "status",
+          "type": "select",
+          "required": true,
+          "system": false,
+          "selectValues": ["enviado", "falha", "pendente_envio"]
+        },
+        {
+          "name": "erro",
+          "type": "text",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "created",
+          "type": "autodate",
+          "required": false,
+          "system": false,
+          "autodateTriggers": ["onCreate"]
+        },
+        {
+          "name": "updated",
+          "type": "autodate",
+          "required": false,
+          "system": false,
+          "autodateTriggers": ["onCreate", "onUpdate"]
+        }
+      ],
+      "indexes": [
+        "CREATE INDEX idx_email_log_tenant ON email_log (tenant_id)",
+        "CREATE INDEX idx_email_log_status ON email_log (status)",
+        "CREATE INDEX idx_email_log_created ON email_log (created DESC)"
+      ]
+    },
+    {
+      "name": "departamento_escala",
+      "type": "base",
+      "apiRules": {
+        "list": "@request.auth.id != '' && tenant_id = @request.auth.tenant_id",
+        "view": "@request.auth.id != '' && tenant_id = @request.auth.tenant_id",
+        "create": "@request.auth.id != '' && tenant_id = @request.auth.tenant_id && (@request.auth.perfil = 'rh' || @request.auth.perfil = 'admin_rh' || @request.auth.perfil = 'admin')",
+        "update": "@request.auth.id != '' && tenant_id = @request.auth.tenant_id && (@request.auth.perfil = 'rh' || @request.auth.perfil = 'admin_rh' || @request.auth.perfil = 'admin')",
+        "delete": "@request.auth.id != '' && tenant_id = @request.auth.tenant_id && (@request.auth.perfil = 'rh' || @request.auth.perfil = 'admin_rh' || @request.auth.perfil = 'admin')"
+      },
+      "fields": [
+        {
+          "name": "tenant_id",
+          "type": "relation",
+          "required": true,
+          "system": false,
+          "collectionRef": "tenant"
+        },
+        {
+          "name": "departamento",
+          "type": "text",
+          "required": true,
+          "system": false
+        },
+        {
+          "name": "escala_id",
+          "type": "relation",
+          "required": true,
+          "system": false,
+          "collectionRef": "escala_trabalho"
+        },
+        {
+          "name": "data_inicio",
+          "type": "date",
+          "required": true,
+          "system": false
+        },
+        {
+          "name": "data_fim",
+          "type": "date",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "created",
+          "type": "autodate",
+          "required": false,
+          "system": false,
+          "autodateTriggers": ["onCreate"]
+        },
+        {
+          "name": "updated",
+          "type": "autodate",
+          "required": false,
+          "system": false,
+          "autodateTriggers": ["onCreate", "onUpdate"]
+        }
+      ],
+      "indexes": [
+        "CREATE INDEX idx_dep_escala_tenant ON departamento_escala (tenant_id)",
+        "CREATE INDEX idx_dep_escala_dep ON departamento_escala (departamento)",
+        "CREATE INDEX idx_dep_escala_dt_ini ON departamento_escala (data_inicio)"
       ]
     }
   ]

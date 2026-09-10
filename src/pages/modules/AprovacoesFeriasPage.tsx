@@ -65,6 +65,12 @@ export default function AprovacoesFeriasPage() {
   const [modalAprovar, setModalAprovar] = useState<SolicitacaoFerias | null>(null)
   const [comentarioAprovacao, setComentarioAprovacao] = useState('')
   const [processandoAprovacao, setProcessandoAprovacao] = useState(false)
+  const [alertaSobreposicao, setAlertaSobreposicao] = useState<{
+    temSobreposicao: boolean
+    qtdColegas: number
+    nomesColegas: string[]
+    detalhes: string
+  } | null>(null)
 
   const [modalRejeitar, setModalRejeitar] = useState<SolicitacaoFerias | null>(null)
   const [motivoRejeicao, setMotivoRejeicao] = useState('')
@@ -182,6 +188,18 @@ export default function AprovacoesFeriasPage() {
   }, [solicitacoesFiltradasPerfil, filtroStatus, filtroColaborador, busca, colaboradorMap])
 
   // Ação: Aprovar Solicitação
+  const handleAbrirAprovacao = async (sol: SolicitacaoFerias) => {
+    setModalAprovar(sol)
+    setComentarioAprovacao('')
+    setAlertaSobreposicao(null)
+    try {
+      const res = await feriasService.verificarSobreposicaoAprovacao(sol)
+      setAlertaSobreposicao(res)
+    } catch {
+      setAlertaSobreposicao(null)
+    }
+  }
+
   const handleConfirmarAprovacao = async () => {
     if (!modalAprovar || !tenantId || !user?.id) return
 
@@ -561,7 +579,7 @@ export default function AprovacoesFeriasPage() {
                               <div className="flex items-center justify-end gap-2">
                                 <Button
                                   size="sm"
-                                  onClick={() => setModalAprovar(sol)}
+                                  onClick={() => handleAbrirAprovacao(sol)}
                                   className="h-8 bg-[#388E3C] hover:bg-[#2E7D32] text-white font-semibold text-xs gap-1 shadow-sm"
                                 >
                                   <Check className="w-3.5 h-3.5" />
@@ -715,7 +733,7 @@ export default function AprovacoesFeriasPage() {
                                 <div className="flex justify-end gap-1">
                                   <Button
                                     size="sm"
-                                    onClick={() => setModalAprovar(sol)}
+                                    onClick={() => handleAbrirAprovacao(sol)}
                                     className="h-7 text-xs bg-[#388E3C] hover:bg-[#2E7D32] text-white px-2"
                                   >
                                     Aprovar
@@ -787,6 +805,21 @@ export default function AprovacoesFeriasPage() {
                   </div>
                 )}
               </div>
+
+              {/* Aviso inline de sobreposição na aprovação */}
+              {alertaSobreposicao?.temSobreposicao && (
+                <div className="p-3 bg-amber-50 border border-amber-300 rounded-lg text-xs space-y-1 text-amber-900">
+                  <div className="font-bold flex items-center gap-1.5 text-amber-800">
+                    <AlertTriangle className="h-4 w-4 text-amber-600 shrink-0" />
+                    Atenção: {alertaSobreposicao.qtdColegas} colega(s) da equipe estarão de férias
+                    neste período!
+                  </div>
+                  <p className="text-[11px] text-amber-800/90 leading-relaxed">
+                    Colegas ausentes: <strong>{alertaSobreposicao.nomesColegas.join(', ')}</strong>.
+                    Certifique-se de que haverá cobertura suficiente no setor antes de homologar.
+                  </p>
+                </div>
+              )}
 
               <div className="space-y-1.5">
                 <Label

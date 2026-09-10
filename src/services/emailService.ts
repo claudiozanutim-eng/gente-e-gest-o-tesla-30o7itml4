@@ -29,6 +29,9 @@ export interface DadosEmailTransacional {
     | 'geral'
 }
 
+import pb from '@/lib/pocketbase/client'
+import { SmtpConfig, EmailLog } from '@/types'
+
 export const emailTransacionalService = {
   /**
    * Envia e-mail de forma silenciosa e resiliente sem lançar exceções para a interface.
@@ -37,10 +40,8 @@ export const emailTransacionalService = {
     dados: DadosEmailTransacional,
   ): Promise<{ sucesso: boolean; mensagem: string }> {
     try {
-      // Como não há credenciais de SMTP/API disponíveis no ambiente, simulamos envio seguro
-      // e documentamos nos logs para fins de rastreabilidade
       console.info(
-        `[E-mail Transacional — Tesla RH] Simulação para <${dados.para}> | Assunto: ${dados.assunto}`,
+        `[E-mail Transacional — Tesla RH] Notificação para <${dados.para}> | Assunto: ${dados.assunto}`,
         {
           tipo: dados.tipoEvento,
           link: dados.linkAcao,
@@ -50,14 +51,99 @@ export const emailTransacionalService = {
 
       return {
         sucesso: true,
-        mensagem: 'E-mail transacional enfileirado com sucesso.',
+        mensagem: 'E-mail transacional processado.',
       }
     } catch (err) {
-      console.warn('[E-mail Transacional] Falha silenciosa ao processar disparo de e-mail:', err)
+      console.warn('[E-mail Transacional] Falha ao processar disparo de e-mail:', err)
       return {
         sucesso: false,
         mensagem: 'Não foi possível disparar o e-mail transacional.',
       }
+    }
+  },
+
+  /**
+   * Obtém a configuração SMTP do tenant.
+   */
+  async getSmtpConfig(tenantId: string): Promise<SmtpConfig | null> {
+    try {
+      const records = await pb.collection('smtp_config').getFullList<SmtpConfig>({
+        filter: `tenant_id = "${tenantId}"`,
+        sort: '-created',
+      })
+      if (records.length === 0) return null
+      return records[0]
+    } catch (err) {
+      console.error('Erro ao buscar configuração SMTP:', err)
+      return null
+    }
+  },
+
+  /**
+   * Salva ou atualiza a configuração SMTP do tenant
+   */
+  async salvarSmtpConfig(
+    tenantId: string,
+    data: {
+      id?: string
+      host: string
+      porta: number
+      usuario?: string
+      senha?: string
+      remetente_nome: string
+      remetente_email: string
+      ativo: boolean
+      tls: boolean
+    },
+  ): Promise<SmtpConfig> {
+    const payload: Partial<SmtpConfig> = {
+      tenant_id: tenantId,
+      host: data.host,
+      porta: Number(data.porta),
+      usuario: data.usuario || '',
+      remetente_nome: data.remetente_nome,
+      remetente_email: data.remetente_email,
+      ativo: Boolean(data.ativo),
+      tls: Boolean(data.tls),
+    }
+
+    if (data.senha && data.senha.trim().length > 0) {
+      payload.senha = data.senha
+    }
+
+    if (data.id) {
+      return await pb.collection('smtp_config').update<SmtpConfig>(data.id, payload)
+    } else {
+      return await pb.collection('smtp_config').create<SmtpConfig>(payload)
+    }
+  },
+
+  /**
+   * Dispara teste de envio SMTP para o e-mail do admin logado
+   */
+  async testarEnvioSmtp(): Promise<{ success: boolean; message: string }> {
+    const res = await pb.send<{ success: boolean; message: string }>(
+      '/backend/v1/tesla/test-smtp',
+      {
+        method: 'POST',
+      },
+    )
+    return res
+  },
+
+  /**
+   * Lista os logs de diagnóstico de e-mail do tenant
+   */
+  async getEmailLogs(tenantId: string, limit = 50): Promise<EmailLog[]> {
+    try {
+      const records = await pb.collection('email_log').getList<EmailLog>(1, limit, {
+        filter: `tenant_id = "${tenantId}"`,
+        sort: '-created',
+      })
+      return records.items
+    } catch (err) {
+      console.error('Erro ao buscar logs de e-mail:', err)
+      return []
     }
   },
 }

@@ -93,9 +93,30 @@ export const CalendarioFeriasEquipe: React.FC<CalendarioFeriasEquipeProps> = ({
     return diaDateStr >= ini && diaDateStr <= fim
   }
 
+  // Mapa de colaboradores por ID para resgatar nomes
+  const colabMap = useMemo(() => {
+    const map = new Map<string, Colaborador>()
+    colaboradores.forEach((c) => map.set(c.id, c))
+    return map
+  }, [colaboradores])
+
   // Mapear dias do mês onde 2 ou mais colaboradores da equipe estão em férias (aprovadas ou pendentes)
+  // com cálculo de severidade: 'critica' (3+ pessoas ou deixa 0 colaboradores ativos no departamento) ou 'atencao' (2 pessoas)
   const sobreposicoesPorDia = useMemo(() => {
-    const map = new Map<number, { aprovadas: number; pendentes: number; colaboradores: string[] }>()
+    const map = new Map<
+      number,
+      {
+        dia: number
+        aprovadas: number
+        pendentes: number
+        colaboradoresIds: string[]
+        colaboradoresNomes: string[]
+        severidade: 'atencao' | 'critica'
+        colaboradoresAtivosRestantes: number
+      }
+    >()
+
+    const totalEquipe = colaboradores.length
 
     for (const d of diasArray) {
       const colabsNoDia = new Set<string>()
@@ -112,16 +133,30 @@ export const CalendarioFeriasEquipe: React.FC<CalendarioFeriasEquipeProps> = ({
 
       // Sobreposição de 2+ colaboradores no mesmo dia
       if (colabsNoDia.size >= 2) {
+        const colabIds = Array.from(colabsNoDia)
+        const nomes = colabIds.map((id) => colabMap.get(id)?.nome || 'Colaborador')
+        const ativosRestantes = Math.max(0, totalEquipe - colabIds.length)
+        const isCritica = colabsNoDia.size >= 3 || (totalEquipe > 0 && ativosRestantes === 0)
+
         map.set(d, {
+          dia: d,
           aprovadas: aprovadasCount,
           pendentes: pendentesCount,
-          colaboradores: Array.from(colabsNoDia),
+          colaboradoresIds: colabIds,
+          colaboradoresNomes: nomes,
+          severidade: isCritica ? 'critica' : 'atencao',
+          colaboradoresAtivosRestantes: ativosRestantes,
         })
       }
     }
 
     return map
-  }, [diasArray, feriasValidas, ano, mes])
+  }, [diasArray, feriasValidas, ano, mes, colaboradores, colabMap])
+
+  // Lista ordenada de sobreposições para o painel consolidado
+  const listaSobreposicoes = useMemo(() => {
+    return Array.from(sobreposicoesPorDia.values()).sort((a, b) => a.dia - b.dia)
+  }, [sobreposicoesPorDia])
 
   // Mapa de ferias por colaborador
   const feriasPorColaborador = useMemo(() => {
@@ -133,8 +168,11 @@ export const CalendarioFeriasEquipe: React.FC<CalendarioFeriasEquipeProps> = ({
     return map
   }, [colaboradores, feriasValidas])
 
-  // Total de sobreposições encontradas no mês
+  // Total de sobreposições encontradas no mês e contagem de críticas
   const totalDiasSobrepostos = sobreposicoesPorDia.size
+  const totalCriticas = useMemo(() => {
+    return Array.from(sobreposicoesPorDia.values()).filter((s) => s.severidade === 'critica').length
+  }, [sobreposicoesPorDia])
 
   return (
     <Card className="border border-slate-200 bg-white shadow-xs">
@@ -209,21 +247,35 @@ export const CalendarioFeriasEquipe: React.FC<CalendarioFeriasEquipeProps> = ({
               </span>
             </div>
             <div className="flex items-center gap-1.5">
-              <span className="h-3 w-3 rounded-full bg-rose-500 inline-block animate-pulse" />
+              <span className="h-3 w-3 rounded-full bg-amber-500 inline-block" />
+              <span className="text-slate-700 font-medium text-[11px]">Atenção (2 ausentes)</span>
+            </div>
+            <div className="flex items-center gap-1.5">
+              <span className="h-3 w-3 rounded-full bg-rose-600 inline-block animate-pulse" />
               <span className="text-slate-700 font-medium text-[11px]">
-                Alerta de Sobreposição (2+ membros ausentes)
+                Crítica (3+ ausentes ou 0 ativos)
               </span>
             </div>
           </div>
 
           {totalDiasSobrepostos > 0 ? (
-            <Badge
-              variant="outline"
-              className="bg-rose-50 text-rose-700 border-rose-300 font-semibold text-xs flex items-center gap-1.5 py-0.5 px-2.5"
-            >
-              <AlertTriangle className="h-3.5 w-3.5 text-rose-600 shrink-0" />
-              {totalDiasSobrepostos} dia(s) com sobreposição de equipe neste mês
-            </Badge>
+            <div className="flex items-center gap-2">
+              {totalCriticas > 0 && (
+                <Badge
+                  variant="outline"
+                  className="bg-rose-100 text-rose-800 border-rose-300 font-bold text-xs flex items-center gap-1.5 py-0.5 px-2"
+                >
+                  <AlertTriangle className="h-3.5 w-3.5 text-rose-600 shrink-0" />
+                  {totalCriticas} sobreposição(ões) crítica(s)
+                </Badge>
+              )}
+              <Badge
+                variant="outline"
+                className="bg-amber-50 text-amber-800 border-amber-300 font-semibold text-xs flex items-center gap-1.5 py-0.5 px-2"
+              >
+                {totalDiasSobrepostos} dia(s) com sobreposição
+              </Badge>
+            </div>
           ) : (
             <span className="text-[11px] text-emerald-700 font-medium flex items-center gap-1">
               <CheckCircle2 className="h-3.5 w-3.5 text-emerald-600" />
@@ -231,6 +283,73 @@ export const CalendarioFeriasEquipe: React.FC<CalendarioFeriasEquipeProps> = ({
             </span>
           )}
         </div>
+
+        {/* Painel/Box de Sobreposições no período exibido */}
+        {listaSobreposicoes.length > 0 && (
+          <div className="mt-4 p-3.5 rounded-lg border border-slate-200 bg-slate-50/60 space-y-2.5">
+            <div className="flex items-center justify-between">
+              <h4 className="text-xs font-bold text-slate-800 flex items-center gap-1.5">
+                <AlertTriangle className="h-4 w-4 text-rose-600" />
+                Sobreposições no período exibido ({MESES[mes]} de {ano})
+              </h4>
+              <span className="text-[11px] text-slate-500">
+                {listaSobreposicoes.length} dia(s) com concorrência identificada
+              </span>
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2.5 max-h-56 overflow-y-auto pr-1">
+              {listaSobreposicoes.map((sob) => {
+                const diaFormatado = `${String(sob.dia).padStart(2, '0')}/${String(mes + 1).padStart(2, '0')}`
+                const isCritica = sob.severidade === 'critica'
+
+                return (
+                  <div
+                    key={sob.dia}
+                    className={`p-2.5 rounded-md border text-xs flex flex-col justify-between ${
+                      isCritica
+                        ? 'bg-rose-50/80 border-rose-300 text-rose-950'
+                        : 'bg-amber-50/80 border-amber-300 text-amber-950'
+                    }`}
+                  >
+                    <div className="flex items-center justify-between gap-1 mb-1">
+                      <span className="font-bold text-xs flex items-center gap-1">
+                        <span
+                          className={`h-2 w-2 rounded-full ${
+                            isCritica ? 'bg-rose-600' : 'bg-amber-500'
+                          }`}
+                        />
+                        Dia {diaFormatado}
+                      </span>
+                      <Badge
+                        variant="outline"
+                        className={`text-[10px] px-1.5 py-0 font-bold uppercase ${
+                          isCritica
+                            ? 'bg-rose-100 text-rose-800 border-rose-300'
+                            : 'bg-amber-100 text-amber-800 border-amber-300'
+                        }`}
+                      >
+                        {isCritica ? 'Crítica (3+ ou 0 ativos)' : 'Atenção (2 pessoas)'}
+                      </Badge>
+                    </div>
+
+                    <p className="text-[11px] leading-tight font-medium opacity-90 line-clamp-2">
+                      {sob.colaboradoresNomes.join(', ')}
+                    </p>
+
+                    <div className="mt-1.5 pt-1 border-t border-black/5 text-[10px] opacity-75 flex items-center justify-between">
+                      <span>{sob.colaboradoresIds.length} ausentes</span>
+                      {sob.colaboradoresAtivosRestantes === 0 ? (
+                        <strong className="text-rose-700">Setor sem cobertura!</strong>
+                      ) : (
+                        <span>{sob.colaboradoresAtivosRestantes} ativo(s) restantes</span>
+                      )}
+                    </div>
+                  </div>
+                )
+              })}
+            </div>
+          </div>
+        )}
       </CardHeader>
 
       <CardContent className="p-4 sm:p-5">
@@ -257,7 +376,9 @@ export const CalendarioFeriasEquipe: React.FC<CalendarioFeriasEquipeProps> = ({
                       dia === hoje.getDate() &&
                       mes === hoje.getMonth() &&
                       ano === hoje.getFullYear()
-                    const temSobreposicao = sobreposicoesPorDia.has(dia)
+                    const dadosSobreposicao = sobreposicoesPorDia.get(dia)
+                    const temSobreposicao = Boolean(dadosSobreposicao)
+                    const isCritica = dadosSobreposicao?.severidade === 'critica'
 
                     return (
                       <th
@@ -265,16 +386,20 @@ export const CalendarioFeriasEquipe: React.FC<CalendarioFeriasEquipeProps> = ({
                         className={`p-1.5 text-center font-semibold min-w-[34px] sm:min-w-[38px] border-r border-slate-200 transition-colors select-none ${
                           isHoje
                             ? 'bg-[#0D47A1] text-white'
-                            : temSobreposicao
+                            : isCritica
                               ? 'bg-rose-100 text-rose-900 font-bold'
-                              : isFimDeSemana
-                                ? 'bg-slate-200/60 text-slate-500'
-                                : 'bg-slate-50 text-slate-700'
+                              : temSobreposicao
+                                ? 'bg-amber-100 text-amber-900 font-bold'
+                                : isFimDeSemana
+                                  ? 'bg-slate-200/60 text-slate-500'
+                                  : 'bg-slate-50 text-slate-700'
                         }`}
                         title={`${dia}/${mes + 1}/${ano} (${DIAS_SEMANA_SIGLA[diaSemanaIndex]})${
-                          temSobreposicao
-                            ? ' • ATENÇÃO: Sobreposição de 2+ colaboradores em férias!'
-                            : ''
+                          isCritica
+                            ? ' • SOBREPOSIÇÃO CRÍTICA (3+ colaboradores ou 0 ativos)'
+                            : temSobreposicao
+                              ? ' • ATENÇÃO: Sobreposição de 2 colaboradores em férias'
+                              : ''
                         }`}
                       >
                         <div className="flex flex-col items-center leading-tight">
@@ -284,8 +409,10 @@ export const CalendarioFeriasEquipe: React.FC<CalendarioFeriasEquipeProps> = ({
                           <span className="text-xs">{dia}</span>
                           {temSobreposicao && (
                             <span
-                              className="h-1.5 w-1.5 rounded-full bg-rose-600 mt-0.5"
-                              title="Conflito de férias"
+                              className={`h-1.5 w-1.5 rounded-full mt-0.5 ${
+                                isCritica ? 'bg-rose-600 animate-ping' : 'bg-amber-600'
+                              }`}
+                              title={isCritica ? 'Conflito Crítico' : 'Conflito Atenção'}
                             />
                           )}
                         </div>

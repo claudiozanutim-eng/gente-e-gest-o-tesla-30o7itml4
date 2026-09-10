@@ -585,6 +585,9 @@ export interface RegistroPonto {
   }
 }
 
+export type EscalaTipo = 'semanal' | 'especial'
+export type EscalaModeloEspecial = '12x36' | 'revezamento'
+
 export interface EscalaTrabalho {
   id: string
   tenant_id: string
@@ -592,6 +595,10 @@ export interface EscalaTrabalho {
   horario_inicio: string // "08:00"
   horario_fim: string // "17:00"
   dias_semana: string // "seg,ter,qua,qui,sex"
+  tipo?: EscalaTipo // 'semanal' ou 'especial'
+  modelo_especial?: EscalaModeloEspecial // '12x36' ou 'revezamento'
+  ciclo_dias?: number // Ciclo total de dias para revezamento (ex: 4)
+  ciclo_dias_trabalho?: number // Dias trabalhados consecutivos (ex: 2)
   created?: string
   updated?: string
 }
@@ -609,6 +616,48 @@ export interface ColaboradorEscala {
     colaborador_id?: Colaborador
     escala_id?: EscalaTrabalho
   }
+}
+
+export interface DepartamentoEscala {
+  id: string
+  tenant_id: string
+  departamento: string
+  escala_id: string
+  data_inicio: string
+  data_fim?: string
+  created?: string
+  updated?: string
+  expand?: {
+    escala_id?: EscalaTrabalho
+  }
+}
+
+export interface SmtpConfig {
+  id: string
+  tenant_id: string
+  host: string
+  porta: number
+  usuario?: string
+  senha?: string
+  remetente_nome: string
+  remetente_email: string
+  ativo: boolean
+  tls: boolean
+  created?: string
+  updated?: string
+}
+
+export type EmailLogStatus = 'enviado' | 'falha' | 'pendente_envio'
+
+export interface EmailLog {
+  id: string
+  tenant_id: string
+  destinatario: string
+  assunto: string
+  status: EmailLogStatus
+  erro?: string
+  created: string
+  updated: string
 }
 
 export interface PontoTipoConfig {

@@ -252,25 +252,197 @@ export const feriasService = {
     await this.gerarLancamentosFolhaFerias(record, userId)
 
     // Notificar colaborador
+    let colabObj: Colaborador | null = null
     try {
-      const colab = await colaboradorService.getColaboradorById(record.colaborador_id)
-      if (colab?.user_id) {
+      colabObj = await colaboradorService.getColaboradorById(record.colaborador_id)
+      if (colabObj?.user_id) {
         await notificacaoService.notificar({
           tenantId: record.tenant_id,
-          destinatarioId: colab.user_id,
+          destinatarioId: colabObj.user_id,
           tipo: 'ferias',
           titulo: 'Solicitação de férias aprovada',
           mensagem: `Suas férias de ${record.dias} dias a partir de ${new Date(record.data_inicio).toLocaleDateString('pt-BR')} foram aprovadas!`,
           link: '/ferias',
-          emailDestinatario: colab.email,
-          nomeDestinatario: colab.nome,
+          emailDestinatario: colabObj.email,
+          nomeDestinatario: colabObj.nome,
         })
       }
     } catch (e) {
       console.warn('Erro ao notificar aprovacao de ferias:', e)
     }
 
+    // Verificar e alertar sobreposição crítica para gestores e RH/Admin
+    try {
+      if (colabObj?.departamento) {
+        await this.verificarEAlertarSobreposicaoCritica(record, colabObj)
+      }
+    } catch (errSob) {
+      console.warn('Erro ao processar alerta de sobreposição crítica:', errSob)
+    }
+
     return record
+  },
+
+  /**
+   * Verifica se a aprovação de férias gerou sobreposição crítica na equipe/departamento
+   * (3+ colaboradores da mesma equipe no mesmo dia, ou 50%+ do departamento ausente).
+   * Se sim, envia notificação in-app para gestor(es), RH, Admin RH e Admin.
+   * Evita spam: máximo 1 notificação por combinação (equipe, data).
+   */
+  async verificarEAlertarSobreposicaoCritica(
+    feriasAprovada: SolicitacaoFerias,
+    colaborador: Colaborador,
+  ): Promise<void> {
+    const tenantId = feriasAprovada.tenant_id
+    const departamento = colaborador.departamento
+    if (!tenantId || !departamento) return
+
+    // Buscar todos os colaboradores do departamento
+    const colabsDep = await pb.collection('colaborador').getFullList<Colaborador>({
+      filter: `tenant_id = "${tenantId}" && departamento = "${departamento}" && status = "ativo"`,
+    })
+    const totalMembros = colabsDep.length
+    if (totalMembros === 0) return
+
+    const colabIds = colabsDep.map((c) => c.id)
+
+    // Buscar todas as férias aprovadas dos colaboradores deste departamento que interceptam o período
+    const dIniStr = feriasAprovada.data_inicio.slice(0, 10)
+    const dFimStr = feriasAprovada.data_fim.slice(0, 10)
+
+    const feriasDep = await pb.collection('solicitacao_ferias').getFullList<SolicitacaoFerias>({
+      filter: `tenant_id = "${tenantId}" && status = "aprovada" && data_inicio <= "${dFimStr}" && data_fim >= "${dIniStr}"`,
+    })
+
+    const feriasDepFiltradas = feriasDep.filter((f) => colabIds.includes(f.colaborador_id))
+
+    // Percorrer cada dia do intervalo da solicitação recém aprovada
+    const curDate = new Date(`${dIniStr}T00:00:00.000Z`)
+    const endDate = new Date(`${dFimStr}T00:00:00.000Z`)
+
+    const diasCriticos: { dataIso: string; dataFormatada: string; qtd: number }[] = []
+
+    while (curDate <= endDate) {
+      const dataIso = curDate.toISOString().slice(0, 10)
+      const colabsNoDia = new Set<string>()
+
+      feriasDepFiltradas.forEach((f) => {
+        const fi = f.data_inicio.slice(0, 10)
+        const ff = f.data_fim.slice(0, 10)
+        if (dataIso >= fi && dataIso <= ff) {
+          colabsNoDia.add(f.colaborador_id)
+        }
+      })
+
+      const count = colabsNoDia.size
+      const percentualAusente = totalMembros > 0 ? count / totalMembros : 0
+
+      // Crítica: 3+ da mesma equipe no mesmo dia, ou 50%+ do departamento
+      if (count >= 3 || (totalMembros >= 2 && percentualAusente >= 0.5)) {
+        const [ano, mes, dia] = dataIso.split('-')
+        diasCriticos.push({
+          dataIso,
+          dataFormatada: `${dia}/${mes}/${ano}`,
+          qtd: count,
+        })
+      }
+
+      curDate.setUTCDate(curDate.getUTCDate() + 1)
+    }
+
+    if (diasCriticos.length === 0) return
+
+    // Buscar usuários destinatários: gestores do setor + perfis 'rh', 'admin_rh', 'admin' do tenant
+    const gestoresAndAdmins = await pb.collection('users').getFullList<AppUser>({
+      filter: `tenant_id = "${tenantId}" && ativo = true && (perfil = "rh" || perfil = "admin_rh" || perfil = "admin" || perfil = "gestor")`,
+    })
+
+    for (const diaCritico of diasCriticos) {
+      const tituloNotif = `Sobreposição crítica de férias: ${diaCritico.qtd} colaboradores fora em ${diaCritico.dataFormatada} — equipe ${departamento}`
+      const mensagemNotif = `Atenção: A aprovação de férias gerou sobreposição crítica na equipe ${departamento}. Haverá ${diaCritico.qtd} colaboradores ausentes no dia ${diaCritico.dataFormatada} (${totalMembros} membros na equipe). Verifique a cobertura de postos.`
+
+      // Evitar spam: verificar se já existe notificação com este mesmo título para este tenant
+      const jaNotificado = await pb.collection('notificacao').getList(1, 1, {
+        filter: `tenant_id = "${tenantId}" && tipo = "ferias" && titulo = "${tituloNotif}"`,
+      })
+
+      if (jaNotificado.items.length > 0) {
+        continue // Já notificado para este dia/equipe
+      }
+
+      for (const dest of gestoresAndAdmins) {
+        try {
+          await notificacaoService.notificar({
+            tenantId,
+            destinatarioId: dest.id,
+            tipo: 'ferias',
+            titulo: tituloNotif,
+            mensagem: mensagemNotif,
+            link: '/portal-gestor',
+            emailDestinatario: dest.email,
+            nomeDestinatario: dest.name,
+          })
+        } catch {
+          /* intentionally ignored */
+        }
+      }
+    }
+  },
+
+  /**
+   * Verifica se a aprovação de uma solicitação causará sobreposição com outros colegas da mesma equipe.
+   * Usado para avisos inline antes de aprovar.
+   */
+  async verificarSobreposicaoAprovacao(solicitacao: SolicitacaoFerias): Promise<{
+    temSobreposicao: boolean
+    qtdColegas: number
+    nomesColegas: string[]
+    detalhes: string
+  }> {
+    try {
+      const colab = await colaboradorService.getColaboradorById(solicitacao.colaborador_id)
+      if (!colab || !colab.departamento) {
+        return { temSobreposicao: false, qtdColegas: 0, nomesColegas: [], detalhes: '' }
+      }
+
+      const colabsDep = await pb.collection('colaborador').getFullList<Colaborador>({
+        filter: `tenant_id = "${solicitacao.tenant_id}" && departamento = "${colab.departamento}" && id != "${colab.id}" && status = "ativo"`,
+      })
+
+      if (colabsDep.length === 0) {
+        return { temSobreposicao: false, qtdColegas: 0, nomesColegas: [], detalhes: '' }
+      }
+
+      const colabIds = colabsDep.map((c) => c.id)
+      const dIniStr = solicitacao.data_inicio.slice(0, 10)
+      const dFimStr = solicitacao.data_fim.slice(0, 10)
+
+      const feriasOutros = await pb
+        .collection('solicitacao_ferias')
+        .getFullList<SolicitacaoFerias>({
+          filter: `tenant_id = "${solicitacao.tenant_id}" && status = "aprovada" && data_inicio <= "${dFimStr}" && data_fim >= "${dIniStr}"`,
+        })
+
+      const feriasConflitantes = feriasOutros.filter((f) => colabIds.includes(f.colaborador_id))
+      const idsConflitantes = Array.from(new Set(feriasConflitantes.map((f) => f.colaborador_id)))
+
+      if (idsConflitantes.length === 0) {
+        return { temSobreposicao: false, qtdColegas: 0, nomesColegas: [], detalhes: '' }
+      }
+
+      const nomes = idsConflitantes
+        .map((id) => colabsDep.find((c) => c.id === id)?.nome || 'Colega')
+        .filter(Boolean)
+
+      return {
+        temSobreposicao: true,
+        qtdColegas: nomes.length,
+        nomesColegas: nomes,
+        detalhes: `Atenção: ${nomes.length} colega(s) da equipe (${nomes.join(', ')}) estarão de férias neste período.`,
+      }
+    } catch {
+      return { temSobreposicao: false, qtdColegas: 0, nomesColegas: [], detalhes: '' }
+    }
   },
 
   /**

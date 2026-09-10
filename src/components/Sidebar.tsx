@@ -25,6 +25,7 @@ import {
   Building,
   Palmtree,
   CalendarCheck,
+  Mail,
 } from 'lucide-react'
 import { useAuth } from '@/context/AuthContext'
 import { usePermission } from '@/hooks/usePermission'
@@ -216,6 +217,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
         ...(isAdminGeral
           ? [
               { title: 'Configurações da Empresa', path: '/admin/configuracoes', icon: Building },
+              { title: 'Configurações de E-mail', path: '/admin/email', icon: Mail },
               { title: 'Usuários e Permissões', path: '/admin/usuarios', icon: Users },
             ]
           : []),

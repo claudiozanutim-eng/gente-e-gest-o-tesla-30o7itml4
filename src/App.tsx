@@ -48,6 +48,7 @@ import AlteracoesPendentesPage from '@/pages/modules/AlteracoesPendentesPage'
 import AdminConfiguracoesPage from '@/pages/modules/AdminConfiguracoesPage'
 import AdminUsuariosPage from '@/pages/modules/AdminUsuariosPage'
 import AdminLogsPage from '@/pages/modules/AdminLogsPage'
+import AdminEmailPage from '@/pages/modules/AdminEmailPage'
 import NotFound from '@/pages/NotFound'
 
 // Root redirect handler based on user profile or login
@@ -192,6 +193,14 @@ const App = () => (
               element={
                 <ProtectedRoute allowedProfiles={['admin']}>
                   <AdminConfiguracoesPage />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/admin/email"
+              element={
+                <ProtectedRoute allowedProfiles={['admin']}>
+                  <AdminEmailPage />
                 </ProtectedRoute>
               }
             />
