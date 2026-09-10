@@ -1,4 +1,5 @@
 import React, { useEffect, useState } from 'react'
+import { Link } from 'react-router-dom'
 import {
   Users,
   Building,
@@ -7,8 +8,10 @@ import {
   Calendar,
   CheckCircle2,
   AlertCircle,
+  CalendarCheck,
 } from 'lucide-react'
 import { useAuth } from '@/context/AuthContext'
+import { Button } from '@/components/ui/button'
 import { colaboradorService } from '@/services/api'
 import { Colaborador } from '@/types'
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card'
@@ -83,6 +86,18 @@ export default function DashboardEquipe() {
               {colaboradores.filter((c) => c.status === 'ativo').length}
             </span>
             <p className="text-xs font-medium text-[#757575]">Ativos</p>
+          </div>
+          <div className="pl-2 border-l border-[#E0E0E0]">
+            <Button
+              asChild
+              size="sm"
+              className="bg-[#0D47A1] hover:bg-[#0A3A82] text-white text-xs gap-1.5 h-8"
+            >
+              <Link to="/ferias/aprovacoes">
+                <CalendarCheck className="h-3.5 w-3.5" />
+                Aprovações de Férias
+              </Link>
+            </Button>
           </div>
         </div>
       </div>

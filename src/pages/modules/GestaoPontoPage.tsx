@@ -22,8 +22,15 @@ import {
 import { useAuth } from '@/context/AuthContext'
 import { useToast } from '@/hooks/use-toast'
 import { pontoService, escalaService, DiaEspelhoPonto } from '@/services/pontoService'
-import { colaboradorService, atestadoService } from '@/services/api'
-import { Colaborador, RegistroPonto, EscalaTrabalho, ColaboradorEscala, Atestado } from '@/types'
+import { colaboradorService, atestadoService, feriasService } from '@/services/api'
+import {
+  Colaborador,
+  RegistroPonto,
+  EscalaTrabalho,
+  ColaboradorEscala,
+  Atestado,
+  SolicitacaoFerias,
+} from '@/types'
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
@@ -81,6 +88,7 @@ export default function GestaoPontoPage() {
   const [escalas, setEscalas] = useState<EscalaTrabalho[]>([])
   const [vinculos, setVinculos] = useState<ColaboradorEscala[]>([])
   const [atestados, setAtestados] = useState<Atestado[]>([])
+  const [feriasAprovadasMes, setFeriasAprovadasMes] = useState<SolicitacaoFerias[]>([])
 
   // Modal de Espelho de Ponto Individual
   const [modalEspelhoOpen, setModalEspelhoOpen] = useState(false)
@@ -101,12 +109,16 @@ export default function GestaoPontoPage() {
 
     try {
       setLoading(true)
-      const [colabs, regs, escList, vincList, atests] = await Promise.all([
+      const [colabs, regs, escList, vincList, atests, feriasList] = await Promise.all([
         colaboradorService.getColaboradores(tenantId),
         pontoService.getRegistrosDiaTenant(tenantId, dataSelecionada),
         escalaService.getEscalas(tenantId),
         escalaService.getVinculosColaboradorEscala(tenantId),
         atestadoService.getAtestadosTenant(tenantId),
+        feriasService.listarSolicitacoes({
+          tenantId,
+          status: 'aprovada',
+        }),
       ])
 
       setColaboradores(colabs)
@@ -114,6 +126,7 @@ export default function GestaoPontoPage() {
       setEscalas(escList)
       setVinculos(vincList)
       setAtestados(atests)
+      setFeriasAprovadasMes(feriasList)
     } catch (err) {
       console.error('Erro ao carregar gestão de ponto:', err)
       toast({
@@ -174,6 +187,15 @@ export default function GestaoPontoPage() {
         const totalHorasFormatadas = pontoService.formatarHorasMinutos(totalHorasHojeMs)
 
         // Verificar atestados validados
+        // Verificar férias aprovadas cobrindo a data
+        const diaIsoStr = dataSelecionada
+        const feriasValida = feriasAprovadasMes.find((f) => {
+          if (f.colaborador_id !== colab.id || f.status !== 'aprovada') return false
+          const fIni = f.data_inicio.slice(0, 10)
+          const fFim = f.data_fim.slice(0, 10)
+          return diaIsoStr >= fIni && diaIsoStr <= fFim
+        })
+
         const atestadoValido = atestados.find((at) => {
           if (at.colaborador_id !== colab.id || at.status !== 'validado') return false
           const dIni = new Date(at.data_inicio).getTime()
@@ -188,11 +210,13 @@ export default function GestaoPontoPage() {
           : ['seg', 'ter', 'qua', 'qui', 'sex']
         const isDiaEscalado = diasEscalados.includes(diaSemanaTag)
 
-        let status: 'presente' | 'ausente' | 'nao_registrado' | 'atestado' | 'folga' =
+        let status: 'presente' | 'ausente' | 'nao_registrado' | 'atestado' | 'folga' | 'ferias' =
           'nao_registrado'
         const irregularidades: string[] = []
 
-        if (atestadoValido) {
+        if (feriasValida) {
+          status = 'ferias'
+        } else if (atestadoValido) {
           status = 'atestado'
         } else if (!isDiaEscalado) {
           status = 'folga'
@@ -329,6 +353,7 @@ export default function GestaoPontoPage() {
       escalaColaboradorSelecionado,
       atestados,
       colaboradorSelecionado,
+      feriasAprovadasMes.filter((f) => f.colaborador_id === colaboradorSelecionado.id),
     )
   }, [
     mesEspelho,
@@ -336,6 +361,7 @@ export default function GestaoPontoPage() {
     escalaColaboradorSelecionado,
     atestados,
     colaboradorSelecionado,
+    feriasAprovadasMes,
   ])
 
   return (
@@ -602,6 +628,15 @@ export default function GestaoPontoPage() {
                               Ausente
                             </Badge>
                           )}
+                          {item.status === 'ferias' && (
+                            <Badge
+                              variant="outline"
+                              className="bg-purple-50 text-purple-700 border-purple-300 text-[10px] font-semibold"
+                            >
+                              <Sparkles className="h-3 w-3 mr-1" />
+                              Férias
+                            </Badge>
+                          )}
                           {item.status === 'atestado' && (
                             <Badge
                               variant="outline"
@@ -781,6 +816,16 @@ export default function GestaoPontoPage() {
                               >
                                 <ShieldCheck className="h-3 w-3 mr-1" />
                                 Atestado Médico Validado
+                              </Badge>
+                            </td>
+                          ) : dia.ausenciaTipo === 'ferias' ? (
+                            <td colSpan={4} className="py-2 text-center">
+                              <Badge
+                                variant="outline"
+                                className="bg-purple-50 text-purple-800 border-purple-300 text-[10px] font-bold"
+                              >
+                                <Sparkles className="h-3 w-3 mr-1" />
+                                Férias Aprovadas
                               </Badge>
                             </td>
                           ) : isFolga ? (

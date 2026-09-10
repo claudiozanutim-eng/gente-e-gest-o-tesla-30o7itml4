@@ -932,3 +932,5 @@ export const beneficioService = {
     return true
   },
 }
+
+export { feriasService } from './feriasService'

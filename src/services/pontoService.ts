@@ -6,6 +6,7 @@ import {
   ColaboradorEscala,
   Colaborador,
   Atestado,
+  SolicitacaoFerias,
 } from '@/types'
 import { logAuditoriaService } from '@/services/api'
 import { feriasService } from '@/services/feriasService'
@@ -186,6 +187,7 @@ export const pontoService = {
     escala?: EscalaTrabalho,
     atestados: Atestado[] = [],
     colaborador?: Colaborador,
+    feriasAprovadas: SolicitacaoFerias[] = [],
   ): DiaEspelhoPonto[] {
     const totalDiasNoMes = new Date(ano, mesZeroIndex + 1, 0).getDate()
     const diasSemanaMap = ['dom', 'seg', 'ter', 'qua', 'qui', 'sex', 'sab']
@@ -268,31 +270,47 @@ export const pontoService = {
       const totalHorasMs = this.calcularHorasDia(regsDoDia)
       const totalHorasFormatadas = this.formatarHorasMinutos(totalHorasMs)
 
-      // Verificar ausências justificadas (atestados validados)
+      // Verificar ausências justificadas (Férias Aprovadas e Atestados Validados)
       let ausenciaTipo: 'atestado' | 'ferias' | 'folga' | undefined
       let ausenciaDetalhe: string | undefined
 
-      for (const at of atestadosValidados) {
-        const dataInicio = new Date(at.data_inicio)
-        const dataFim = new Date(dataInicio)
-        dataFim.setDate(dataFim.getDate() + (at.qtd_dias || 1))
+      // 1. Prioridade para Férias aprovadas
+      for (const fer of feriasAprovadas) {
+        if (fer.status !== 'aprovada') continue
+        const dInicioStr = fer.data_inicio.slice(0, 10)
+        const dFimStr = fer.data_fim.slice(0, 10)
 
-        const dTime = dataObj.getTime()
-        const iTime = new Date(
-          dataInicio.getFullYear(),
-          dataInicio.getMonth(),
-          dataInicio.getDate(),
-        ).getTime()
-        const fTime = new Date(
-          dataFim.getFullYear(),
-          dataFim.getMonth(),
-          dataFim.getDate(),
-        ).getTime()
-
-        if (dTime >= iTime && dTime < fTime) {
-          ausenciaTipo = 'atestado'
-          ausenciaDetalhe = `Atestado médico homologado (${at.qtd_dias}d)`
+        if (diaIso >= dInicioStr && diaIso <= dFimStr) {
+          ausenciaTipo = 'ferias'
+          ausenciaDetalhe = `Férias regulamentares aprovadas (${fer.dias} dias)`
           break
+        }
+      }
+
+      // 2. Atestados médicos validados
+      if (!ausenciaTipo) {
+        for (const at of atestadosValidados) {
+          const dataInicio = new Date(at.data_inicio)
+          const dataFim = new Date(dataInicio)
+          dataFim.setDate(dataFim.getDate() + (at.qtd_dias || 1))
+
+          const dTime = dataObj.getTime()
+          const iTime = new Date(
+            dataInicio.getFullYear(),
+            dataInicio.getMonth(),
+            dataInicio.getDate(),
+          ).getTime()
+          const fTime = new Date(
+            dataFim.getFullYear(),
+            dataFim.getMonth(),
+            dataFim.getDate(),
+          ).getTime()
+
+          if (dTime >= iTime && dTime < fTime) {
+            ausenciaTipo = 'atestado'
+            ausenciaDetalhe = `Atestado médico homologado (${at.qtd_dias}d)`
+            break
+          }
         }
       }
 

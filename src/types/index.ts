@@ -714,3 +714,39 @@ export interface ResumoFinanceiroMes {
   quantidadePeriodicos: number
   quantidadePontuais: number
 }
+
+// ----------------------------------------------------
+// Módulo de Férias (Prompt 18)
+// ----------------------------------------------------
+export type SolicitacaoFeriasStatus = 'pendente' | 'aprovada' | 'rejeitada' | 'cancelada'
+
+export interface SolicitacaoFerias {
+  id: string
+  tenant_id: string
+  colaborador_id: string
+  data_inicio: string // ISO date (YYYY-MM-DD)
+  data_fim: string // ISO date (YYYY-MM-DD)
+  dias: number
+  abono_pecuniario: boolean
+  vender_20_dias: boolean
+  status: SolicitacaoFeriasStatus
+  comentario_gestor?: string
+  data_solicitacao?: string
+  data_resposta?: string
+  created: string
+  updated: string
+  expand?: {
+    colaborador_id?: Colaborador
+  }
+}
+
+export interface PeriodoAquisitivoFerias {
+  inicioAquisitivo: Date
+  fimAquisitivo: Date
+  limiteConcessivo: Date
+  diasDireito: number
+  diasGozados: number
+  saldo: number
+  status: 'em_aquisicao' | 'disponivel' | 'vencendo' | 'vencido' | 'gozado'
+  solicitacoesAssociadas: SolicitacaoFerias[]
+}

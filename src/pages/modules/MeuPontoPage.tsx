@@ -18,12 +18,13 @@ import {
 import { useAuth } from '@/context/AuthContext'
 import { useToast } from '@/hooks/use-toast'
 import { pontoService, escalaService, DiaEspelhoPonto } from '@/services/pontoService'
-import { atestadoService } from '@/services/api'
+import { atestadoService, feriasService } from '@/services/api'
 import {
   RegistroPonto,
   RegistroPontoTipo,
   EscalaTrabalho,
   Atestado,
+  SolicitacaoFerias,
   REGISTRO_PONTO_CONFIG,
 } from '@/types'
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card'
@@ -52,6 +53,7 @@ export default function MeuPontoPage() {
   const [registrosMes, setRegistrosMes] = useState<RegistroPonto[]>([])
   const [escala, setEscala] = useState<EscalaTrabalho | null>(null)
   const [atestados, setAtestados] = useState<Atestado[]>([])
+  const [feriasAprovadas, setFeriasAprovadas] = useState<SolicitacaoFerias[]>([])
 
   // Navegação de mês no espelho
   const [mesAtual, setMesAtual] = useState(() => {
@@ -68,11 +70,16 @@ export default function MeuPontoPage() {
 
     try {
       setLoading(true)
-      const [regsHoje, escalaRes, atestsRes, regsMesRes] = await Promise.all([
+      const [regsHoje, escalaRes, atestsRes, regsMesRes, feriasRes] = await Promise.all([
         pontoService.getRegistrosDoDia(tenantId, colaboradorId, new Date()),
         escalaService.getEscalaAtivaColaborador(tenantId, colaboradorId),
         atestadoService.getAtestadosColaborador(tenantId, colaboradorId),
         pontoService.getRegistrosMes(tenantId, colaboradorId, mesAtual.ano, mesAtual.mes),
+        feriasService.listarSolicitacoes({
+          tenantId,
+          colaboradorId,
+          status: 'aprovada',
+        }),
       ])
 
       setRegistrosHoje(regsHoje)
@@ -81,6 +88,7 @@ export default function MeuPontoPage() {
       }
       setAtestados(atestsRes)
       setRegistrosMes(regsMesRes)
+      setFeriasAprovadas(feriasRes)
     } catch (err) {
       console.error('Erro ao carregar dados do ponto:', err)
       toast({
@@ -163,8 +171,9 @@ export default function MeuPontoPage() {
       escala || undefined,
       atestados,
       colaborador || undefined,
+      feriasAprovadas,
     )
-  }, [mesAtual.ano, mesAtual.mes, registrosMes, escala, atestados, colaborador])
+  }, [mesAtual.ano, mesAtual.mes, registrosMes, escala, atestados, colaborador, feriasAprovadas])
 
   // Totais do mês
   const metricasMes = useMemo(() => {

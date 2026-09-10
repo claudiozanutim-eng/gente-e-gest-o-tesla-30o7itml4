@@ -23,6 +23,8 @@ import {
   Megaphone,
   UserCog,
   Building,
+  Palmtree,
+  CalendarCheck,
 } from 'lucide-react'
 import { useAuth } from '@/context/AuthContext'
 import { UserPerfil, PROFILE_HOME_MAP } from '@/types'
@@ -90,6 +92,11 @@ export const Sidebar: React.FC<SidebarProps> = ({
           path: '/beneficios',
           icon: Gift,
         },
+        {
+          title: 'Férias',
+          path: '/ferias',
+          icon: Palmtree,
+        },
         // Entrada "Minhas Avaliações" para colaboradores
         ...(perfil === 'colaborador'
           ? [
@@ -131,16 +138,19 @@ export const Sidebar: React.FC<SidebarProps> = ({
               { title: 'Documentos', path: '/documentos', icon: FolderOpen },
               { title: 'Gestão Benefícios', path: '/beneficios/gestao', icon: Gift },
               { title: 'Validação Atestados', path: '/atestados/validacao', icon: ShieldCheck },
+              { title: 'Aprovações de Férias', path: '/ferias/aprovacoes', icon: CalendarCheck },
               { title: 'Relatórios', path: '/relatorios', icon: BarChart3 },
             ]
           : []),
         ...(perfil === 'gestor'
           ? [
               { title: 'Minha Equipe', path: '/minha-equipe', icon: Users },
+              { title: 'Aprovações de Férias', path: '/ferias/aprovacoes', icon: CalendarCheck },
               { title: 'Minhas Avaliações', path: '/avaliacoes', icon: Award },
             ]
           : []),
         { title: 'Atestados / Licenças', path: '/atestados', icon: FileText },
+        { title: 'Férias', path: '/ferias', icon: Palmtree },
         { title: 'Estrutura', path: '/estrutura', icon: Network },
       ],
     },

@@ -29,6 +29,7 @@ import GestaoPontoPage from '@/pages/modules/GestaoPontoPage'
 import DocumentosPage from '@/pages/modules/DocumentosPage'
 import MeuPerfilPage from '@/pages/modules/MeuPerfilPage'
 import FeriasPage from '@/pages/modules/FeriasPage'
+import AprovacoesFeriasPage from '@/pages/modules/AprovacoesFeriasPage'
 import BeneficiosPage from '@/pages/modules/BeneficiosPage'
 import GestaoBeneficiosPage from '@/pages/modules/GestaoBeneficiosPage'
 import AtestadosPage from '@/pages/modules/AtestadosPage'
@@ -314,8 +315,9 @@ const App = () => (
                 </ProtectedRoute>
               }
             />
+            {/* Férias do Colaborador: rota canônica /ferias e compatibilidade /minhas-ferias */}
             <Route
-              path="/minhas-ferias"
+              path="/ferias"
               element={
                 <ProtectedRoute
                   allowedProfiles={['colaborador', 'gestor', 'rh', 'admin_rh', 'admin']}
@@ -324,12 +326,13 @@ const App = () => (
                 </ProtectedRoute>
               }
             />
+            <Route path="/minhas-ferias" element={<Navigate to="/ferias" replace />} />
             {/* Férias Aprovações ('gestor', 'rh', 'admin_rh', 'admin') */}
             <Route
               path="/ferias/aprovacoes"
               element={
                 <ProtectedRoute allowedProfiles={['gestor', 'rh', 'admin_rh', 'admin']}>
-                  <DashboardEquipe />
+                  <AprovacoesFeriasPage />
                 </ProtectedRoute>
               }
             />

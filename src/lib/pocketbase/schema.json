@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-09-10T02:03:15.593Z",
+  "generatedAt": "2026-09-10T09:59:37.153Z",
   "collections": [
     {
       "name": "users",
@@ -1768,6 +1768,108 @@
         "CREATE INDEX idx_lanc_pont_tenant ON lancamento_pontual (tenant_id)",
         "CREATE INDEX idx_lanc_pont_colab ON lancamento_pontual (colaborador_id)",
         "CREATE INDEX idx_lanc_pont_data ON lancamento_pontual (data)"
+      ]
+    },
+    {
+      "name": "solicitacao_ferias",
+      "type": "base",
+      "apiRules": {
+        "list": "@request.auth.id != '' && tenant_id = @request.auth.tenant_id && (@request.auth.perfil = 'rh' || @request.auth.perfil = 'admin_rh' || @request.auth.perfil = 'admin' || colaborador_id.user_id = @request.auth.id || (@request.auth.perfil = 'gestor' && colaborador_id.departamento != '' && colaborador_id.departamento = @request.auth.colaborador_via_user_id.departamento))",
+        "view": "@request.auth.id != '' && tenant_id = @request.auth.tenant_id && (@request.auth.perfil = 'rh' || @request.auth.perfil = 'admin_rh' || @request.auth.perfil = 'admin' || colaborador_id.user_id = @request.auth.id || (@request.auth.perfil = 'gestor' && colaborador_id.departamento != '' && colaborador_id.departamento = @request.auth.colaborador_via_user_id.departamento))",
+        "create": "@request.auth.id != '' && tenant_id = @request.auth.tenant_id && (@request.auth.perfil = 'rh' || @request.auth.perfil = 'admin_rh' || @request.auth.perfil = 'admin' || colaborador_id.user_id = @request.auth.id)",
+        "update": "@request.auth.id != '' && tenant_id = @request.auth.tenant_id && (@request.auth.perfil = 'rh' || @request.auth.perfil = 'admin_rh' || @request.auth.perfil = 'admin' || (@request.auth.perfil = 'gestor' && colaborador_id.departamento = @request.auth.colaborador_via_user_id.departamento) || (colaborador_id.user_id = @request.auth.id && status = 'cancelada'))",
+        "delete": "@request.auth.id != '' && tenant_id = @request.auth.tenant_id && (@request.auth.perfil = 'rh' || @request.auth.perfil = 'admin_rh' || @request.auth.perfil = 'admin')"
+      },
+      "fields": [
+        {
+          "name": "tenant_id",
+          "type": "relation",
+          "required": true,
+          "system": false,
+          "collectionRef": "tenant"
+        },
+        {
+          "name": "colaborador_id",
+          "type": "relation",
+          "required": true,
+          "system": false,
+          "collectionRef": "colaborador"
+        },
+        {
+          "name": "data_inicio",
+          "type": "date",
+          "required": true,
+          "system": false
+        },
+        {
+          "name": "data_fim",
+          "type": "date",
+          "required": true,
+          "system": false
+        },
+        {
+          "name": "dias",
+          "type": "number",
+          "required": true,
+          "system": false
+        },
+        {
+          "name": "abono_pecuniario",
+          "type": "bool",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "vender_20_dias",
+          "type": "bool",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "status",
+          "type": "select",
+          "required": true,
+          "system": false,
+          "selectValues": ["pendente", "aprovada", "rejeitada", "cancelada"]
+        },
+        {
+          "name": "comentario_gestor",
+          "type": "text",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "data_solicitacao",
+          "type": "date",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "data_resposta",
+          "type": "date",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "created",
+          "type": "autodate",
+          "required": false,
+          "system": false,
+          "autodateTriggers": ["onCreate"]
+        },
+        {
+          "name": "updated",
+          "type": "autodate",
+          "required": false,
+          "system": false,
+          "autodateTriggers": ["onCreate", "onUpdate"]
+        }
+      ],
+      "indexes": [
+        "CREATE INDEX idx_ferias_tenant ON solicitacao_ferias (tenant_id)",
+        "CREATE INDEX idx_ferias_colab ON solicitacao_ferias (colaborador_id)",
+        "CREATE INDEX idx_ferias_status ON solicitacao_ferias (status)",
+        "CREATE INDEX idx_ferias_data_inicio ON solicitacao_ferias (data_inicio)"
       ]
     }
   ]

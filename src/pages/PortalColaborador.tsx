@@ -183,6 +183,13 @@ export default function PortalColaborador() {
       icon: FileCheck,
       color: 'bg-amber-50 text-[#FB8C00] border-amber-100 hover:border-[#FB8C00]/40',
     },
+    {
+      title: 'Minhas Férias',
+      subtitle: 'Períodos e saldo',
+      path: '/ferias',
+      icon: Palmtree,
+      color: 'bg-emerald-50 text-[#2E7D32] border-emerald-100 hover:border-[#2E7D32]/40',
+    },
   ]
 
   // Trata clique do botão Nova Publicação - redireciona para tela de gestão de comunicados
@@ -239,7 +246,7 @@ export default function PortalColaborador() {
           <span className="text-xs text-[#757575]">Acesso direto às suas ferramentas</span>
         </div>
 
-        <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-6 gap-3.5">
+        <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-8 gap-3.5">
           {atalhos.map((item) => {
             const Icon = item.icon
             return (

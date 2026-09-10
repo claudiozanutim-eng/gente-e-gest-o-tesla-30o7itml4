@@ -84,6 +84,7 @@ export default function DashboardRH() {
   useRealtime('ciencia_documento', () => carregarDados(), Boolean(tenantId))
   useRealtime('log_auditoria', () => carregarDados(), Boolean(tenantId))
   useRealtime('solicitacao_alteracao', () => carregarDados(), Boolean(tenantId))
+  useRealtime('solicitacao_ferias', () => carregarDados(), Boolean(tenantId))
 
   // 1. KPI: Total de Colaboradores Ativos
   const colaboradoresAtivos = useMemo(
@@ -92,11 +93,24 @@ export default function DashboardRH() {
   )
   const totalColaboradoresAtivos = colaboradoresAtivos.length
 
-  // 2. KPI: Férias Próximas do Vencimento (<= hoje + 60 dias)
-  const analiseFerias = useMemo(() => {
-    return feriasService.analisarFeriasProximas(colaboradoresAtivos)
+  // 2. KPI: Férias Próximas do Vencimento (<= hoje + 60 dias e sem férias aprovadas cobrindo)
+  const [colaboradoresFeriasProximas, setColaboradoresFeriasProximas] = useState<
+    ColaboradorFeriasStatus[]
+  >([])
+
+  useEffect(() => {
+    let ativo = true
+    feriasService.calcularFeriasProximas(colaboradoresAtivos).then((res) => {
+      if (ativo) {
+        setColaboradoresFeriasProximas(res)
+      }
+    })
+    return () => {
+      ativo = false
+    }
   }, [colaboradoresAtivos])
-  const totalFeriasProximas = analiseFerias.totalProximos
+
+  const totalFeriasProximas = colaboradoresFeriasProximas.length
 
   // 3. KPI: Atestados Aguardando Aprovação (status = 'recebido' || 'em_analise')
   const atestadosAguardando = useMemo(() => {
@@ -451,7 +465,7 @@ export default function DashboardRH() {
       <ModalFeriasProximas
         open={modalFeriasOpen}
         onOpenChange={setModalFeriasOpen}
-        colaboradoresProximos={analiseFerias.colaboradoresProximos}
+        colaboradoresProximos={colaboradoresFeriasProximas}
       />
     </div>
   )
