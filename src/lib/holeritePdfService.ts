@@ -2,7 +2,7 @@ import jsPDF from 'jspdf'
 import autoTable from 'jspdf-autotable'
 import { Colaborador, Tenant, HoleriteRegistro } from '@/types'
 import { formatDataPtBr, formatMoedaPtBr } from './exportReports'
-import { pb } from './pocketbase/client'
+import pb from './pocketbase/client'
 
 export interface ItemHolerite {
   descritivo: string
@@ -95,6 +95,25 @@ export async function salvarRegistroHolerite(dados: {
     codigo_verificacao: dados.codigoVerificacao,
     data_emissao: dados.dataEmissao.toISOString(),
   })
+
+  // Disparar notificação in-app para o colaborador avisando que o holerite foi emitido/disponibilizado
+  try {
+    const colab = await pb.collection('colaborador').getOne(dados.colaboradorId)
+    if (colab?.user_id) {
+      await pb.collection('notificacao').create({
+        tenant_id: dados.tenantId,
+        destinatario_id: colab.user_id,
+        tipo: 'holerite',
+        titulo: 'Demonstrativo de pagamento emitido',
+        mensagem: `Seu demonstrativo de pagamento referente à competência ${dados.competencia} foi emitido e está disponível para download.`,
+        link: '/demonstrativo',
+        lida: false,
+      })
+    }
+  } catch (e) {
+    console.warn('Erro ao notificar emissão de holerite:', e)
+  }
+
   return registro
 }
 

@@ -1,6 +1,7 @@
 import pb from '@/lib/pocketbase/client'
 import { Colaborador, SolicitacaoFerias, PeriodoAquisitivoFerias } from '@/types'
-import { logAuditoriaService } from '@/services/api'
+import { logAuditoriaService, colaboradorService } from '@/services/api'
+import { notificacaoService } from '@/services/notificacaoService'
 
 export interface ColaboradorFeriasStatus {
   colaborador: Colaborador
@@ -250,6 +251,25 @@ export const feriasService = {
     // Disparar geração automática na folha
     await this.gerarLancamentosFolhaFerias(record, userId)
 
+    // Notificar colaborador
+    try {
+      const colab = await colaboradorService.getColaboradorById(record.colaborador_id)
+      if (colab?.user_id) {
+        await notificacaoService.notificar({
+          tenantId: record.tenant_id,
+          destinatarioId: colab.user_id,
+          tipo: 'ferias',
+          titulo: 'Solicitação de férias aprovada',
+          mensagem: `Suas férias de ${record.dias} dias a partir de ${new Date(record.data_inicio).toLocaleDateString('pt-BR')} foram aprovadas!`,
+          link: '/ferias',
+          emailDestinatario: colab.email,
+          nomeDestinatario: colab.nome,
+        })
+      }
+    } catch (e) {
+      console.warn('Erro ao notificar aprovacao de ferias:', e)
+    }
+
     return record
   },
 
@@ -265,7 +285,28 @@ export const feriasService = {
       data_resposta: new Date().toISOString(),
       comentario_gestor: motivo.trim(),
     }
-    return await pb.collection('solicitacao_ferias').update<SolicitacaoFerias>(id, payload)
+    const record = await pb.collection('solicitacao_ferias').update<SolicitacaoFerias>(id, payload)
+
+    // Notificar colaborador
+    try {
+      const colab = await colaboradorService.getColaboradorById(record.colaborador_id)
+      if (colab?.user_id) {
+        await notificacaoService.notificar({
+          tenantId: record.tenant_id,
+          destinatarioId: colab.user_id,
+          tipo: 'ferias',
+          titulo: 'Solicitação de férias recusada',
+          mensagem: `Sua solicitação de férias foi recusada. Motivo: ${motivo.trim()}`,
+          link: '/ferias',
+          emailDestinatario: colab.email,
+          nomeDestinatario: colab.nome,
+        })
+      }
+    } catch (e) {
+      console.warn('Erro ao notificar rejeicao de ferias:', e)
+    }
+
+    return record
   },
 
   /**
@@ -287,6 +328,25 @@ export const feriasService = {
 
     if (registroAnterior && registroAnterior.tenant_id) {
       await this.estornarLancamentosFolhaFerias(id, registroAnterior.tenant_id, userId)
+    }
+
+    // Notificar colaborador se cancelamento foi feito por outro usuário
+    try {
+      const colab = await colaboradorService.getColaboradorById(record.colaborador_id)
+      if (colab?.user_id && colab.user_id !== userId) {
+        await notificacaoService.notificar({
+          tenantId: record.tenant_id,
+          destinatarioId: colab.user_id,
+          tipo: 'ferias',
+          titulo: 'Solicitação de férias cancelada',
+          mensagem: `A solicitação de férias para ${new Date(record.data_inicio).toLocaleDateString('pt-BR')} foi cancelada.`,
+          link: '/ferias',
+          emailDestinatario: colab.email,
+          nomeDestinatario: colab.nome,
+        })
+      }
+    } catch (e) {
+      console.warn('Erro ao notificar cancelamento de ferias:', e)
     }
 
     return record

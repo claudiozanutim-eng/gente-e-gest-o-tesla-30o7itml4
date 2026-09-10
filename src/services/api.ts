@@ -18,6 +18,7 @@ import {
   ColaboradorBeneficio,
   DetalhesBeneficio,
 } from '@/types'
+import { notificacaoService } from '@/services/notificacaoService'
 
 export const tenantService = {
   async getTenant(tenantId: string): Promise<Tenant> {
@@ -356,6 +357,25 @@ export const solicitacaoService = {
       },
     })
 
+    // 5. Notificar o colaborador
+    try {
+      const colab = await colaboradorService.getColaboradorById(solicitacao.colaborador_id)
+      if (colab?.user_id) {
+        await notificacaoService.notificar({
+          tenantId: solicitacao.tenant_id,
+          destinatarioId: colab.user_id,
+          tipo: 'cadastro',
+          titulo: 'Alteração cadastral aprovada',
+          mensagem: `Sua solicitação de alteração para "${solicitacao.campo}" foi aprovada pelo RH.`,
+          link: '/meu-perfil',
+          emailDestinatario: colab.email,
+          nomeDestinatario: colab.nome,
+        })
+      }
+    } catch (e) {
+      console.warn('Erro ao notificar aprovacao cadastral:', e)
+    }
+
     return { success: true, solicitacao: updatedSolic }
   },
 
@@ -387,6 +407,25 @@ export const solicitacaoService = {
         resultado: 'rejeitada',
       },
     })
+
+    // Notificar colaborador sobre rejeição
+    try {
+      const colab = await colaboradorService.getColaboradorById(solicitacao.colaborador_id)
+      if (colab?.user_id) {
+        await notificacaoService.notificar({
+          tenantId: solicitacao.tenant_id,
+          destinatarioId: colab.user_id,
+          tipo: 'cadastro',
+          titulo: 'Alteração cadastral reprovada',
+          mensagem: `Sua solicitação de alteração para "${solicitacao.campo}" foi recusada. Motivo: ${motivo || 'Verifique os dados informados.'}`,
+          link: '/meu-perfil',
+          emailDestinatario: colab.email,
+          nomeDestinatario: colab.nome,
+        })
+      }
+    } catch (e) {
+      console.warn('Erro ao notificar rejeicao cadastral:', e)
+    }
 
     return updatedSolic
   },
@@ -515,6 +554,52 @@ export const comunicadoService = {
       status: data.status || 'ativo',
       data_publicacao: data.data_publicacao || new Date().toISOString(),
     })
+
+    // Disparar notificações in-app para os colaboradores/gestores segmentados
+    try {
+      const todosColabs = await colaboradorService.getColaboradores(data.tenant_id)
+      const usersTenant = await pb.collection('users').getFullList({
+        filter: `tenant_id = "${data.tenant_id}"`,
+      })
+      const userMap = new Map(usersTenant.map((u) => [u.id, u]))
+
+      for (const colab of todosColabs) {
+        if (!colab.user_id) continue
+        const userRec = userMap.get(colab.user_id)
+        const perfil = userRec?.perfil || 'colaborador'
+
+        // Verificar segmentação
+        let elegivel = false
+        if (data.segmentacao_tipo === 'todos') {
+          elegivel = true
+        } else if (data.segmentacao_tipo === 'gestores') {
+          elegivel =
+            perfil === 'gestor' || perfil === 'rh' || perfil === 'admin_rh' || perfil === 'admin'
+        } else if (data.segmentacao_tipo === 'setor') {
+          elegivel = colab.departamento?.toLowerCase() === data.segmentacao_valor?.toLowerCase()
+        } else if (data.segmentacao_tipo === 'funcao') {
+          elegivel = colab.cargo?.toLowerCase() === data.segmentacao_valor?.toLowerCase()
+        }
+
+        if (elegivel) {
+          notificacaoService
+            .notificar({
+              tenantId: data.tenant_id,
+              destinatarioId: colab.user_id,
+              tipo: 'comunicado',
+              titulo: `Comunicado: ${data.titulo}`,
+              mensagem: data.conteudo.slice(0, 120) + (data.conteudo.length > 120 ? '...' : ''),
+              link: '/comunicados',
+              emailDestinatario: colab.email,
+              nomeDestinatario: colab.nome,
+            })
+            .catch(() => {})
+        }
+      }
+    } catch (e) {
+      console.warn('Erro ao notificar comunicado aos colaboradores:', e)
+    }
+
     return record
   },
 
@@ -808,6 +893,32 @@ export const atestadoService = {
     const record = await pb.collection('atestado').update<Atestado>(atestadoId, payload, {
       expand: 'colaborador_id',
     })
+
+    // Se validado ou necessita correção, notificar o colaborador
+    try {
+      const colab = record.expand?.colaborador_id
+      if (colab?.user_id) {
+        const statusTexto =
+          data.status === 'validado'
+            ? 'validado e homologado'
+            : data.status === 'necessita_correcao'
+              ? 'revisado com pendência'
+              : 'atualizado'
+        await notificacaoService.notificar({
+          tenantId: record.tenant_id,
+          destinatarioId: colab.user_id,
+          tipo: 'atestado',
+          titulo: `Atestado médico ${statusTexto}`,
+          mensagem: `Seu atestado médico enviado para ${new Date(record.data_inicio).toLocaleDateString('pt-BR')} foi ${statusTexto} pelo RH.${data.comentario_rh ? ` Observação: ${data.comentario_rh}` : ''}`,
+          link: '/atestados',
+          emailDestinatario: colab.email,
+          nomeDestinatario: colab.nome,
+        })
+      }
+    } catch (e) {
+      console.warn('Erro ao notificar status de atestado:', e)
+    }
+
     return record
   },
 

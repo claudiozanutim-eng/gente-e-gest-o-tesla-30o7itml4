@@ -193,7 +193,7 @@ export const COMUNICADO_CATEGORIAS: Record<ComunicadoCategoria, CategoriaConfig>
 
 export const PROFILE_HOME_MAP: Record<UserPerfil, string> = {
   colaborador: '/portal',
-  gestor: '/dashboard-equipe',
+  gestor: '/portal-gestor',
   rh: '/dashboard',
   admin_rh: '/dashboard',
   admin: '/admin',
@@ -751,6 +751,60 @@ export interface BancoHorasFechamento {
   expand?: {
     colaborador_id?: Colaborador
     tenant_id?: Tenant
+  }
+}
+
+// ----------------------------------------------------
+// Compensação de Banco de Horas (Prompt v0.0.22)
+// ----------------------------------------------------
+export type CompensacaoStatus = 'pendente' | 'aprovada' | 'recusada'
+
+export interface CompensacaoBancoHoras {
+  id: string
+  tenant_id: string
+  colaborador_id: string
+  data_compensacao: string // YYYY-MM-DD
+  horas: number // Decimal ex: 0.5, 4, 8
+  motivo: string
+  status: CompensacaoStatus
+  data_solicitacao?: string
+  data_resposta?: string
+  motivo_resposta?: string
+  aprovado_por?: string
+  created: string
+  updated: string
+  expand?: {
+    colaborador_id?: Colaborador
+    aprovado_por?: AppUser
+  }
+}
+
+// ----------------------------------------------------
+// Centro de Notificações In-app & E-mail (Prompt v0.0.22)
+// ----------------------------------------------------
+export type NotificacaoTipo =
+  | 'ferias'
+  | 'compensacao'
+  | 'atestado'
+  | 'holerite'
+  | 'comunicado'
+  | 'cadastro'
+  | 'avaliacao'
+  | 'geral'
+
+export interface Notificacao {
+  id: string
+  tenant_id: string
+  destinatario_id: string
+  tipo: NotificacaoTipo
+  titulo: string
+  mensagem: string
+  link?: string
+  lida: boolean
+  created: string
+  updated: string
+  expand?: {
+    destinatario_id?: AppUser
   }
 }
 

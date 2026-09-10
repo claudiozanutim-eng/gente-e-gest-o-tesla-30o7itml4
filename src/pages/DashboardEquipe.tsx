@@ -87,15 +87,26 @@ export default function DashboardEquipe() {
             </span>
             <p className="text-xs font-medium text-[#757575]">Ativos</p>
           </div>
-          <div className="pl-2 border-l border-[#E0E0E0]">
+          <div className="pl-2 border-l border-[#E0E0E0] flex items-center gap-2">
             <Button
               asChild
               size="sm"
               className="bg-[#0D47A1] hover:bg-[#0A3A82] text-white text-xs gap-1.5 h-8"
             >
+              <Link to="/portal-gestor">
+                <Users className="h-3.5 w-3.5" />
+                Portal do Gestor
+              </Link>
+            </Button>
+            <Button
+              asChild
+              variant="outline"
+              size="sm"
+              className="border-slate-300 text-xs gap-1.5 h-8"
+            >
               <Link to="/ferias/aprovacoes">
                 <CalendarCheck className="h-3.5 w-3.5" />
-                Aprovações de Férias
+                Férias
               </Link>
             </Button>
           </div>

@@ -86,13 +86,22 @@ export const Sidebar: React.FC<SidebarProps> = ({
             perfil === 'colaborador'
               ? 'Meu Portal'
               : perfil === 'gestor'
-                ? 'Painel da Equipe'
+                ? 'Portal do Gestor'
                 : perfil === 'rh' || perfil === 'admin_rh'
                   ? 'Painel RH'
                   : 'Painel Geral',
           path: PROFILE_HOME_MAP[perfil],
           icon: LayoutDashboard,
         },
+        ...(isGestor || isRHOrAbove
+          ? [
+              {
+                title: 'Portal do Gestor',
+                path: '/portal-gestor',
+                icon: LayoutDashboard,
+              },
+            ]
+          : []),
         {
           title: 'Docs Importantes',
           path: '/documentos-importantes',
@@ -312,7 +321,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
       {!collapsed && (
         <div className="p-4 border-t border-[#E0E0E0] bg-[#FAFAFA] text-center">
           <p className="text-[11px] text-[#757575] leading-snug">Plataforma SaaS Multi-tenant</p>
-          <p className="text-[10px] font-medium text-[#0D47A1]">Tesla RH v0.0.21</p>
+          <p className="text-[10px] font-medium text-[#0D47A1]">Tesla RH v0.0.22</p>
         </div>
       )}
     </div>

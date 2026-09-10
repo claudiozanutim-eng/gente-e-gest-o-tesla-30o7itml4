@@ -227,6 +227,25 @@ export const avaliacaoService = {
       data_avaliacao: new Date().toISOString(),
     })
 
+    // Disparar notificação in-app para o colaborador avaliado
+    try {
+      const colab = avaliacaoAtualizada.expand?.colaborador_id
+      const ciclo = avaliacaoAtualizada.expand?.ciclo_id
+      if (colab?.user_id) {
+        await pb.collection('notificacao').create({
+          tenant_id: colab.tenant_id,
+          destinatario_id: colab.user_id,
+          tipo: 'avaliacao',
+          titulo: 'Avaliação de desempenho concluída',
+          mensagem: `A avaliação do ciclo "${ciclo?.nome || 'Desempenho'}" foi concluída e está disponível para consulta no portal.`,
+          link: '/minhas-avaliacoes',
+          lida: false,
+        })
+      }
+    } catch (e) {
+      console.warn('Erro ao notificar conclusao de avaliacao:', e)
+    }
+
     return avaliacaoAtualizada
   },
 }

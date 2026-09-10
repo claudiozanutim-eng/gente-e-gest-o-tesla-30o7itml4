@@ -42,6 +42,7 @@ import DemonstrativoPage from '@/pages/DemonstrativoPage'
 import GestaoFolhaPage from '@/pages/GestaoFolhaPage'
 import BancoHorasColaboradorPage from '@/pages/modules/BancoHorasColaboradorPage'
 import FechamentoBancoHorasPage from '@/pages/modules/FechamentoBancoHorasPage'
+import PortalGestorPage from '@/pages/modules/PortalGestorPage'
 import GestaoComunicadosPage from '@/pages/modules/GestaoComunicadosPage'
 import AlteracoesPendentesPage from '@/pages/modules/AlteracoesPendentesPage'
 import AdminConfiguracoesPage from '@/pages/modules/AdminConfiguracoesPage'
@@ -65,7 +66,7 @@ function RootRedirect() {
     case 'colaborador':
       return <Navigate to="/portal" replace />
     case 'gestor':
-      return <Navigate to="/dashboard-equipe" replace />
+      return <Navigate to="/portal-gestor" replace />
     case 'rh':
     case 'admin_rh':
       return <Navigate to="/dashboard" replace />
@@ -118,12 +119,20 @@ const App = () => (
               }
             />
 
-            {/* Gestor Home */}
+            {/* Gestor Home & Portal do Gestor Consolidado */}
             <Route
               path="/dashboard-equipe"
               element={
                 <ProtectedRoute allowedProfiles={['gestor', 'rh', 'admin_rh', 'admin']}>
                   <DashboardEquipe />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/portal-gestor"
+              element={
+                <ProtectedRoute allowedProfiles={['gestor', 'rh', 'admin_rh', 'admin']}>
+                  <PortalGestorPage />
                 </ProtectedRoute>
               }
             />

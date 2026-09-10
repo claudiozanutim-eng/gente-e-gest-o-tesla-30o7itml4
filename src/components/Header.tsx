@@ -4,6 +4,7 @@ import { Menu, LogOut, User as UserIcon } from 'lucide-react'
 import { useAuth } from '@/context/AuthContext'
 import { PROFILE_LABELS, PROFILE_BADGE_COLORS } from '@/types'
 import { Button } from '@/components/ui/button'
+import { NotificacoesDropdown } from '@/components/NotificacoesDropdown'
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
 import { Badge } from '@/components/ui/badge'
 import {
@@ -105,6 +106,9 @@ export const Header: React.FC<HeaderProps> = ({ onToggleMobileMenu, collapsed })
         <span className="hidden md:inline text-sm font-medium text-[#212121]">
           Olá, <strong className="font-semibold text-[#0D47A1]">{firstName}</strong>!
         </span>
+
+        {/* Sino de Notificações com Badge e Dropdown */}
+        <NotificacoesDropdown />
 
         {/* Avatar Dropdown */}
         <DropdownMenu>
