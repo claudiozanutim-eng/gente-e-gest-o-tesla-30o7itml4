@@ -4,7 +4,7 @@ import { setupRealtimeRecovery } from './realtimeRecovery'
 const pb = new PocketBase(import.meta.env.VITE_POCKETBASE_URL)
 pb.autoCancellation(false)
 
-// Configura recuperação resiliente de clientes SSE no serviço de Realtime
-setupRealtimeRecovery()
+// Configura o patch de auto-recuperação do realtime
+setupRealtimeRecovery(pb)
 
 export default pb

@@ -15,12 +15,12 @@
  *    reagendadas ordenadamente.
  */
 
-import pb from '@/lib/pocketbase/client'
+import type PocketBase from 'pocketbase'
 
 // Tipagem flexível para acessar campos internos do RealtimeService do PocketBase
 interface InternalRealtimeService {
-  clientId: string
-  isConnected: boolean
+  clientId?: string
+  isConnected?: boolean
   sendSubscriptions?: () => Promise<void>
   finalizePendingSubscriptions?: () => Promise<void>
   submitSubscriptions?: () => Promise<void>
@@ -37,12 +37,22 @@ let reconnectTimeoutId: ReturnType<typeof setTimeout> | null = null
 
 /**
  * Inicializa a camada de auto-recuperação no pb.realtime.
- * É idempotente e pode ser chamado na inicialização ou nos hooks de subscrição.
+ * É idempotente e seguro contra chamadas com cliente ainda não inicializado.
+ * Recebe a instância de PocketBase diretamente para evitar dependência de importação circular.
  */
-export function setupRealtimeRecovery(): void {
+export function setupRealtimeRecovery(client?: PocketBase): void {
   if (isRealtimeRecoveryPatched) return
 
-  const realtime = pb.realtime as unknown as InternalRealtimeService
+  if (!client || !client.realtime) {
+    if (import.meta.env?.DEV) {
+      console.debug(
+        '[RealtimeRecovery] PocketBase ou realtime ainda não disponível para aplicar patch.',
+      )
+    }
+    return
+  }
+
+  const realtime = client.realtime as unknown as InternalRealtimeService
   if (!realtime) return
 
   const originalSendSubscriptions = realtime.sendSubscriptions
@@ -126,6 +136,3 @@ export function setupRealtimeRecovery(): void {
 
   isRealtimeRecoveryPatched = true
 }
-
-// Inicializa imediatamente ao carregar o módulo
-setupRealtimeRecovery()

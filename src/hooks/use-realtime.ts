@@ -24,7 +24,7 @@ export function useRealtime<TRecord extends RecordModel = RecordModel>(
   useEffect(() => {
     if (!enabled) return
 
-    let unsubscribeFn: (() => Promise<void> | void) | undefined
+    let unsubscribeFn: (() => Promise<void>) | undefined
     let cancelled = false
 
     pb.collection<TRecord>(collectionName)
@@ -33,14 +33,7 @@ export function useRealtime<TRecord extends RecordModel = RecordModel>(
       })
       .then((fn) => {
         if (cancelled) {
-          try {
-            const res = fn()
-            if (res && typeof res.catch === 'function') {
-              res.catch(() => {})
-            }
-          } catch {
-            // Ignora silenciosamente
-          }
+          fn().catch(() => {})
         } else {
           unsubscribeFn = fn
         }
@@ -50,14 +43,7 @@ export function useRealtime<TRecord extends RecordModel = RecordModel>(
     return () => {
       cancelled = true
       if (unsubscribeFn) {
-        try {
-          const res = unsubscribeFn()
-          if (res && typeof res.catch === 'function') {
-            res.catch(() => {})
-          }
-        } catch {
-          // Ignora silenciosamente
-        }
+        unsubscribeFn().catch(() => {})
       }
     }
   }, [collectionName, enabled])
