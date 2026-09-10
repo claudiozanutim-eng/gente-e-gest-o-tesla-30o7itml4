@@ -156,6 +156,21 @@ export const colaboradorService = {
     return record
   },
 
+  async uploadFotoArquivo(colaboradorId: string, file: File): Promise<Colaborador> {
+    const formData = new FormData()
+    formData.append('foto', file)
+    // Atualizar também foto_url com a URL pública servida pelo PocketBase
+    const record = await pb.collection('colaborador').update<Colaborador>(colaboradorId, formData)
+    const fileUrl = pb.files.getURL(record, record.foto || '')
+    if (fileUrl) {
+      const updated = await pb.collection('colaborador').update<Colaborador>(colaboradorId, {
+        foto_url: fileUrl,
+      })
+      return updated
+    }
+    return record
+  },
+
   async updateColaborador(colaboradorId: string, data: Partial<Colaborador>): Promise<Colaborador> {
     // Garantir que tenant_id nunca seja alterado
     const payload = { ...data }

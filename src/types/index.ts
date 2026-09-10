@@ -60,6 +60,7 @@ export interface Colaborador {
   jornada?: string
   local_trabalho?: string
   status: ColaboradorStatus
+  foto?: string
   foto_url?: string
   created: string
   updated: string

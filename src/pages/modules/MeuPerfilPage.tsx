@@ -209,76 +209,55 @@ export default function MeuPerfilPage() {
     try {
       setUploadingFoto(true)
 
-      const reader = new FileReader()
-      reader.onload = async () => {
-        try {
-          const base64Data = reader.result as string
+      // Fazer upload do arquivo de imagem diretamente para a coleção colaborador
+      const updated = await colaboradorService.uploadFotoArquivo(colaborador.id, file)
 
-          // Atualizar o registro do colaborador no backend
-          const updated = await colaboradorService.updateFotoUrl(colaborador.id, base64Data)
+      // Atualizar estado local imediatamente para preview em tempo real com a nova URL
+      const novaFotoUrl =
+        updated.foto_url ||
+        (updated.foto ? `/api/files/colaborador/${updated.id}/${updated.foto}` : '')
+      setColaborador((prev) => (prev ? { ...prev, ...updated, foto_url: novaFotoUrl } : updated))
 
-          // Atualizar estado local imediatamente para preview em tempo real
-          setColaborador((prev) => (prev ? { ...prev, foto_url: base64Data } : updated))
+      // Atualizar contexto global de autenticação (refletir em Header, Dropdowns, etc.)
+      await refreshProfile().catch((err) => {
+        console.warn('Falha ao atualizar contexto de autenticação:', err)
+      })
 
-          // Atualizar contexto global de autenticação (refletir em Header, Dropdowns, etc.)
-          await refreshProfile().catch((err) => {
-            console.warn('Falha ao atualizar contexto de autenticação:', err)
+      // Auditoria da ação
+      if (user?.tenant_id && user?.id) {
+        await logAuditoriaService
+          .registrarLog({
+            tenant_id: user.tenant_id,
+            user_id: user.id,
+            acao: `Foto de perfil atualizada por ${user.name || colaborador.nome}`,
+            entidade: 'colaborador',
+            entidade_id: colaborador.id,
+            dados_json: {
+              tipo_acao: 'atualizacao_foto_perfil',
+              origem: 'meu_perfil',
+              nome_arquivo: file.name,
+              tamanho_bytes: file.size,
+              tipo_mime: file.type,
+              foto_arquivo: updated.foto,
+              foto_url: novaFotoUrl,
+            },
           })
-
-          // Auditoria da ação
-          if (user?.tenant_id && user?.id) {
-            await logAuditoriaService
-              .registrarLog({
-                tenant_id: user.tenant_id,
-                user_id: user.id,
-                acao: `Foto de perfil atualizada por ${user.name || colaborador.nome}`,
-                entidade: 'colaborador',
-                entidade_id: colaborador.id,
-                dados_json: {
-                  tipo_acao: 'atualizacao_foto_perfil',
-                  origem: 'meu_perfil',
-                  nome_arquivo: file.name,
-                  tamanho_bytes: file.size,
-                  tipo_mime: file.type,
-                },
-              })
-              .catch((e) => console.warn('Erro ao registrar log de auditoria da foto:', e))
-          }
-
-          toast({
-            title: 'Foto atualizada com sucesso',
-            description: 'Sua foto de perfil foi alterada com sucesso.',
-          })
-        } catch (uploadErr) {
-          console.error('Erro ao salvar foto de perfil:', uploadErr)
-          toast({
-            title: 'Erro ao salvar foto',
-            description: 'Ocorreu um erro ao salvar sua nova foto de perfil. Tente novamente.',
-            variant: 'destructive',
-          })
-        } finally {
-          setUploadingFoto(false)
-        }
+          .catch((e) => console.warn('Erro ao registrar log de auditoria da foto:', e))
       }
 
-      reader.onerror = () => {
-        setUploadingFoto(false)
-        toast({
-          title: 'Erro de leitura',
-          description: 'Não foi possível ler o arquivo selecionado.',
-          variant: 'destructive',
-        })
-      }
-
-      reader.readAsDataURL(file)
-    } catch (err) {
-      console.error('Erro no upload de foto:', err)
-      setUploadingFoto(false)
       toast({
-        title: 'Falha no upload',
-        description: 'Não foi possível processar a foto selecionada.',
+        title: 'Foto atualizada com sucesso',
+        description: 'Sua foto de perfil foi alterada com sucesso.',
+      })
+    } catch (uploadErr) {
+      console.error('Erro ao salvar foto de perfil:', uploadErr)
+      toast({
+        title: 'Erro ao salvar foto',
+        description: 'Ocorreu um erro ao salvar sua nova foto de perfil. Tente novamente.',
         variant: 'destructive',
       })
+    } finally {
+      setUploadingFoto(false)
     }
   }
 
