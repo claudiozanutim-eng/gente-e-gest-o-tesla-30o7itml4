@@ -965,3 +965,44 @@ export interface OrcamentoFolha {
     criado_por?: AppUser
   }
 }
+
+// ----------------------------------------------------
+// Pesquisa de Clima / Satisfação (v0.0.30)
+// ----------------------------------------------------
+export type PesquisaClimaEscala = '1-5' | '1-10' | 'estrelas'
+export type PesquisaClimaStatus = 'ativa' | 'encerrada' | 'rascunho'
+
+export interface PesquisaClima {
+  id: string
+  collectionId?: string
+  collectionName?: string
+  tenant_id: string
+  pergunta: string
+  escala: PesquisaClimaEscala
+  data_inicio: string // YYYY-MM-DD
+  data_fim: string // YYYY-MM-DD
+  status: PesquisaClimaStatus
+  criado_por?: string
+  created: string
+  updated: string
+  expand?: {
+    criado_por?: AppUser
+  }
+}
+
+export interface PesquisaClimaResposta {
+  id: string
+  collectionId?: string
+  collectionName?: string
+  tenant_id: string
+  pesquisa_id: string
+  colaborador_id: string
+  nota: number
+  comentario?: string
+  created: string
+  updated: string
+  expand?: {
+    colaborador_id?: Colaborador
+    pesquisa_id?: PesquisaClima
+  }
+}

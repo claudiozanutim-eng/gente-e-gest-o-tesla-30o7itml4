@@ -41,6 +41,7 @@ import {
 } from '@/components/ui/dialog'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 import { useToast } from '@/hooks/use-toast'
+import { CardPesquisaClimaPortal } from '@/components/pesquisa/CardPesquisaClimaPortal'
 
 export default function PortalColaborador() {
   const navigate = useNavigate()
@@ -242,6 +243,15 @@ export default function PortalColaborador() {
           </div>
         </div>
       </div>
+
+      {/* 1.5. Card Destacado da Pesquisa de Clima Organizacional Ativa */}
+      {user?.tenant_id && colaborador?.id && (
+        <CardPesquisaClimaPortal
+          tenantId={user.tenant_id}
+          colaboradorId={colaborador.id}
+          userId={user.id}
+        />
+      )}
 
       {/* 2. Grid de Atalhos Rápidos */}
       <div>

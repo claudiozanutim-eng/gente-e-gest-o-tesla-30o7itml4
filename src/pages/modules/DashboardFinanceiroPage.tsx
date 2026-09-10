@@ -224,6 +224,38 @@ export const DashboardFinanceiroPage: React.FC = () => {
     }
   }, [colaboradores, periodicos, pontuais, anoCompetencia, mesCompetencia])
 
+  // Verificação automática de alertas de orçamento (anti-spam) quando os dados são carregados
+  useEffect(() => {
+    if (!tenantId || loading || orcamentos.length === 0) return
+
+    const compAtual = `${anoCompetencia}-${String(mesCompetencia).padStart(2, '0')}`
+    const orcAtual = orcamentos.find((o) => o.competencia === compAtual)
+
+    if (orcAtual && orcAtual.valor_orcado_folha > 0 && valorLiquidoMes > 0) {
+      orcamentoFolhaService
+        .verificarAlertasOrcamento({
+          tenantId,
+          competencia: compAtual,
+          realizadoFolha: valorLiquidoMes,
+          orcadoFolha: orcAtual.valor_orcado_folha,
+          userId: user?.id,
+        })
+        .then((res) => {
+          if (res.disparado) {
+            toast({
+              title:
+                res.tipoAlerta === 'estouro'
+                  ? 'Alerta de Orçamento Estourado'
+                  : 'Aviso de Orçamento',
+              description: res.mensagem,
+              variant: res.tipoAlerta === 'estouro' ? 'destructive' : 'default',
+            })
+          }
+        })
+        .catch(() => {})
+    }
+  }, [tenantId, loading, orcamentos, anoCompetencia, mesCompetencia, valorLiquidoMes, user?.id])
+
   // =========================================================================
   // 2. SALDO TOTAL DO BANCO DE HORAS DA EMPRESA
   // =========================================================================
@@ -414,6 +446,7 @@ export const DashboardFinanceiroPage: React.FC = () => {
       variacaoRs?: number
       variacaoPct?: number
       estourou: boolean
+      proximidade: boolean
       dentroDoOrcado: boolean
     }[] = []
 
@@ -463,6 +496,12 @@ export const DashboardFinanceiroPage: React.FC = () => {
 
       const mesItem = mesesOpcoes.find((item) => item.value === m)
 
+      const pctConsumo =
+        orcadoFolha && orcadoFolha > 0 && realizadoFolha !== undefined
+          ? (realizadoFolha / orcadoFolha) * 100
+          : 0
+      const proximidade = !estourou && pctConsumo >= 95
+
       ciclos.push({
         ano: a,
         mes: m,
@@ -478,6 +517,7 @@ export const DashboardFinanceiroPage: React.FC = () => {
         variacaoRs,
         variacaoPct,
         estourou,
+        proximidade,
         dentroDoOrcado,
       })
     }
@@ -1288,9 +1328,13 @@ export const DashboardFinanceiroPage: React.FC = () => {
                   <div
                     key={ciclo.competenciaKey}
                     className={`rounded-xl border p-4 flex flex-col justify-between transition-all ${
-                      ciclo.isCompetenciaSelecionada
-                        ? 'border-[#0D47A1] bg-blue-50/20 shadow-xs'
-                        : 'border-slate-200 bg-white hover:border-slate-300'
+                      ciclo.estourou
+                        ? 'border-rose-400 bg-rose-50/30 ring-2 ring-rose-300 shadow-sm'
+                        : ciclo.proximidade
+                          ? 'border-amber-400 bg-amber-50/20 ring-1 ring-amber-300 shadow-xs'
+                          : ciclo.isCompetenciaSelecionada
+                            ? 'border-[#0D47A1] bg-blue-50/20 shadow-xs'
+                            : 'border-slate-200 bg-white hover:border-slate-300'
                     }`}
                   >
                     <div>
@@ -1299,7 +1343,17 @@ export const DashboardFinanceiroPage: React.FC = () => {
                         <span className="font-bold text-xs text-slate-900 capitalize">
                           {ciclo.mesNome} / {ciclo.ano}
                         </span>
-                        <div className="flex items-center gap-1">
+                        <div className="flex items-center gap-1 flex-wrap justify-end">
+                          {ciclo.estourou && (
+                            <Badge className="bg-rose-600 hover:bg-rose-700 text-white text-[9px] px-1.5 py-0 h-4 font-black animate-pulse">
+                              Estourado
+                            </Badge>
+                          )}
+                          {ciclo.proximidade && (
+                            <Badge className="bg-amber-500 text-white text-[9px] px-1.5 py-0 h-4 font-bold">
+                              ≥ 95% Limite
+                            </Badge>
+                          )}
                           {ciclo.isCompetenciaSelecionada && (
                             <Badge className="bg-[#0D47A1] text-white text-[9px] px-1.5 py-0 h-4 font-bold">
                               Selecionada

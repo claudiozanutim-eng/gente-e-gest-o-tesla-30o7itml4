@@ -27,6 +27,7 @@ import {
   CalendarCheck,
   Mail,
   DollarSign,
+  HeartHandshake,
 } from 'lucide-react'
 import { useAuth } from '@/context/AuthContext'
 import { usePermission } from '@/hooks/usePermission'
@@ -166,6 +167,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
               ...(podeConfigurarAvaliacoes
                 ? [{ title: 'Avaliações Admin', path: '/avaliacoes/admin', icon: Award }]
                 : []),
+              { title: 'Pesquisa de Clima', path: '/pesquisa-clima', icon: HeartHandshake },
               { title: 'Pendências Docs', path: '/pendencias-documentais', icon: FileWarning },
               { title: 'Documentos', path: '/documentos', icon: FolderOpen },
               { title: 'Gestão Benefícios', path: '/beneficios/gestao', icon: Gift },
@@ -343,7 +345,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
             <p className="text-[11px] text-[#757575] leading-snug font-medium">Tesla Mecatrônica</p>
           </div>
           <p className="text-[10px] font-medium text-[#0D47A1]" title="Versão do Sistema">
-            Tesla RH v0.0.29
+            Tesla RH v0.0.30
           </p>
         </div>
       )}

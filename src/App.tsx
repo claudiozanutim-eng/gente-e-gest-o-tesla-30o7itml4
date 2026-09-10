@@ -40,6 +40,7 @@ import MinhaEquipePage from '@/pages/modules/MinhaEquipePage'
 import AvaliacoesAdminPage from '@/pages/modules/AvaliacoesAdminPage'
 import DemonstrativoPage from '@/pages/DemonstrativoPage'
 import GestaoFolhaPage from '@/pages/GestaoFolhaPage'
+import GestaoPesquisaClimaPage from '@/pages/modules/GestaoPesquisaClimaPage'
 import BancoHorasColaboradorPage from '@/pages/modules/BancoHorasColaboradorPage'
 import FechamentoBancoHorasPage from '@/pages/modules/FechamentoBancoHorasPage'
 import PortalGestorPage from '@/pages/modules/PortalGestorPage'
@@ -469,6 +470,15 @@ const App = () => (
               element={
                 <ProtectedRoute allowedProfiles={['admin_rh', 'admin']}>
                   <GestaoFolhaPage />
+                </ProtectedRoute>
+              }
+            />
+            {/* Pesquisa de Clima Gestão: 'rh', 'admin_rh', 'admin' */}
+            <Route
+              path="/pesquisa-clima"
+              element={
+                <ProtectedRoute allowedProfiles={['rh', 'admin_rh', 'admin']}>
+                  <GestaoPesquisaClimaPage />
                 </ProtectedRoute>
               }
             />

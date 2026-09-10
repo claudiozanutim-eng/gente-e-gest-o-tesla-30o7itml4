@@ -45,6 +45,8 @@ import { formatMoedaPtBr } from '@/lib/exportReports'
 import { DemonstrativoFinanceiroView } from '@/components/folha/DemonstrativoFinanceiroView'
 import { ModalLancamentoPeriodico } from '@/components/folha/ModalLancamentoPeriodico'
 import { ModalLancamentoPontual } from '@/components/folha/ModalLancamentoPontual'
+import { ModalImportarLancamentos } from '@/components/folha/ModalImportarLancamentos'
+import { FileSpreadsheet } from 'lucide-react'
 
 const MESES = [
   { valor: 1, nome: 'Janeiro' },
@@ -94,6 +96,13 @@ export const GestaoFolhaPage: React.FC = () => {
 
   const [modalPontualAberto, setModalPontualAberto] = useState(false)
   const [pontualParaEditar, setPontualParaEditar] = useState<LancamentoPontual | null>(null)
+
+  const [modalImportacaoAberto, setModalImportacaoAberto] = useState(false)
+
+  // Permissão para importar planilha: apenas admin_rh e admin
+  const podeImportarPlanilha = useMemo(() => {
+    return user?.perfil === 'admin_rh' || user?.perfil === 'admin'
+  }, [user?.perfil])
 
   const carregarDadosGestao = useCallback(async () => {
     if (!user?.tenant_id) return
@@ -440,6 +449,18 @@ export const GestaoFolhaPage: React.FC = () => {
           >
             <RefreshCw className={`h-3.5 w-3.5 ${loading ? 'animate-spin' : ''}`} />
           </Button>
+
+          {/* Botão Importar Planilha (visível apenas para admin_rh e admin) */}
+          {podeImportarPlanilha && (
+            <Button
+              size="sm"
+              onClick={() => setModalImportacaoAberto(true)}
+              className="h-9 gap-1.5 bg-[#0D47A1] hover:bg-[#0b3c8a] text-white text-xs font-semibold shadow-xs"
+            >
+              <FileSpreadsheet className="h-4 w-4" />
+              Importar Planilha
+            </Button>
+          )}
         </div>
       </div>
 
@@ -515,6 +536,18 @@ export const GestaoFolhaPage: React.FC = () => {
           </CardContent>
         </Card>
       </div>
+
+      {/* Modal de Importação de Planilha (CSV / Excel) */}
+      {user && podeImportarPlanilha && (
+        <ModalImportarLancamentos
+          open={modalImportacaoAberto}
+          onClose={() => setModalImportacaoAberto(false)}
+          tenantId={user.tenant_id}
+          userId={user.id}
+          colaboradores={itensGestao.map((i) => i.colaborador)}
+          onSuccess={() => carregarDadosGestao()}
+        />
+      )}
 
       {/* Tabela de Colaboradores com Resumo do Mês */}
       <Card className="border border-[#E0E0E0] bg-white shadow-xs">

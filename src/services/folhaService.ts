@@ -255,9 +255,96 @@ export const folhaService = {
   },
 
   // ----------------------------------------------------
-  // Mutações: Lançamento Periódico (com Auditoria)
+  // Importação em Lote via Planilha (CSV/Excel)
   // ----------------------------------------------------
 
+  /**
+   * Importa múltiplos lançamentos pontuais e periódicos com validação individual.
+   */
+  async importarLancamentosLote(
+    tenantId: string,
+    userId: string,
+    itensValidos: Array<{
+      tipo_lancamento: 'periodico' | 'pontual'
+      colaborador_id: string
+      colaborador_nome: string
+      descritivo: string
+      quantidade: number
+      periodicidade?: PeriodicidadeLancamento
+      data_recorrencia?: number
+      data_inicio_vigencia?: string
+      data_fim_vigencia?: string | null
+      data?: string
+      comentario?: string
+    }>,
+  ): Promise<{ importados: number; erros: number }> {
+    let importados = 0
+    let erros = 0
+
+    for (const item of itensValidos) {
+      try {
+        if (item.tipo_lancamento === 'periodico') {
+          await this.criarLancamentoPeriodico(
+            {
+              tenant_id: tenantId,
+              colaborador_id: item.colaborador_id,
+              descritivo: item.descritivo,
+              quantidade: item.quantidade,
+              periodicidade: item.periodicidade || 'mensal',
+              data_recorrencia: item.data_recorrencia || 5,
+              data_inicio_vigencia:
+                item.data_inicio_vigencia || new Date().toISOString().slice(0, 10),
+              data_fim_vigencia: item.data_fim_vigencia || null,
+            },
+            userId,
+          )
+        } else {
+          await this.criarLancamentoPontual(
+            {
+              tenant_id: tenantId,
+              colaborador_id: item.colaborador_id,
+              descritivo: item.descritivo,
+              quantidade: item.quantidade,
+              data: item.data || new Date().toISOString().slice(0, 10),
+              comentario: item.comentario || 'importado via planilha',
+            },
+            userId,
+          )
+        }
+        importados++
+      } catch (errItem) {
+        console.warn('Erro ao importar linha individual de lançamento:', errItem)
+        erros++
+      }
+    }
+
+    // Log consolidado da importação
+    if (importados > 0) {
+      try {
+        await logAuditoriaService.registrarLog({
+          tenant_id: tenantId,
+          user_id: userId,
+          acao: 'importacao_lancamentos_planilha',
+          entidade: 'folha_lancamentos',
+          entidade_id: `lote_${Date.now()}`,
+          dados_json: {
+            total_processados: itensValidos.length,
+            importados,
+            erros,
+            origem: 'importado via planilha por usuário',
+          },
+        })
+      } catch (auditErr) {
+        console.warn('Erro ao registrar log de importação em lote:', auditErr)
+      }
+    }
+
+    return { importados, erros }
+  },
+
+  // ----------------------------------------------------
+  // Mutações: Lançamento Periódico (com Auditoria)
+  // ----------------------------------------------------
   async criarLancamentoPeriodico(
     dto: NovoLancamentoPeriodicoDTO,
     userId: string,
