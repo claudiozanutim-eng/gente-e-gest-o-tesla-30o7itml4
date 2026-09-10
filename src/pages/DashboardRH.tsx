@@ -30,6 +30,7 @@ import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Skeleton } from '@/components/ui/skeleton'
 import { ModalFeriasProximas } from '@/components/dashboard/ModalFeriasProximas'
+import { AssistenteConsultaClt } from '@/components/clt/AssistenteConsultaClt'
 
 export default function DashboardRH() {
   const { user } = useAuth()
@@ -169,6 +170,9 @@ export default function DashboardRH() {
           </Button>
         </div>
       </div>
+
+      {/* Assistente de Consulta CLT & Obrigações Trabalhistas */}
+      <AssistenteConsultaClt />
 
       {/* Grid de 5 KPIs no topo */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">

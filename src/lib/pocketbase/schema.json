@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-09-10T01:05:22.164Z",
+  "generatedAt": "2026-09-10T01:14:09.854Z",
   "collections": [
     {
       "name": "users",
@@ -51,6 +51,12 @@
           "required": true,
           "system": false,
           "selectValues": ["colaborador", "gestor", "rh", "admin"]
+        },
+        {
+          "name": "ativo",
+          "type": "bool",
+          "required": false,
+          "system": false
         }
       ],
       "indexes": [
@@ -108,6 +114,25 @@
           "required": false,
           "system": false,
           "autodateTriggers": ["onCreate", "onUpdate"]
+        },
+        {
+          "name": "endereco",
+          "type": "text",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "telefone",
+          "type": "text",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "regime_tributario",
+          "type": "select",
+          "required": false,
+          "system": false,
+          "selectValues": ["Simples Nacional", "Lucro Presumido", "Lucro Real", "MEI"]
         }
       ],
       "indexes": [
@@ -391,6 +416,13 @@
           "required": false,
           "system": false,
           "autodateTriggers": ["onCreate", "onUpdate"]
+        },
+        {
+          "name": "status",
+          "type": "select",
+          "required": false,
+          "system": false,
+          "selectValues": ["ativo", "arquivado"]
         }
       ],
       "indexes": [

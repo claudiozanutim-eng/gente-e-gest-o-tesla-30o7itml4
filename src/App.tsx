@@ -39,6 +39,11 @@ import MinhaEquipePage from '@/pages/modules/MinhaEquipePage'
 import AvaliacoesAdminPage from '@/pages/modules/AvaliacoesAdminPage'
 import DemonstrativoPage from '@/pages/DemonstrativoPage'
 import GestaoFolhaPage from '@/pages/GestaoFolhaPage'
+import GestaoComunicadosPage from '@/pages/modules/GestaoComunicadosPage'
+import AlteracoesPendentesPage from '@/pages/modules/AlteracoesPendentesPage'
+import AdminConfiguracoesPage from '@/pages/modules/AdminConfiguracoesPage'
+import AdminUsuariosPage from '@/pages/modules/AdminUsuariosPage'
+import AdminLogsPage from '@/pages/modules/AdminLogsPage'
 import NotFound from '@/pages/NotFound'
 
 // Root redirect handler based on user profile or login
@@ -138,12 +143,56 @@ const App = () => (
               }
             />
 
-            {/* Admin Home and Sub-routes */}
+            {/* Comunicados (RH & Admin) - Prompt 16 */}
+            <Route
+              path="/comunicados/gestao"
+              element={
+                <ProtectedRoute allowedProfiles={['rh', 'admin']}>
+                  <GestaoComunicadosPage />
+                </ProtectedRoute>
+              }
+            />
+
+            {/* Aprovação de Alterações Cadastrais (RH & Admin) - Prompt 16 */}
+            <Route
+              path="/alteracoes/pendentes"
+              element={
+                <ProtectedRoute allowedProfiles={['rh', 'admin']}>
+                  <AlteracoesPendentesPage />
+                </ProtectedRoute>
+              }
+            />
+
+            {/* Menu de Administração (Admin) - Prompt 16 */}
             <Route
               path="/admin"
               element={
                 <ProtectedRoute allowedProfiles={['admin']}>
-                  <AdminPage initialTab="tenant" />
+                  <AdminConfiguracoesPage />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/admin/configuracoes"
+              element={
+                <ProtectedRoute allowedProfiles={['admin']}>
+                  <AdminConfiguracoesPage />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/admin/usuarios"
+              element={
+                <ProtectedRoute allowedProfiles={['admin']}>
+                  <AdminUsuariosPage />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/admin/logs"
+              element={
+                <ProtectedRoute allowedProfiles={['admin']}>
+                  <AdminLogsPage />
                 </ProtectedRoute>
               }
             />
@@ -152,14 +201,6 @@ const App = () => (
               element={
                 <ProtectedRoute allowedProfiles={['admin']}>
                   <AdminPage initialTab="tenant" />
-                </ProtectedRoute>
-              }
-            />
-            <Route
-              path="/admin/usuarios"
-              element={
-                <ProtectedRoute allowedProfiles={['admin']}>
-                  <AdminPage initialTab="usuarios" />
                 </ProtectedRoute>
               }
             />

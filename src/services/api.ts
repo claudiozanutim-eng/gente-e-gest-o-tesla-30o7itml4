@@ -27,7 +27,12 @@ export const tenantService = {
 
   async updateTenant(
     tenantId: string,
-    data: Partial<Pick<Tenant, 'plano' | 'status'>>,
+    data: Partial<
+      Pick<
+        Tenant,
+        'plano' | 'status' | 'razao_social' | 'cnpj' | 'endereco' | 'telefone' | 'regime_tributario'
+      >
+    >,
   ): Promise<Tenant> {
     const record = await pb.collection('tenant').update<Tenant>(tenantId, data)
     return record
@@ -43,8 +48,52 @@ export const userService = {
     return records
   },
 
+  async getUsersByTenant(tenantId: string): Promise<AppUser[]> {
+    const records = await pb.collection('users').getFullList<AppUser>({
+      filter: `tenant_id = "${tenantId}"`,
+      sort: 'name',
+    })
+    return records
+  },
+
   async updateUserPerfil(userId: string, perfil: UserPerfil): Promise<AppUser> {
     const record = await pb.collection('users').update<AppUser>(userId, { perfil })
+    return record
+  },
+
+  async updateUserData(userId: string, data: Partial<AppUser>): Promise<AppUser> {
+    const record = await pb.collection('users').update<AppUser>(userId, data)
+    return record
+  },
+
+  async createUser(data: {
+    tenant_id: string
+    name: string
+    email: string
+    password?: string
+    perfil: UserPerfil
+  }): Promise<AppUser> {
+    const password = data.password || 'Skip@Pass'
+    const record = await pb.collection('users').create<AppUser>({
+      ...data,
+      password,
+      passwordConfirm: password,
+      ativo: true,
+      emailVisibility: false,
+    })
+    return record
+  },
+
+  async toggleUserAtivo(userId: string, ativo: boolean): Promise<AppUser> {
+    const record = await pb.collection('users').update<AppUser>(userId, { ativo })
+    return record
+  },
+
+  async resetUserPassword(userId: string, newPassword: string): Promise<AppUser> {
+    const record = await pb.collection('users').update<AppUser>(userId, {
+      password: newPassword,
+      passwordConfirm: newPassword,
+    })
     return record
   },
 
@@ -53,14 +102,18 @@ export const userService = {
     perfil: UserPerfil,
     name?: string,
   ): Promise<{ success: boolean; message: string; user?: AppUser }> {
-    const response = await pb.send<{ success: boolean; message: string; user?: AppUser }>(
-      '/backend/v1/custom/invite-user',
-      {
-        method: 'POST',
-        body: { email, perfil, name },
-      },
-    )
-    return response
+    try {
+      const response = await pb.send<{ success: boolean; message: string; user?: AppUser }>(
+        '/backend/v1/custom/invite-user',
+        {
+          method: 'POST',
+          body: { email, perfil, name },
+        },
+      )
+      return response
+    } catch {
+      return { success: false, message: 'Endpoint customizado não disponível.' }
+    }
   },
 }
 
@@ -159,6 +212,24 @@ export const solicitacaoService = {
     return records
   },
 
+  async getSolicitacoesTenant(
+    tenantId: string,
+    status?: import('@/types').SolicitacaoStatus,
+  ): Promise<(SolicitacaoAlteracao & { expand?: { colaborador_id?: Colaborador } })[]> {
+    let filter = `tenant_id = "${tenantId}"`
+    if (status) {
+      filter += ` && status = "${status}"`
+    }
+    const records = await pb
+      .collection('solicitacao_alteracao')
+      .getFullList<SolicitacaoAlteracao & { expand?: { colaborador_id?: Colaborador } }>({
+        filter,
+        sort: '-data_solicitacao,-created',
+        expand: 'colaborador_id',
+      })
+    return records
+  },
+
   async createSolicitacao(data: {
     colaborador_id: string
     tenant_id: string
@@ -172,6 +243,106 @@ export const solicitacaoService = {
       data_solicitacao: new Date().toISOString(),
     })
     return record
+  },
+
+  async aprovarSolicitacao(
+    solicitacao: SolicitacaoAlteracao,
+    userId: string,
+  ): Promise<{ success: boolean; solicitacao: SolicitacaoAlteracao }> {
+    // 1. Mapear o nome do campo da solicitação para o campo no registro colaborador
+    const campoNome = solicitacao.campo.trim().toLowerCase()
+    const mapCampos: Record<string, string> = {
+      telefone: 'telefone',
+      'telefone / celular': 'telefone',
+      celular: 'telefone',
+      endereço: 'endereco',
+      endereco: 'endereco',
+      'estado civil': 'estado_civil',
+      'chave pix': 'pix',
+      pix: 'pix',
+      'dados bancários': 'dados_bancarios',
+      'dados bancarios': 'dados_bancarios',
+      rg: 'rg',
+      cnh: 'cnh',
+      'título de eleitor': 'titulo_eleitor',
+      'titulo de eleitor': 'titulo_eleitor',
+      'e-mail': 'email',
+      email: 'email',
+    }
+
+    const fieldColaborador = mapCampos[campoNome] || campoNome
+
+    // Limpar possíveis anotações (Obs: ...) se houver no valor_novo
+    let valorParaAtualizar = solicitacao.valor_novo
+    if (valorParaAtualizar.includes(' (Obs: ')) {
+      valorParaAtualizar = valorParaAtualizar.split(' (Obs: ')[0].trim()
+    }
+
+    // 2. Atualizar no colaborador
+    if (solicitacao.colaborador_id && fieldColaborador) {
+      await pb.collection('colaborador').update(solicitacao.colaborador_id, {
+        [fieldColaborador]: valorParaAtualizar,
+      })
+    }
+
+    // 3. Atualizar status da solicitação
+    const updatedSolic = await pb
+      .collection('solicitacao_alteracao')
+      .update<SolicitacaoAlteracao>(solicitacao.id, {
+        status: 'aprovada',
+        data_resposta: new Date().toISOString(),
+      })
+
+    // 4. Registrar em log_auditoria
+    await logAuditoriaService.registrarLog({
+      tenant_id: solicitacao.tenant_id,
+      user_id: userId,
+      acao: 'aprovacao_alteracao',
+      entidade: 'colaborador',
+      entidade_id: solicitacao.colaborador_id,
+      dados_json: {
+        solicitacao_id: solicitacao.id,
+        campo: solicitacao.campo,
+        campo_db: fieldColaborador,
+        valor_antigo: solicitacao.valor_antigo,
+        valor_novo: valorParaAtualizar,
+        resultado: 'aprovada',
+      },
+    })
+
+    return { success: true, solicitacao: updatedSolic }
+  },
+
+  async rejeitarSolicitacao(
+    solicitacao: SolicitacaoAlteracao,
+    userId: string,
+    motivo?: string,
+  ): Promise<SolicitacaoAlteracao> {
+    const updatedSolic = await pb
+      .collection('solicitacao_alteracao')
+      .update<SolicitacaoAlteracao>(solicitacao.id, {
+        status: 'rejeitada',
+        data_resposta: new Date().toISOString(),
+        motivo_resposta: motivo || 'Solicitação reprovada pelo RH.',
+      })
+
+    await logAuditoriaService.registrarLog({
+      tenant_id: solicitacao.tenant_id,
+      user_id: userId,
+      acao: 'rejeicao_alteracao',
+      entidade: 'colaborador',
+      entidade_id: solicitacao.colaborador_id,
+      dados_json: {
+        solicitacao_id: solicitacao.id,
+        campo: solicitacao.campo,
+        valor_antigo: solicitacao.valor_antigo,
+        valor_rejeitado: solicitacao.valor_novo,
+        motivo: motivo || 'Solicitação reprovada pelo RH.',
+        resultado: 'rejeitada',
+      },
+    })
+
+    return updatedSolic
   },
 }
 
@@ -215,7 +386,7 @@ export const logAuditoriaService = {
     try {
       const records = await pb.collection('log_auditoria').getList<LogAuditoria>(1, limit, {
         filter: `tenant_id = "${tenantId}"`,
-        sort: '-created',
+        sort: '-data_hora,-created',
         expand: 'user_id',
       })
       return records.items
@@ -224,15 +395,103 @@ export const logAuditoriaService = {
       return []
     }
   },
+
+  async getLogsFiltrados(
+    tenantId: string,
+    filtros?: {
+      userId?: string
+      acao?: string
+      entidade?: string
+      dataInicio?: string
+      dataFim?: string
+    },
+    limit: number = 50,
+  ): Promise<LogAuditoria[]> {
+    try {
+      let filter = `tenant_id = "${tenantId}"`
+      if (filtros?.userId && filtros.userId !== 'todos') {
+        filter += ` && user_id = "${filtros.userId}"`
+      }
+      if (filtros?.acao && filtros.acao !== 'todos') {
+        filter += ` && acao = "${filtros.acao}"`
+      }
+      if (filtros?.entidade && filtros.entidade !== 'todos') {
+        filter += ` && entidade = "${filtros.entidade}"`
+      }
+      if (filtros?.dataInicio) {
+        filter += ` && (data_hora >= "${filtros.dataInicio} 00:00:00" || created >= "${filtros.dataInicio} 00:00:00")`
+      }
+      if (filtros?.dataFim) {
+        filter += ` && (data_hora <= "${filtros.dataFim} 23:59:59" || created <= "${filtros.dataFim} 23:59:59")`
+      }
+
+      const records = await pb.collection('log_auditoria').getList<LogAuditoria>(1, limit, {
+        filter,
+        sort: '-data_hora,-created',
+        expand: 'user_id',
+      })
+      return records.items
+    } catch (err) {
+      console.warn('Erro ao buscar logs filtrados:', err)
+      return []
+    }
+  },
 }
 
 export const comunicadoService = {
-  async getComunicados(tenantId: string): Promise<import('@/types').Comunicado[]> {
+  async getComunicados(
+    tenantId: string,
+    apenasAtivos: boolean = false,
+  ): Promise<import('@/types').Comunicado[]> {
+    let filter = `tenant_id = "${tenantId}"`
+    if (apenasAtivos) {
+      filter += ` && (status = "ativo" || status = "" || status = null)`
+    }
     const records = await pb.collection('comunicado').getFullList<import('@/types').Comunicado>({
-      filter: `tenant_id = "${tenantId}"`,
+      filter,
       sort: '-data_publicacao,-created',
     })
     return records
+  },
+
+  async createComunicado(data: {
+    tenant_id: string
+    categoria: import('@/types').ComunicadoCategoria
+    titulo: string
+    conteudo: string
+    segmentacao_tipo: import('@/types').ComunicadoSegmentacaoTipo
+    segmentacao_valor?: string
+    data_publicacao?: string
+    status?: import('@/types').ComunicadoStatus
+  }): Promise<import('@/types').Comunicado> {
+    const record = await pb.collection('comunicado').create<import('@/types').Comunicado>({
+      ...data,
+      status: data.status || 'ativo',
+      data_publicacao: data.data_publicacao || new Date().toISOString(),
+    })
+    return record
+  },
+
+  async updateComunicado(
+    id: string,
+    data: Partial<import('@/types').Comunicado>,
+  ): Promise<import('@/types').Comunicado> {
+    const record = await pb.collection('comunicado').update<import('@/types').Comunicado>(id, data)
+    return record
+  },
+
+  async arquivarComunicado(id: string): Promise<import('@/types').Comunicado> {
+    const record = await pb.collection('comunicado').update<import('@/types').Comunicado>(id, {
+      status: 'arquivado',
+    })
+    return record
+  },
+
+  async desarquivarComunicado(id: string): Promise<import('@/types').Comunicado> {
+    const record = await pb.collection('comunicado').update<import('@/types').Comunicado>(id, {
+      status: 'ativo',
+    })
+    return record
   },
 
   /**

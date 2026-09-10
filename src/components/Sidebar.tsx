@@ -20,6 +20,9 @@ import {
   BarChart3,
   Award,
   CheckCircle2,
+  Megaphone,
+  UserCog,
+  Building,
 } from 'lucide-react'
 import { useAuth } from '@/context/AuthContext'
 import { UserPerfil, PROFILE_HOME_MAP } from '@/types'
@@ -115,6 +118,8 @@ export const Sidebar: React.FC<SidebarProps> = ({
           ? [
               { title: 'Colaboradores', path: '/colaboradores', icon: Users },
               { title: 'Gestão da Folha', path: '/folha/gestao', icon: Briefcase },
+              { title: 'Comunicados', path: '/comunicados/gestao', icon: Megaphone },
+              { title: 'Alterações Pendentes', path: '/alteracoes/pendentes', icon: UserCog },
               { title: 'Avaliações Admin', path: '/avaliacoes/admin', icon: Award },
               { title: 'Pendências Docs', path: '/pendencias-documentais', icon: FileWarning },
               { title: 'Documentos', path: '/documentos', icon: FolderOpen },
@@ -150,8 +155,10 @@ export const Sidebar: React.FC<SidebarProps> = ({
       title: 'Administração',
       allowedProfiles: ['admin'],
       items: [
-        { title: 'Tenant', path: '/admin/tenant', icon: Building2 },
-        { title: 'Usuários', path: '/admin/usuarios', icon: ShieldCheck },
+        { title: 'Configurações da Empresa', path: '/admin/configuracoes', icon: Building },
+        { title: 'Usuários e Permissões', path: '/admin/usuarios', icon: Users },
+        { title: 'Logs de Auditoria', path: '/admin/logs', icon: ShieldCheck },
+        { title: 'Gestão de Tenant (SaaS)', path: '/admin/tenant', icon: Building2 },
       ],
     },
   ]
@@ -247,7 +254,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
       {!collapsed && (
         <div className="p-4 border-t border-[#E0E0E0] bg-[#FAFAFA] text-center">
           <p className="text-[11px] text-[#757575] leading-snug">Plataforma SaaS Multi-tenant</p>
-          <p className="text-[10px] font-medium text-[#0D47A1]">Tesla RH v1.0.0</p>
+          <p className="text-[10px] font-medium text-[#0D47A1]">Tesla RH v0.0.15</p>
         </div>
       )}
     </div>

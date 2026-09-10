@@ -4,12 +4,17 @@ export type TenantPlano = 'basico' | 'pro' | 'enterprise'
 export type TenantStatus = 'ativo' | 'inativo' | 'suspenso'
 export type ColaboradorStatus = 'ativo' | 'inativo'
 
+export type TenantRegimeTributario = 'Simples Nacional' | 'Lucro Presumido' | 'Lucro Real' | 'MEI'
+
 export interface Tenant {
   id: string
   razao_social: string
   cnpj: string
   plano: TenantPlano
   status: TenantStatus
+  endereco?: string
+  telefone?: string
+  regime_tributario?: TenantRegimeTributario
   created: string
   updated: string
 }
@@ -21,6 +26,7 @@ export interface AppUser {
   perfil: UserPerfil
   tenant_id: string
   avatar?: string
+  ativo?: boolean
   created: string
   updated: string
 }
@@ -117,6 +123,8 @@ export interface LogAuditoria {
 export type ComunicadoCategoria = 'RH' | 'Empresa' | 'Qualidade' | 'Segurança' | 'Benefícios'
 export type ComunicadoSegmentacaoTipo = 'todos' | 'setor' | 'funcao' | 'gestores'
 
+export type ComunicadoStatus = 'ativo' | 'arquivado'
+
 export interface Comunicado {
   id: string
   tenant_id: string
@@ -126,6 +134,7 @@ export interface Comunicado {
   segmentacao_tipo: ComunicadoSegmentacaoTipo
   segmentacao_valor?: string
   data_publicacao?: string
+  status?: ComunicadoStatus
   created: string
   updated: string
 }

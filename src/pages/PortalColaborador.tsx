@@ -71,7 +71,8 @@ export default function PortalColaborador() {
       if (!user?.tenant_id) return
       try {
         setLoading(true)
-        const allComunicados = await comunicadoService.getComunicados(user.tenant_id)
+        // No mural do colaborador, apenas comunicados ativos são exibidos
+        const allComunicados = await comunicadoService.getComunicados(user.tenant_id, true)
         // Aplica RLS e regras de segmentação locais por perfil/setor/cargo
         const visiveis = comunicadoService.filtrarPorPerfil(allComunicados, perfil, colaborador)
         setComunicados(visiveis)
@@ -184,13 +185,9 @@ export default function PortalColaborador() {
     },
   ]
 
-  // Trata clique do botão Nova Publicação (desabilitado/informativo para prompt futuro)
+  // Trata clique do botão Nova Publicação - redireciona para tela de gestão de comunicados
   const handleNovaPublicacao = () => {
-    toast({
-      title: 'Módulo de Publicação',
-      description:
-        'A criação de novos comunicados será disponibilizada na próxima etapa do Módulo RH.',
-    })
+    navigate('/comunicados/gestao')
   }
 
   return (

@@ -1,4 +1,5 @@
 import React, { useEffect, useState } from 'react'
+import { useNavigate } from 'react-router-dom'
 import {
   Building2,
   Users,
@@ -9,6 +10,8 @@ import {
   Mail,
   Calendar,
   Save,
+  Building,
+  ShieldCheck,
 } from 'lucide-react'
 import { useAuth } from '@/context/AuthContext'
 import { tenantService, userService } from '@/services/api'
@@ -60,6 +63,7 @@ interface AdminPageProps {
 
 export default function AdminPage({ initialTab = 'tenant' }: AdminPageProps) {
   const { user } = useAuth()
+  const navigate = useNavigate()
   const [activeTab, setActiveTab] = useState<'tenant' | 'usuarios'>(initialTab)
   const [tenant, setTenant] = useState<Tenant | null>(null)
   const [usersList, setUsersList] = useState<AppUser[]>([])
@@ -227,6 +231,48 @@ export default function AdminPage({ initialTab = 'tenant' }: AdminPageProps) {
         </Badge>
       </div>
 
+      {/* Quick Navigation Cards para as Novas Telas do Menu Admin */}
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+        <button
+          onClick={() => navigate('/admin/configuracoes')}
+          className="flex items-center gap-3 p-3.5 rounded-xl border border-[#E0E0E0] bg-white hover:border-[#0D47A1] hover:bg-[#F8F9FA] transition-all text-left shadow-2xs"
+        >
+          <div className="h-9 w-9 rounded-lg bg-[#E8EEF7] text-[#0D47A1] flex items-center justify-center shrink-0">
+            <Building className="h-5 w-5" />
+          </div>
+          <div>
+            <h4 className="text-xs font-bold text-[#212121]">Configurações da Empresa</h4>
+            <p className="text-[11px] text-[#757575]">Razão social, CNPJ, regime tributário</p>
+          </div>
+        </button>
+
+        <button
+          onClick={() => navigate('/admin/usuarios')}
+          className="flex items-center gap-3 p-3.5 rounded-xl border border-[#E0E0E0] bg-white hover:border-[#0D47A1] hover:bg-[#F8F9FA] transition-all text-left shadow-2xs"
+        >
+          <div className="h-9 w-9 rounded-lg bg-[#E8EEF7] text-[#0D47A1] flex items-center justify-center shrink-0">
+            <Users className="h-5 w-5" />
+          </div>
+          <div>
+            <h4 className="text-xs font-bold text-[#212121]">Usuários e Permissões</h4>
+            <p className="text-[11px] text-[#757575]">Novo usuário, perfis, senhas e inativação</p>
+          </div>
+        </button>
+
+        <button
+          onClick={() => navigate('/admin/logs')}
+          className="flex items-center gap-3 p-3.5 rounded-xl border border-[#E0E0E0] bg-white hover:border-[#0D47A1] hover:bg-[#F8F9FA] transition-all text-left shadow-2xs"
+        >
+          <div className="h-9 w-9 rounded-lg bg-[#E8EEF7] text-[#0D47A1] flex items-center justify-center shrink-0">
+            <ShieldCheck className="h-5 w-5" />
+          </div>
+          <div>
+            <h4 className="text-xs font-bold text-[#212121]">Logs de Auditoria</h4>
+            <p className="text-[11px] text-[#757575]">Trilha de segurança e conformidade</p>
+          </div>
+        </button>
+      </div>
+
       {/* Tabs */}
       <Tabs
         value={activeTab}
@@ -239,14 +285,14 @@ export default function AdminPage({ initialTab = 'tenant' }: AdminPageProps) {
             className="data-[state=active]:bg-white data-[state=active]:text-[#0D47A1] data-[state=active]:shadow-sm font-semibold text-xs md:text-sm"
           >
             <Building2 className="mr-2 h-4 w-4" />
-            Dados do Tenant
+            Planos & SaaS
           </TabsTrigger>
           <TabsTrigger
             value="usuarios"
             className="data-[state=active]:bg-white data-[state=active]:text-[#0D47A1] data-[state=active]:shadow-sm font-semibold text-xs md:text-sm"
           >
             <Users className="mr-2 h-4 w-4" />
-            Usuários ({usersList.length})
+            Visão Rápida Usuários ({usersList.length})
           </TabsTrigger>
         </TabsList>
 
