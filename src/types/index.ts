@@ -902,3 +902,26 @@ export interface PeriodoAquisitivoFerias {
   status: 'em_aquisicao' | 'disponivel' | 'vencendo' | 'vencido' | 'gozado'
   solicitacoesAssociadas: SolicitacaoFerias[]
 }
+
+// ----------------------------------------------------
+// Onboarding do Gestor (v0.0.28)
+// ----------------------------------------------------
+export interface OnboardingGestorRecord {
+  id: string
+  collectionId?: string
+  collectionName?: string
+  tenant_id: string
+  gestor_user_id: string
+  etapa: number // 1 a 5
+  concluida: boolean
+  created: string
+  updated: string
+}
+
+export interface OnboardingEtapaDef {
+  etapa: number
+  titulo: string
+  descricao: string
+  link: string
+  botaoTexto: string
+}

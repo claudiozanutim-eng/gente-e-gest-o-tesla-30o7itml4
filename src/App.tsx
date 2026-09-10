@@ -49,6 +49,8 @@ import AdminConfiguracoesPage from '@/pages/modules/AdminConfiguracoesPage'
 import AdminUsuariosPage from '@/pages/modules/AdminUsuariosPage'
 import AdminLogsPage from '@/pages/modules/AdminLogsPage'
 import AdminEmailPage from '@/pages/modules/AdminEmailPage'
+import { FeriasColetivoPage } from '@/pages/modules/FeriasColetivoPage'
+import { DashboardFinanceiroPage } from '@/pages/modules/DashboardFinanceiroPage'
 import NotFound from '@/pages/NotFound'
 
 // Root redirect handler based on user profile or login
@@ -119,7 +121,6 @@ const App = () => (
                 </ProtectedRoute>
               }
             />
-
             {/* Gestor Home & Portal do Gestor Consolidado */}
             <Route
               path="/dashboard-equipe"
@@ -137,7 +138,6 @@ const App = () => (
                 </ProtectedRoute>
               }
             />
-
             {/* RH Home - Rota canônica /dashboard ('rh', 'admin_rh', 'admin') */}
             <Route
               path="/dashboard"
@@ -148,7 +148,6 @@ const App = () => (
               }
             />
             <Route path="/dashboard-rh" element={<Navigate to="/dashboard" replace />} />
-
             {/* Pendências Documentais ('rh', 'admin_rh', 'admin') */}
             <Route
               path="/pendencias-documentais"
@@ -158,7 +157,6 @@ const App = () => (
                 </ProtectedRoute>
               }
             />
-
             {/* Comunicados Gestão ('rh', 'admin_rh', 'admin') */}
             <Route
               path="/comunicados/gestao"
@@ -168,7 +166,6 @@ const App = () => (
                 </ProtectedRoute>
               }
             />
-
             {/* Aprovação de Alterações Cadastrais ('rh', 'admin_rh', 'admin') */}
             <Route
               path="/alteracoes/pendentes"
@@ -178,7 +175,6 @@ const App = () => (
                 </ProtectedRoute>
               }
             />
-
             {/* Menu de Administração - Configurações e Usuários: APENAS 'admin' */}
             <Route
               path="/admin"
@@ -229,7 +225,6 @@ const App = () => (
                 </ProtectedRoute>
               }
             />
-
             {/* Gestão de Talentos ('rh', 'admin_rh', 'admin') */}
             <Route
               path="/vagas"
@@ -247,7 +242,6 @@ const App = () => (
                 </ProtectedRoute>
               }
             />
-
             {/* Gestão de Pessoas - Base de Colaboradores e Documentos ('rh', 'admin_rh', 'admin') */}
             <Route
               path="/colaboradores"
@@ -273,7 +267,6 @@ const App = () => (
                 </ProtectedRoute>
               }
             />
-
             {/* Gestão do Tempo */}
             <Route
               path="/ponto"
@@ -323,7 +316,6 @@ const App = () => (
                 </ProtectedRoute>
               }
             />
-
             {/* Portal do Colaborador - Atalhos */}
             <Route
               path="/documentos-importantes"
@@ -376,6 +368,15 @@ const App = () => (
                 </ProtectedRoute>
               }
             />
+            {/* Espelho de Férias Coletivo ('rh', 'admin_rh', 'admin') */}
+            <Route
+              path="/ferias/coletivo"
+              element={
+                <ProtectedRoute allowedProfiles={['rh', 'admin_rh', 'admin']}>
+                  <FeriasColetivoPage />
+                </ProtectedRoute>
+              }
+            />{' '}
             <Route
               path="/beneficios"
               element={
@@ -414,7 +415,6 @@ const App = () => (
                 </ProtectedRoute>
               }
             />
-
             {/* Avaliação de Desempenho */}
             <Route
               path="/avaliacoes"
@@ -443,7 +443,6 @@ const App = () => (
                 </ProtectedRoute>
               }
             />
-
             {/* Relatórios e Exportações ('rh', 'admin_rh', 'admin') */}
             <Route
               path="/relatorios"
@@ -453,7 +452,6 @@ const App = () => (
                 </ProtectedRoute>
               }
             />
-
             {/* Folha de Pagamento & Demonstrativos */}
             <Route
               path="/demonstrativo"
@@ -474,6 +472,15 @@ const App = () => (
                 </ProtectedRoute>
               }
             />
+            {/* Dashboard Financeiro Consolidado ('admin_rh', 'admin') */}
+            <Route
+              path="/financeiro"
+              element={
+                <ProtectedRoute allowedProfiles={['admin_rh', 'admin']}>
+                  <DashboardFinanceiroPage />
+                </ProtectedRoute>
+              }
+            />{' '}
           </Route>
 
           {/* 404 Route */}

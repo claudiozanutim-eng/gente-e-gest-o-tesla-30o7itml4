@@ -60,10 +60,25 @@ import {
 import { Textarea } from '@/components/ui/textarea'
 import { formatDataPtBr } from '@/lib/exportReports'
 import { CalendarioFeriasEquipe } from '@/components/gestor/CalendarioFeriasEquipe'
+import { OnboardingGestorCard } from '@/components/gestor/OnboardingGestorCard'
+import { onboardingGestorService } from '@/services/onboardingGestorService'
 
 export const PortalGestorPage: React.FC = () => {
   const { user, colaborador } = useAuth()
   const navigate = useNavigate()
+
+  // Onboarding do Gestor
+  const [progressoOnboarding, setProgressoOnboarding] = useState<{
+    concluidasSet: Set<number>
+    percentual: number
+    isConcluido: boolean
+    isNovoGestor: boolean
+  }>({
+    concluidasSet: new Set(),
+    percentual: 0,
+    isConcluido: false,
+    isNovoGestor: false,
+  })
 
   const [loading, setLoading] = useState(true)
   const [colaboradoresEquipe, setColaboradoresEquipe] = useState<Colaborador[]>([])
@@ -197,6 +212,21 @@ export const PortalGestorPage: React.FC = () => {
         setComunicados(filtrados.slice(0, 4))
       } catch (e) {
         console.warn('Erro ao carregar comunicados para o gestor:', e)
+      }
+
+      // 8. Onboarding do Gestor
+      try {
+        if (user.id) {
+          const prog = await onboardingGestorService.getProgressoGestor(user.tenant_id, user.id)
+          setProgressoOnboarding({
+            concluidasSet: prog.concluidasSet,
+            percentual: prog.percentual,
+            isConcluido: prog.isConcluido,
+            isNovoGestor: prog.isNovoGestor,
+          })
+        }
+      } catch (onbErr) {
+        console.warn('Erro ao carregar progresso de onboarding do gestor:', onbErr)
       }
     } catch (err) {
       console.error('Erro geral ao carregar dados do Portal do Gestor:', err)
@@ -435,6 +465,18 @@ export const PortalGestorPage: React.FC = () => {
         </div>
       </div>
 
+      {/* Card / Banner Destacado de Onboarding do Gestor */}
+      {user?.tenant_id && user?.id && (
+        <OnboardingGestorCard
+          tenantId={user.tenant_id}
+          gestorUserId={user.id}
+          concluidasSet={progressoOnboarding.concluidasSet}
+          percentual={progressoOnboarding.percentual}
+          isConcluido={progressoOnboarding.isConcluido}
+          onProgressoAtualizado={carregarDadosGestor}
+        />
+      )}
+
       {/* Grid de 4 KPIs da Equipe */}
       {loading ? (
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
@@ -622,113 +664,115 @@ export const PortalGestorPage: React.FC = () => {
             }
           />
 
-          <Card className="border border-slate-200 bg-white shadow-xs">
-            <CardHeader className="p-4 sm:p-5 border-b border-slate-100 flex flex-col sm:flex-row sm:items-center justify-between gap-2">
-              <div>
-                <div className="flex items-center gap-2">
-                  <Clock className="h-5 w-5 text-[#0D47A1]" />
-                  <CardTitle className="text-base font-bold text-slate-900">
-                    Aprovações Pendentes da Equipe
-                  </CardTitle>
-                  <Badge
-                    variant="outline"
-                    className="bg-rose-50 text-rose-700 border-rose-200 text-xs font-bold"
-                  >
-                    {pendenciasUnificadas.length} pendente(s)
-                  </Badge>
-                </div>
-                <CardDescription className="text-xs text-slate-500 mt-0.5">
-                  Fila unificada de solicitações de férias, compensações de banco de horas e
-                  alterações cadastrais da sua equipe.
-                </CardDescription>
-              </div>
-            </CardHeader>
-
-            <CardContent className="p-0">
-              {loading ? (
-                <div className="p-6 space-y-3">
-                  <Skeleton className="h-14 w-full" />
-                  <Skeleton className="h-14 w-full" />
-                  <Skeleton className="h-14 w-full" />
-                </div>
-              ) : pendenciasUnificadas.length === 0 ? (
-                <div className="text-center py-12 px-4 space-y-2">
-                  <div className="h-10 w-10 rounded-full bg-emerald-50 text-emerald-600 flex items-center justify-center mx-auto">
-                    <CheckCircle2 className="h-5 w-5" />
-                  </div>
-                  <h3 className="text-sm font-semibold text-slate-900">Tudo em dia!</h3>
-                  <p className="text-xs text-slate-500 max-w-sm mx-auto">
-                    Não há solicitações pendentes de aprovação da sua equipe no momento.
-                  </p>
-                </div>
-              ) : (
-                <div className="divide-y divide-slate-100">
-                  {pendenciasUnificadas.map((item) => (
-                    <div
-                      key={item.id}
-                      className="p-4 hover:bg-slate-50/70 transition-colors flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs"
+          <div id="aprovacoes">
+            <Card className="border border-slate-200 bg-white shadow-xs">
+              <CardHeader className="p-4 sm:p-5 border-b border-slate-100 flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                <div>
+                  <div className="flex items-center gap-2">
+                    <Clock className="h-5 w-5 text-[#0D47A1]" />
+                    <CardTitle className="text-base font-bold text-slate-900">
+                      Aprovações Pendentes da Equipe
+                    </CardTitle>
+                    <Badge
+                      variant="outline"
+                      className="bg-rose-50 text-rose-700 border-rose-200 text-xs font-bold"
                     >
-                      <div className="space-y-1 min-w-0">
-                        <div className="flex items-center gap-2">
-                          <Badge
-                            variant="outline"
-                            className={`${item.badgeCor} text-[10px] font-bold`}
-                          >
-                            {item.tipoLabel}
-                          </Badge>
-                          <span className="font-bold text-slate-900 text-sm truncate">
-                            {item.colaboradorNome}
-                          </span>
-                          <span className="text-[11px] text-slate-400 truncate">
-                            ({item.colaboradorCargo})
-                          </span>
-                        </div>
-                        <p className="text-slate-700 font-medium">{item.detalhes}</p>
-                        <p className="text-[11px] text-slate-400">
-                          Solicitado em {formatDataPtBr(item.data)}
-                        </p>
-                      </div>
-
-                      <div className="flex items-center gap-2 shrink-0 self-end sm:self-auto">
-                        <Button
-                          size="sm"
-                          variant="outline"
-                          onClick={() => {
-                            setJustificativa('')
-                            setModalAcao({
-                              tipo: item.tipo,
-                              acao: 'aprovar',
-                              item: item.itemOriginal,
-                            })
-                          }}
-                          className="h-8 text-xs border-emerald-300 text-emerald-700 hover:bg-emerald-50 gap-1 font-semibold"
-                        >
-                          <Check className="h-3.5 w-3.5 text-emerald-600" />
-                          Aprovar
-                        </Button>
-                        <Button
-                          size="sm"
-                          variant="outline"
-                          onClick={() => {
-                            setJustificativa('')
-                            setModalAcao({
-                              tipo: item.tipo,
-                              acao: 'recusar',
-                              item: item.itemOriginal,
-                            })
-                          }}
-                          className="h-8 text-xs border-rose-300 text-rose-700 hover:bg-rose-50 gap-1 font-semibold"
-                        >
-                          <X className="h-3.5 w-3.5 text-rose-600" />
-                          Recusar
-                        </Button>
-                      </div>
-                    </div>
-                  ))}
+                      {pendenciasUnificadas.length} pendente(s)
+                    </Badge>
+                  </div>
+                  <CardDescription className="text-xs text-slate-500 mt-0.5">
+                    Fila unificada de solicitações de férias, compensações de banco de horas e
+                    alterações cadastrais da sua equipe.
+                  </CardDescription>
                 </div>
-              )}
-            </CardContent>
-          </Card>
+              </CardHeader>
+
+              <CardContent className="p-0">
+                {loading ? (
+                  <div className="p-6 space-y-3">
+                    <Skeleton className="h-14 w-full" />
+                    <Skeleton className="h-14 w-full" />
+                    <Skeleton className="h-14 w-full" />
+                  </div>
+                ) : pendenciasUnificadas.length === 0 ? (
+                  <div className="text-center py-12 px-4 space-y-2">
+                    <div className="h-10 w-10 rounded-full bg-emerald-50 text-emerald-600 flex items-center justify-center mx-auto">
+                      <CheckCircle2 className="h-5 w-5" />
+                    </div>
+                    <h3 className="text-sm font-semibold text-slate-900">Tudo em dia!</h3>
+                    <p className="text-xs text-slate-500 max-w-sm mx-auto">
+                      Não há solicitações pendentes de aprovação da sua equipe no momento.
+                    </p>
+                  </div>
+                ) : (
+                  <div className="divide-y divide-slate-100">
+                    {pendenciasUnificadas.map((item) => (
+                      <div
+                        key={item.id}
+                        className="p-4 hover:bg-slate-50/70 transition-colors flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs"
+                      >
+                        <div className="space-y-1 min-w-0">
+                          <div className="flex items-center gap-2">
+                            <Badge
+                              variant="outline"
+                              className={`${item.badgeCor} text-[10px] font-bold`}
+                            >
+                              {item.tipoLabel}
+                            </Badge>
+                            <span className="font-bold text-slate-900 text-sm truncate">
+                              {item.colaboradorNome}
+                            </span>
+                            <span className="text-[11px] text-slate-400 truncate">
+                              ({item.colaboradorCargo})
+                            </span>
+                          </div>
+                          <p className="text-slate-700 font-medium">{item.detalhes}</p>
+                          <p className="text-[11px] text-slate-400">
+                            Solicitado em {formatDataPtBr(item.data)}
+                          </p>
+                        </div>
+
+                        <div className="flex items-center gap-2 shrink-0 self-end sm:self-auto">
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            onClick={() => {
+                              setJustificativa('')
+                              setModalAcao({
+                                tipo: item.tipo,
+                                acao: 'aprovar',
+                                item: item.itemOriginal,
+                              })
+                            }}
+                            className="h-8 text-xs border-emerald-300 text-emerald-700 hover:bg-emerald-50 gap-1 font-semibold"
+                          >
+                            <Check className="h-3.5 w-3.5 text-emerald-600" />
+                            Aprovar
+                          </Button>
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            onClick={() => {
+                              setJustificativa('')
+                              setModalAcao({
+                                tipo: item.tipo,
+                                acao: 'recusar',
+                                item: item.itemOriginal,
+                              })
+                            }}
+                            className="h-8 text-xs border-rose-300 text-rose-700 hover:bg-rose-50 gap-1 font-semibold"
+                          >
+                            <X className="h-3.5 w-3.5 text-rose-600" />
+                            Recusar
+                          </Button>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+          </div>
 
           {/* Resumo de Ponto da Equipe Hoje */}
           <Card className="border border-slate-200 bg-white shadow-xs">

@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-09-10T12:08:13.624Z",
+  "generatedAt": "2026-09-10T12:50:25.299Z",
   "collections": [
     {
       "name": "users",
@@ -2491,6 +2491,64 @@
         "CREATE INDEX idx_dep_escala_tenant ON departamento_escala (tenant_id)",
         "CREATE INDEX idx_dep_escala_dep ON departamento_escala (departamento)",
         "CREATE INDEX idx_dep_escala_dt_ini ON departamento_escala (data_inicio)"
+      ]
+    },
+    {
+      "name": "onboarding_gestor",
+      "type": "base",
+      "apiRules": {
+        "list": "@request.auth.id != '' && tenant_id = @request.auth.tenant_id && (gestor_user_id = @request.auth.id || @request.auth.perfil = 'rh' || @request.auth.perfil = 'admin_rh' || @request.auth.perfil = 'admin')",
+        "view": "@request.auth.id != '' && tenant_id = @request.auth.tenant_id && (gestor_user_id = @request.auth.id || @request.auth.perfil = 'rh' || @request.auth.perfil = 'admin_rh' || @request.auth.perfil = 'admin')",
+        "create": "@request.auth.id != '' && tenant_id = @request.auth.tenant_id && (gestor_user_id = @request.auth.id || @request.auth.perfil = 'rh' || @request.auth.perfil = 'admin_rh' || @request.auth.perfil = 'admin')",
+        "update": "@request.auth.id != '' && tenant_id = @request.auth.tenant_id && (gestor_user_id = @request.auth.id || @request.auth.perfil = 'rh' || @request.auth.perfil = 'admin_rh' || @request.auth.perfil = 'admin')",
+        "delete": "@request.auth.id != '' && tenant_id = @request.auth.tenant_id && (@request.auth.perfil = 'admin_rh' || @request.auth.perfil = 'admin')"
+      },
+      "fields": [
+        {
+          "name": "tenant_id",
+          "type": "relation",
+          "required": true,
+          "system": false,
+          "collectionRef": "tenant"
+        },
+        {
+          "name": "gestor_user_id",
+          "type": "relation",
+          "required": true,
+          "system": false,
+          "collectionRef": "users"
+        },
+        {
+          "name": "etapa",
+          "type": "number",
+          "required": true,
+          "system": false
+        },
+        {
+          "name": "concluida",
+          "type": "bool",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "created",
+          "type": "autodate",
+          "required": false,
+          "system": false,
+          "autodateTriggers": ["onCreate"]
+        },
+        {
+          "name": "updated",
+          "type": "autodate",
+          "required": false,
+          "system": false,
+          "autodateTriggers": ["onCreate", "onUpdate"]
+        }
+      ],
+      "indexes": [
+        "CREATE INDEX idx_onboarding_tenant ON onboarding_gestor (tenant_id)",
+        "CREATE INDEX idx_onboarding_gestor_user ON onboarding_gestor (gestor_user_id)",
+        "CREATE UNIQUE INDEX idx_onboarding_gestor_etapa ON onboarding_gestor (gestor_user_id, etapa)"
       ]
     }
   ]

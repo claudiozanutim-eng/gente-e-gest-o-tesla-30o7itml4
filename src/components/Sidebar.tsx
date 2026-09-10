@@ -26,6 +26,7 @@ import {
   Palmtree,
   CalendarCheck,
   Mail,
+  DollarSign,
 } from 'lucide-react'
 import { useAuth } from '@/context/AuthContext'
 import { usePermission } from '@/hooks/usePermission'
@@ -182,6 +183,10 @@ export const Sidebar: React.FC<SidebarProps> = ({
           : []),
         { title: 'Atestados / Licenças', path: '/atestados', icon: FileText },
         { title: 'Férias', path: '/ferias', icon: Palmtree },
+        // Espelho de Férias Coletivo (acessível a rh, admin_rh e admin)
+        ...(isRHOrAbove
+          ? [{ title: 'Férias Coletivas', path: '/ferias/coletivo', icon: Palmtree }]
+          : []),
         ...(isRHOrAbove || isGestor
           ? [{ title: 'Estrutura', path: '/estrutura', icon: Network }]
           : []),
@@ -213,6 +218,8 @@ export const Sidebar: React.FC<SidebarProps> = ({
       title: 'Administração',
       allowedProfiles: ['admin_rh', 'admin'],
       items: [
+        // Dashboard Financeiro Consolidado (acessível a admin_rh e admin)
+        { title: 'Dashboard Financeiro', path: '/financeiro', icon: DollarSign },
         // Configurações da Empresa e Usuários e Permissões: APENAS 'admin'
         ...(isAdminGeral
           ? [
@@ -336,7 +343,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
             <p className="text-[11px] text-[#757575] leading-snug font-medium">Tesla Mecatrônica</p>
           </div>
           <p className="text-[10px] font-medium text-[#0D47A1]" title="Versão do Sistema">
-            Tesla RH v0.0.26
+            Tesla RH v0.0.28
           </p>
         </div>
       )}
