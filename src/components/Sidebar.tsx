@@ -78,6 +78,11 @@ export const Sidebar: React.FC<SidebarProps> = ({
           icon: ShieldCheck,
         },
         {
+          title: 'Demonstrativo',
+          path: '/demonstrativo',
+          icon: FileText,
+        },
+        {
           title: 'Benefícios',
           path: '/beneficios',
           icon: Gift,
@@ -109,6 +114,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
         ...(perfil === 'rh' || perfil === 'admin'
           ? [
               { title: 'Colaboradores', path: '/colaboradores', icon: Users },
+              { title: 'Gestão da Folha', path: '/folha/gestao', icon: Briefcase },
               { title: 'Avaliações Admin', path: '/avaliacoes/admin', icon: Award },
               { title: 'Pendências Docs', path: '/pendencias-documentais', icon: FileWarning },
               { title: 'Documentos', path: '/documentos', icon: FolderOpen },

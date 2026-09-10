@@ -657,3 +657,48 @@ export const REGISTRO_PONTO_CONFIG: Record<RegistroPontoTipo, PontoTipoConfig> =
     badgeClass: 'bg-rose-50 text-rose-700 border-rose-300',
   },
 }
+
+// ----------------------------------------------------
+// Folha de Pagamento & Demonstrativos Financeiros (Prompt 15)
+// ----------------------------------------------------
+export type PeriodicidadeLancamento = 'mensal' | 'quinzenal' | 'semanal'
+
+export interface LancamentoPeriodico {
+  id: string
+  tenant_id: string
+  colaborador_id: string
+  descritivo: string
+  quantidade: number // Valor em reais (decimal) - positivo provento, negativo desconto
+  periodicidade: PeriodicidadeLancamento
+  data_recorrencia: number // Dia do mês (1 a 31)
+  data_inicio_vigencia: string // ISO date
+  data_fim_vigencia?: string // ISO date opcional
+  created: string
+  updated: string
+  expand?: {
+    colaborador_id?: Colaborador
+  }
+}
+
+export interface LancamentoPontual {
+  id: string
+  tenant_id: string
+  colaborador_id: string
+  descritivo: string
+  quantidade: number // Valor em reais - positivo provento, negativo desconto
+  data: string // ISO date
+  comentario?: string
+  created: string
+  updated: string
+  expand?: {
+    colaborador_id?: Colaborador
+  }
+}
+
+export interface ResumoFinanceiroMes {
+  totalProventos: number
+  totalDescontos: number // Valor absoluto positivo para exibição, subtraído na conta
+  valorLiquido: number // proventos - descontos
+  quantidadePeriodicos: number
+  quantidadePontuais: number
+}

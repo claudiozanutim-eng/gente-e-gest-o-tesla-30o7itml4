@@ -37,6 +37,8 @@ import RelatoriosPage from '@/pages/RelatoriosPage'
 import MinhasAvaliacoesPage from '@/pages/modules/MinhasAvaliacoesPage'
 import MinhaEquipePage from '@/pages/modules/MinhaEquipePage'
 import AvaliacoesAdminPage from '@/pages/modules/AvaliacoesAdminPage'
+import DemonstrativoPage from '@/pages/DemonstrativoPage'
+import GestaoFolhaPage from '@/pages/GestaoFolhaPage'
 import NotFound from '@/pages/NotFound'
 
 // Root redirect handler based on user profile or login
@@ -332,6 +334,24 @@ const App = () => (
               element={
                 <ProtectedRoute allowedProfiles={['rh', 'admin']}>
                   <RelatoriosPage />
+                </ProtectedRoute>
+              }
+            />
+
+            {/* Folha de Pagamento & Demonstrativos (Prompt 15) */}
+            <Route
+              path="/demonstrativo"
+              element={
+                <ProtectedRoute allowedProfiles={['colaborador', 'gestor', 'rh', 'admin']}>
+                  <DemonstrativoPage />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/folha/gestao"
+              element={
+                <ProtectedRoute allowedProfiles={['rh', 'admin']}>
+                  <GestaoFolhaPage />
                 </ProtectedRoute>
               }
             />

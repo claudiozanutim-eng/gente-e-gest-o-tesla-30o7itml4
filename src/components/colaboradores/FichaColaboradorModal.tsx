@@ -50,6 +50,7 @@ import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card'
 import { Skeleton } from '@/components/ui/skeleton'
 import { TabPlaceholder } from './TabPlaceholder'
+import { DemonstrativoFinanceiroView } from '@/components/folha/DemonstrativoFinanceiroView'
 
 interface FichaColaboradorModalProps {
   colaborador: Colaborador | null
@@ -1008,12 +1009,13 @@ export const FichaColaboradorModal: React.FC<FichaColaboradorModalProps> = ({
               </Card>
             </TabsContent>
 
-            {/* ABA 9: DEMONSTRATIVO (Placeholder) */}
-            <TabsContent value="demonstrativo" className="m-0">
-              <TabPlaceholder
-                title="Demonstrativos de Pagamento (Holerite)"
-                description="Visualização e download de recibos mensais de salário, adiantamento quinzenal, informe de rendimentos (IRRF) e 13º salário."
-                icon={Receipt}
+            {/* ABA 9: DEMONSTRATIVO (Implementado com Seletor Mês/Ano e Cards de Resumo) */}
+            <TabsContent value="demonstrativo" className="m-0 space-y-4">
+              <DemonstrativoFinanceiroView
+                tenantId={colaborador.tenant_id}
+                colaboradorId={colaborador.id}
+                colaborador={colaborador}
+                canManage={false}
               />
             </TabsContent>
 

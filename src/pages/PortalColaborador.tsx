@@ -141,6 +141,13 @@ export default function PortalColaborador() {
       color: 'bg-blue-50 text-[#0D47A1] border-blue-200 hover:border-[#0D47A1]/50',
     },
     {
+      title: 'Demonstrativo',
+      subtitle: 'Holerite e proventos',
+      path: '/demonstrativo',
+      icon: FileText,
+      color: 'bg-blue-50 text-[#0D47A1] border-blue-200 hover:border-[#0D47A1]/50',
+    },
+    {
       title: 'Docs Importantes',
       subtitle: 'Normas e ciências',
       path: '/documentos-importantes',
@@ -149,9 +156,9 @@ export default function PortalColaborador() {
     },
     {
       title: 'Meus Documentos',
-      subtitle: 'Holerites e informes',
+      subtitle: 'Certificados e contratos',
       path: '/meus-documentos',
-      icon: FileText,
+      icon: FileCheck,
       color: 'bg-blue-50 text-[#1E88E5] border-blue-100 hover:border-[#1E88E5]/40',
     },
     {
