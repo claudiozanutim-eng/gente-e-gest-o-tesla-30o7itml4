@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useMemo, useCallback } from 'react'
+import React, { useEffect, useState, useMemo, useCallback, useRef } from 'react'
 import {
   User,
   Briefcase,
@@ -24,6 +24,7 @@ import {
   Info,
   Clock3,
   XCircle,
+  Camera,
 } from 'lucide-react'
 import { useAuth } from '@/context/AuthContext'
 import {
@@ -31,6 +32,7 @@ import {
   dependenteService,
   contatoEmergenciaService,
   solicitacaoService,
+  logAuditoriaService,
 } from '@/services/api'
 import {
   Colaborador,
@@ -135,7 +137,7 @@ function getIniciais(nome?: string): string {
 }
 
 export default function MeuPerfilPage() {
-  const { user, colaborador: authColaborador } = useAuth()
+  const { user, colaborador: authColaborador, refreshProfile } = useAuth()
   const { toast } = useToast()
 
   const [colaborador, setColaborador] = useState<Colaborador | null>(authColaborador)
@@ -143,6 +145,8 @@ export default function MeuPerfilPage() {
   const [contatosEmergencia, setContatosEmergencia] = useState<ContatoEmergencia[]>([])
   const [solicitacoes, setSolicitacoes] = useState<SolicitacaoAlteracao[]>([])
   const [loading, setLoading] = useState<boolean>(true)
+  const [uploadingFoto, setUploadingFoto] = useState<boolean>(false)
+  const fileInputRef = useRef<HTMLInputElement>(null)
 
   // Estado do Modal de Solicitação de Alteração
   const [modalOpen, setModalOpen] = useState<boolean>(false)
@@ -161,6 +165,122 @@ export default function MeuPerfilPage() {
 
   const perfil = user?.perfil || 'colaborador'
   const badgeStyle = PROFILE_BADGE_COLORS[perfil]
+
+  // Manipular upload e atualização da foto de perfil
+  const handleFotoFileSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
+    // Limpar o valor do input para permitir selecionar o mesmo arquivo novamente se necessário
+    if (e.target) {
+      e.target.value = ''
+    }
+    if (!file) return
+
+    // Limite de 5 MB
+    const maxSizeBytes = 5 * 1024 * 1024
+    if (file.size > maxSizeBytes) {
+      toast({
+        title: 'Arquivo muito grande',
+        description: 'Selecione uma imagem PNG ou JPEG com no máximo 5 MB.',
+        variant: 'destructive',
+      })
+      return
+    }
+
+    // Formatos válidos: PNG, JPEG
+    const validTypes = ['image/jpeg', 'image/png', 'image/jpg']
+    if (!validTypes.includes(file.type)) {
+      toast({
+        title: 'Formato inválido',
+        description: 'Envie um arquivo de imagem nos formatos PNG ou JPEG.',
+        variant: 'destructive',
+      })
+      return
+    }
+
+    if (!colaborador?.id) {
+      toast({
+        title: 'Colaborador não identificado',
+        description: 'Não foi possível identificar seu cadastro de colaborador.',
+        variant: 'destructive',
+      })
+      return
+    }
+
+    try {
+      setUploadingFoto(true)
+
+      const reader = new FileReader()
+      reader.onload = async () => {
+        try {
+          const base64Data = reader.result as string
+
+          // Atualizar o registro do colaborador no backend
+          const updated = await colaboradorService.updateFotoUrl(colaborador.id, base64Data)
+
+          // Atualizar estado local imediatamente para preview em tempo real
+          setColaborador((prev) => (prev ? { ...prev, foto_url: base64Data } : updated))
+
+          // Atualizar contexto global de autenticação (refletir em Header, Dropdowns, etc.)
+          await refreshProfile().catch((err) => {
+            console.warn('Falha ao atualizar contexto de autenticação:', err)
+          })
+
+          // Auditoria da ação
+          if (user?.tenant_id && user?.id) {
+            await logAuditoriaService
+              .registrarLog({
+                tenant_id: user.tenant_id,
+                user_id: user.id,
+                acao: `Foto de perfil atualizada por ${user.name || colaborador.nome}`,
+                entidade: 'colaborador',
+                entidade_id: colaborador.id,
+                dados_json: {
+                  tipo_acao: 'atualizacao_foto_perfil',
+                  origem: 'meu_perfil',
+                  nome_arquivo: file.name,
+                  tamanho_bytes: file.size,
+                  tipo_mime: file.type,
+                },
+              })
+              .catch((e) => console.warn('Erro ao registrar log de auditoria da foto:', e))
+          }
+
+          toast({
+            title: 'Foto atualizada com sucesso',
+            description: 'Sua foto de perfil foi alterada com sucesso.',
+          })
+        } catch (uploadErr) {
+          console.error('Erro ao salvar foto de perfil:', uploadErr)
+          toast({
+            title: 'Erro ao salvar foto',
+            description: 'Ocorreu um erro ao salvar sua nova foto de perfil. Tente novamente.',
+            variant: 'destructive',
+          })
+        } finally {
+          setUploadingFoto(false)
+        }
+      }
+
+      reader.onerror = () => {
+        setUploadingFoto(false)
+        toast({
+          title: 'Erro de leitura',
+          description: 'Não foi possível ler o arquivo selecionado.',
+          variant: 'destructive',
+        })
+      }
+
+      reader.readAsDataURL(file)
+    } catch (err) {
+      console.error('Erro no upload de foto:', err)
+      setUploadingFoto(false)
+      toast({
+        title: 'Falha no upload',
+        description: 'Não foi possível processar a foto selecionada.',
+        variant: 'destructive',
+      })
+    }
+  }
 
   // Carregar dados completos do colaborador
   const carregarDados = useCallback(async () => {
@@ -336,8 +456,19 @@ export default function MeuPerfilPage() {
       {/* 1. Header do Perfil com Avatar circular, Iniciais se sem foto, Cargo, Matrícula e Badges */}
       <div className="relative overflow-hidden rounded-2xl border border-[#0D47A1]/20 bg-gradient-to-r from-[#0D47A1] via-[#1565C0] to-[#1E88E5] p-6 md:p-8 text-white shadow-sm">
         <div className="relative z-10 flex flex-col md:flex-row items-center md:items-start gap-6">
-          {/* Avatar circular */}
-          <div className="relative">
+          {/* Avatar circular com botão de alteração de foto */}
+          <div className="relative group">
+            {/* Input de arquivo invisível */}
+            <input
+              ref={fileInputRef}
+              type="file"
+              accept="image/png,image/jpeg,image/jpg"
+              className="hidden"
+              onChange={handleFotoFileSelect}
+              disabled={uploadingFoto}
+              aria-label="Upload de foto de perfil"
+            />
+
             <Avatar className="h-28 w-28 md:h-32 md:w-32 rounded-full border-4 border-white/30 shadow-lg ring-4 ring-white/10 bg-[#1E88E5]">
               {colaborador?.foto_url && (
                 <AvatarImage
@@ -350,8 +481,36 @@ export default function MeuPerfilPage() {
                 {iniciais}
               </AvatarFallback>
             </Avatar>
+
+            {/* Overlay sutil durante upload */}
+            {uploadingFoto && (
+              <div className="absolute inset-0 rounded-full bg-black/50 flex flex-col items-center justify-center text-white backdrop-blur-[2px] z-20">
+                <Loader2 className="h-6 w-6 animate-spin text-white mb-1" />
+                <span className="text-[10px] font-semibold">Salvando...</span>
+              </div>
+            )}
+
+            {/* Botão de alterar foto com tooltip */}
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <button
+                  type="button"
+                  onClick={() => fileInputRef.current?.click()}
+                  disabled={uploadingFoto}
+                  className="absolute bottom-0 right-0 h-9 w-9 md:h-10 md:w-10 rounded-full bg-white text-[#0D47A1] hover:bg-blue-50 active:scale-95 shadow-md border-2 border-[#0D47A1] flex items-center justify-center transition-all focus:outline-none focus:ring-2 focus:ring-[#0D47A1] focus:ring-offset-2 z-10 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+                  aria-label="Alterar foto de perfil"
+                >
+                  <Camera className="h-4 w-4 md:h-5 md:w-5 text-[#0D47A1]" />
+                </button>
+              </TooltipTrigger>
+              <TooltipContent side="bottom" className="text-xs bg-slate-900 text-white font-medium">
+                Alterar foto
+              </TooltipContent>
+            </Tooltip>
+
+            {/* Indicador de status (ativo/inativo) posicionado na parte superior direita */}
             <span
-              className={`absolute bottom-2 right-2 h-4 w-4 rounded-full border-2 border-white ${
+              className={`absolute top-1 right-1 h-4 w-4 rounded-full border-2 border-white shadow-xs ${
                 colaborador?.status === 'inativo' ? 'bg-rose-500' : 'bg-emerald-400'
               }`}
               title={colaborador?.status === 'inativo' ? 'Inativo' : 'Ativo'}
