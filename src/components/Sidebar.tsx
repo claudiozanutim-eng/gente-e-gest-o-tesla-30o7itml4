@@ -321,7 +321,9 @@ export const Sidebar: React.FC<SidebarProps> = ({
       {!collapsed && (
         <div className="p-4 border-t border-[#E0E0E0] bg-[#FAFAFA] text-center">
           <p className="text-[11px] text-[#757575] leading-snug">Plataforma SaaS Multi-tenant</p>
-          <p className="text-[10px] font-medium text-[#0D47A1]">Tesla RH v0.0.22</p>
+          <p className="text-[10px] font-medium text-[#0D47A1]" title="Versão do Sistema">
+            Tesla RH v0.0.22
+          </p>
         </div>
       )}
     </div>
