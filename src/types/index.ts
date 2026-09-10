@@ -551,3 +551,109 @@ export const CICLO_STATUS_CONFIG: Record<
     dotColor: '#2E7D32',
   },
 }
+
+// ==========================================
+// MÓDULO: CONTROLE DE PONTO E ESCALAS (PROMPT 14)
+// ==========================================
+
+export type RegistroPontoTipo = 'entrada' | 'saida_almoco' | 'volta_almoco' | 'saida'
+
+export interface RegistroPonto {
+  id: string
+  tenant_id: string
+  colaborador_id: string
+  data_hora: string
+  tipo: RegistroPontoTipo
+  origem?: string
+  created?: string
+  updated?: string
+  expand?: {
+    colaborador_id?: Colaborador
+    tenant_id?: Tenant
+  }
+}
+
+export interface EscalaTrabalho {
+  id: string
+  tenant_id: string
+  nome: string
+  horario_inicio: string // "08:00"
+  horario_fim: string // "17:00"
+  dias_semana: string // "seg,ter,qua,qui,sex"
+  created?: string
+  updated?: string
+}
+
+export interface ColaboradorEscala {
+  id: string
+  tenant_id: string
+  colaborador_id: string
+  escala_id: string
+  data_inicio: string
+  data_fim?: string
+  created?: string
+  updated?: string
+  expand?: {
+    colaborador_id?: Colaborador
+    escala_id?: EscalaTrabalho
+  }
+}
+
+export interface PontoTipoConfig {
+  tipo: RegistroPontoTipo
+  label: string
+  descricao: string
+  corHex: string
+  bgClass: string
+  borderClass: string
+  textClass: string
+  btnClass: string
+  badgeClass: string
+}
+
+export const REGISTRO_PONTO_CONFIG: Record<RegistroPontoTipo, PontoTipoConfig> = {
+  entrada: {
+    tipo: 'entrada',
+    label: 'Entrada',
+    descricao: 'Início da jornada de trabalho',
+    corHex: '#2E7D32',
+    bgClass: 'bg-emerald-50',
+    borderClass: 'border-emerald-300',
+    textClass: 'text-emerald-700',
+    btnClass: 'bg-emerald-600 hover:bg-emerald-700 text-white shadow-emerald-700/20',
+    badgeClass: 'bg-emerald-50 text-emerald-700 border-emerald-300',
+  },
+  saida_almoco: {
+    tipo: 'saida_almoco',
+    label: 'Saída Almoço',
+    descricao: 'Início do intervalo intrajornada',
+    corHex: '#E65100',
+    bgClass: 'bg-amber-50',
+    borderClass: 'border-amber-300',
+    textClass: 'text-amber-700',
+    btnClass: 'bg-amber-600 hover:bg-amber-700 text-white shadow-amber-700/20',
+    badgeClass: 'bg-amber-50 text-amber-700 border-amber-300',
+  },
+  volta_almoco: {
+    tipo: 'volta_almoco',
+    label: 'Volta Almoço',
+    descricao: 'Retorno do intervalo de refeição',
+    corHex: '#0288D1',
+    bgClass: 'bg-sky-50',
+    borderClass: 'border-sky-300',
+    textClass: 'text-sky-700',
+    btnClass: 'bg-sky-600 hover:bg-sky-700 text-white shadow-sky-700/20',
+    badgeClass: 'bg-sky-50 text-sky-700 border-sky-300',
+  },
+  saida: {
+    tipo: 'saida',
+    label: 'Saída',
+    descricao: 'Encerramento da jornada diária',
+    corHex: '#C62828',
+    bgClass: 'bg-rose-50',
+    borderClass: 'border-rose-300',
+    textClass: 'text-rose-700',
+    btnClass: 'bg-rose-600 hover:bg-rose-700 text-white shadow-rose-700/20',
+    badgeClass: 'bg-rose-50 text-rose-700 border-rose-300',
+  },
+}

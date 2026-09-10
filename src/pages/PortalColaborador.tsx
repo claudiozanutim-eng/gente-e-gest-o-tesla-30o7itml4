@@ -134,11 +134,18 @@ export default function PortalColaborador() {
   // Atalhos de navegação do Portal do Colaborador
   const atalhos = [
     {
+      title: 'Meu Ponto',
+      subtitle: 'Batidas e espelho',
+      path: '/ponto',
+      icon: Clock,
+      color: 'bg-blue-50 text-[#0D47A1] border-blue-200 hover:border-[#0D47A1]/50',
+    },
+    {
       title: 'Docs Importantes',
       subtitle: 'Normas e ciências',
       path: '/documentos-importantes',
       icon: Shield,
-      color: 'bg-blue-50 text-[#0D47A1] border-blue-200 hover:border-[#0D47A1]/50',
+      color: 'bg-blue-50 text-[#0D47A1] border-blue-100 hover:border-[#0D47A1]/40',
     },
     {
       title: 'Meus Documentos',
@@ -153,13 +160,6 @@ export default function PortalColaborador() {
       path: '/meu-perfil',
       icon: User,
       color: 'bg-indigo-50 text-[#3949AB] border-indigo-100 hover:border-[#3949AB]/40',
-    },
-    {
-      title: 'Minhas Férias',
-      subtitle: 'Saldos e descanso',
-      path: '/minhas-ferias',
-      icon: Palmtree,
-      color: 'bg-emerald-50 text-[#43A047] border-emerald-100 hover:border-[#43A047]/40',
     },
     {
       title: 'Benefícios',

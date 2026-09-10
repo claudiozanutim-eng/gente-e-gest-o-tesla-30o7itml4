@@ -19,6 +19,7 @@ import {
   FileWarning,
   BarChart3,
   Award,
+  CheckCircle2,
 } from 'lucide-react'
 import { useAuth } from '@/context/AuthContext'
 import { UserPerfil, PROFILE_HOME_MAP } from '@/types'
@@ -130,8 +131,13 @@ export const Sidebar: React.FC<SidebarProps> = ({
       title: 'Gestão do Tempo',
       allowedProfiles: ['colaborador', 'gestor', 'rh', 'admin'],
       items: [
-        { title: 'Ponto', path: '/ponto', icon: Clock },
-        { title: 'Escalas', path: '/escalas', icon: CalendarDays },
+        { title: 'Meu Ponto', path: '/ponto', icon: Clock },
+        ...(perfil === 'rh' || perfil === 'admin' || perfil === 'gestor'
+          ? [{ title: 'Gestão de Ponto', path: '/ponto/gestao', icon: CheckCircle2 }]
+          : []),
+        ...(perfil === 'rh' || perfil === 'admin'
+          ? [{ title: 'Escalas', path: '/escalas', icon: CalendarDays }]
+          : []),
       ],
     },
     {

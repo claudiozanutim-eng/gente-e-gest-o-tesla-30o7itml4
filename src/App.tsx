@@ -25,6 +25,7 @@ import CandidatosPage from '@/pages/modules/CandidatosPage'
 import EstruturaPage from '@/pages/modules/EstruturaPage'
 import PontoPage from '@/pages/modules/PontoPage'
 import EscalasPage from '@/pages/modules/EscalasPage'
+import GestaoPontoPage from '@/pages/modules/GestaoPontoPage'
 import DocumentosPage from '@/pages/modules/DocumentosPage'
 import MeuPerfilPage from '@/pages/modules/MeuPerfilPage'
 import FeriasPage from '@/pages/modules/FeriasPage'
@@ -215,9 +216,17 @@ const App = () => (
               }
             />
             <Route
+              path="/ponto/gestao"
+              element={
+                <ProtectedRoute allowedProfiles={['rh', 'admin', 'gestor']}>
+                  <GestaoPontoPage />
+                </ProtectedRoute>
+              }
+            />
+            <Route
               path="/escalas"
               element={
-                <ProtectedRoute allowedProfiles={['colaborador', 'gestor', 'rh', 'admin']}>
+                <ProtectedRoute allowedProfiles={['rh', 'admin']}>
                   <EscalasPage />
                 </ProtectedRoute>
               }

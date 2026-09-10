@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-09-09T21:50:00.567Z",
+  "generatedAt": "2026-09-10T00:08:13.304Z",
   "collections": [
     {
       "name": "users",
@@ -1389,6 +1389,199 @@
       "indexes": [
         "CREATE INDEX idx_nota_aval ON nota_competencia (avaliacao_id)",
         "CREATE INDEX idx_nota_comp ON nota_competencia (competencia_id)"
+      ]
+    },
+    {
+      "name": "escala_trabalho",
+      "type": "base",
+      "apiRules": {
+        "list": "@request.auth.id != '' && tenant_id = @request.auth.tenant_id",
+        "view": "@request.auth.id != '' && tenant_id = @request.auth.tenant_id",
+        "create": "@request.auth.id != '' && tenant_id = @request.auth.tenant_id && (@request.auth.perfil = 'rh' || @request.auth.perfil = 'admin')",
+        "update": "@request.auth.id != '' && tenant_id = @request.auth.tenant_id && (@request.auth.perfil = 'rh' || @request.auth.perfil = 'admin')",
+        "delete": "@request.auth.id != '' && tenant_id = @request.auth.tenant_id && (@request.auth.perfil = 'rh' || @request.auth.perfil = 'admin')"
+      },
+      "fields": [
+        {
+          "name": "tenant_id",
+          "type": "relation",
+          "required": true,
+          "system": false,
+          "collectionRef": "tenant"
+        },
+        {
+          "name": "nome",
+          "type": "text",
+          "required": true,
+          "system": false
+        },
+        {
+          "name": "horario_inicio",
+          "type": "text",
+          "required": true,
+          "system": false
+        },
+        {
+          "name": "horario_fim",
+          "type": "text",
+          "required": true,
+          "system": false
+        },
+        {
+          "name": "dias_semana",
+          "type": "text",
+          "required": true,
+          "system": false
+        },
+        {
+          "name": "created",
+          "type": "autodate",
+          "required": false,
+          "system": false,
+          "autodateTriggers": ["onCreate"]
+        },
+        {
+          "name": "updated",
+          "type": "autodate",
+          "required": false,
+          "system": false,
+          "autodateTriggers": ["onCreate", "onUpdate"]
+        }
+      ],
+      "indexes": [
+        "CREATE INDEX idx_escala_tenant ON escala_trabalho (tenant_id)",
+        "CREATE INDEX idx_escala_nome ON escala_trabalho (nome)"
+      ]
+    },
+    {
+      "name": "colaborador_escala",
+      "type": "base",
+      "apiRules": {
+        "list": "@request.auth.id != '' && tenant_id = @request.auth.tenant_id && (@request.auth.perfil = 'rh' || @request.auth.perfil = 'admin' || colaborador_id.user_id = @request.auth.id || @request.auth.perfil = 'gestor')",
+        "view": "@request.auth.id != '' && tenant_id = @request.auth.tenant_id && (@request.auth.perfil = 'rh' || @request.auth.perfil = 'admin' || colaborador_id.user_id = @request.auth.id || @request.auth.perfil = 'gestor')",
+        "create": "@request.auth.id != '' && tenant_id = @request.auth.tenant_id && (@request.auth.perfil = 'rh' || @request.auth.perfil = 'admin')",
+        "update": "@request.auth.id != '' && tenant_id = @request.auth.tenant_id && (@request.auth.perfil = 'rh' || @request.auth.perfil = 'admin')",
+        "delete": "@request.auth.id != '' && tenant_id = @request.auth.tenant_id && (@request.auth.perfil = 'rh' || @request.auth.perfil = 'admin')"
+      },
+      "fields": [
+        {
+          "name": "tenant_id",
+          "type": "relation",
+          "required": true,
+          "system": false,
+          "collectionRef": "tenant"
+        },
+        {
+          "name": "colaborador_id",
+          "type": "relation",
+          "required": true,
+          "system": false,
+          "collectionRef": "colaborador"
+        },
+        {
+          "name": "escala_id",
+          "type": "relation",
+          "required": true,
+          "system": false,
+          "collectionRef": "escala_trabalho"
+        },
+        {
+          "name": "data_inicio",
+          "type": "date",
+          "required": true,
+          "system": false
+        },
+        {
+          "name": "data_fim",
+          "type": "date",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "created",
+          "type": "autodate",
+          "required": false,
+          "system": false,
+          "autodateTriggers": ["onCreate"]
+        },
+        {
+          "name": "updated",
+          "type": "autodate",
+          "required": false,
+          "system": false,
+          "autodateTriggers": ["onCreate", "onUpdate"]
+        }
+      ],
+      "indexes": [
+        "CREATE INDEX idx_colab_escala_tenant ON colaborador_escala (tenant_id)",
+        "CREATE INDEX idx_colab_escala_colab ON colaborador_escala (colaborador_id)",
+        "CREATE INDEX idx_colab_escala_escala ON colaborador_escala (escala_id)"
+      ]
+    },
+    {
+      "name": "registro_ponto",
+      "type": "base",
+      "apiRules": {
+        "list": "@request.auth.id != '' && tenant_id = @request.auth.tenant_id && (@request.auth.perfil = 'rh' || @request.auth.perfil = 'admin' || colaborador_id.user_id = @request.auth.id || @request.auth.perfil = 'gestor')",
+        "view": "@request.auth.id != '' && tenant_id = @request.auth.tenant_id && (@request.auth.perfil = 'rh' || @request.auth.perfil = 'admin' || colaborador_id.user_id = @request.auth.id || @request.auth.perfil = 'gestor')",
+        "create": "@request.auth.id != '' && tenant_id = @request.auth.tenant_id && (colaborador_id.user_id = @request.auth.id || @request.auth.perfil = 'rh' || @request.auth.perfil = 'admin')",
+        "update": "@request.auth.id != '' && tenant_id = @request.auth.tenant_id && (@request.auth.perfil = 'rh' || @request.auth.perfil = 'admin')",
+        "delete": "@request.auth.id != '' && tenant_id = @request.auth.tenant_id && (@request.auth.perfil = 'rh' || @request.auth.perfil = 'admin')"
+      },
+      "fields": [
+        {
+          "name": "tenant_id",
+          "type": "relation",
+          "required": true,
+          "system": false,
+          "collectionRef": "tenant"
+        },
+        {
+          "name": "colaborador_id",
+          "type": "relation",
+          "required": true,
+          "system": false,
+          "collectionRef": "colaborador"
+        },
+        {
+          "name": "data_hora",
+          "type": "date",
+          "required": true,
+          "system": false
+        },
+        {
+          "name": "tipo",
+          "type": "select",
+          "required": true,
+          "system": false,
+          "selectValues": ["entrada", "saida_almoco", "volta_almoco", "saida"]
+        },
+        {
+          "name": "origem",
+          "type": "text",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "created",
+          "type": "autodate",
+          "required": false,
+          "system": false,
+          "autodateTriggers": ["onCreate"]
+        },
+        {
+          "name": "updated",
+          "type": "autodate",
+          "required": false,
+          "system": false,
+          "autodateTriggers": ["onCreate", "onUpdate"]
+        }
+      ],
+      "indexes": [
+        "CREATE INDEX idx_ponto_tenant ON registro_ponto (tenant_id)",
+        "CREATE INDEX idx_ponto_colab ON registro_ponto (colaborador_id)",
+        "CREATE INDEX idx_ponto_data_hora ON registro_ponto (data_hora)",
+        "CREATE INDEX idx_ponto_tipo ON registro_ponto (tipo)"
       ]
     }
   ]
