@@ -51,11 +51,15 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/com
 import { Skeleton } from '@/components/ui/skeleton'
 import { TabPlaceholder } from './TabPlaceholder'
 import { DemonstrativoFinanceiroView } from '@/components/folha/DemonstrativoFinanceiroView'
+import { ModalEditarPerfilColaborador } from './ModalEditarPerfilColaborador'
+import { usePermission } from '@/hooks/usePermission'
+import { Edit3 } from 'lucide-react'
 
-interface FichaColaboradorModalProps {
+export interface FichaColaboradorModalProps {
   colaborador: Colaborador | null
   open: boolean
   onClose: () => void
+  onColaboradorUpdated?: (colaboradorAtualizado: Colaborador) => void
 }
 
 function formatarDataBR(dataStr?: string): string {
@@ -135,14 +139,23 @@ export const FichaColaboradorModal: React.FC<FichaColaboradorModalProps> = ({
   colaborador,
   open,
   onClose,
+  onColaboradorUpdated,
 }) => {
   const { user } = useAuth()
+  const { podeEditarPerfilColaborador } = usePermission()
+  const [colaboradorLocal, setColaboradorLocal] = useState<Colaborador | null>(colaborador)
   const [activeTab, setActiveTab] = useState<string>('perfil')
   const [loadingDados, setLoadingDados] = useState<boolean>(true)
   const [dependentes, setDependentes] = useState<Dependente[]>([])
   const [contatosEmergencia, setContatosEmergencia] = useState<ContatoEmergencia[]>([])
   const [solicitacoes, setSolicitacoes] = useState<SolicitacaoAlteracao[]>([])
   const [historicoAuditoria, setHistoricoAuditoria] = useState<LogAuditoria[]>([])
+  const [modalEdicaoOpen, setModalEdicaoOpen] = useState<boolean>(false)
+
+  // Sincronizar estado local quando prop mudar
+  useEffect(() => {
+    setColaboradorLocal(colaborador)
+  }, [colaborador])
 
   // Evitar duplicar registro de auditoria na mesma abertura
   const loggedRef = useRef<string | null>(null)
@@ -207,14 +220,38 @@ export const FichaColaboradorModal: React.FC<FichaColaboradorModalProps> = ({
     carregarFicha()
   }, [open, colaborador, user?.id, user?.tenant_id, user?.name, user?.email, user?.perfil])
 
-  const nomeExibicao = colaborador?.nome_completo || colaborador?.nome || 'Colaborador'
+  const dadosExibicao = colaboradorLocal || colaborador
+  const nomeExibicao = dadosExibicao?.nome_completo || dadosExibicao?.nome || 'Colaborador'
   const iniciais = getIniciais(nomeExibicao)
   const tempoEmpresa = useMemo(
-    () => calcularTempoEmpresa(colaborador?.data_admissao),
-    [colaborador?.data_admissao],
+    () => calcularTempoEmpresa(dadosExibicao?.data_admissao),
+    [dadosExibicao?.data_admissao],
   )
 
-  if (!colaborador) return null
+  const handleSalvoEdicao = (colaboradorAtualizado: Colaborador) => {
+    setColaboradorLocal(colaboradorAtualizado)
+    if (onColaboradorUpdated) {
+      onColaboradorUpdated(colaboradorAtualizado)
+    }
+    // Recarregar dependentes, contatos e histórico
+    if (colaboradorAtualizado) {
+      Promise.all([
+        dependenteService.getDependentesByColaborador(colaboradorAtualizado.id).catch(() => []),
+        contatoEmergenciaService.getContatosByColaborador(colaboradorAtualizado.id).catch(() => []),
+        solicitacaoService.getSolicitacoesByColaborador(colaboradorAtualizado.id).catch(() => []),
+        logAuditoriaService
+          .getLogsPorEntidade('colaborador', colaboradorAtualizado.id)
+          .catch(() => []),
+      ]).then(([depList, contatosList, solicList, logsList]) => {
+        setDependentes(depList)
+        setContatosEmergencia(contatosList)
+        setSolicitacoes(solicList)
+        setHistoricoAuditoria(logsList)
+      })
+    }
+  }
+
+  if (!dadosExibicao) return null
 
   return (
     <Dialog open={open} onOpenChange={(val) => !val && onClose()}>
@@ -274,13 +311,28 @@ export const FichaColaboradorModal: React.FC<FichaColaboradorModalProps> = ({
               </div>
             </div>
 
-            {/* Selo de auditoria ativo */}
-            <div className="hidden lg:flex flex-col items-end gap-1 bg-white/10 backdrop-blur-xs px-3 py-1.5 rounded-lg border border-white/20 text-[11px] text-white/90">
-              <div className="flex items-center gap-1.5 font-semibold text-emerald-200">
-                <ShieldCheck className="h-3.5 w-3.5" />
-                <span>Auditoria Ativa</span>
+            {/* Ações e Selo de auditoria ativo */}
+            <div className="flex flex-col sm:flex-row items-end sm:items-center gap-3">
+              {podeEditarPerfilColaborador && (
+                <Button
+                  type="button"
+                  onClick={() => setModalEdicaoOpen(true)}
+                  className="bg-white hover:bg-white/90 text-[#0D47A1] font-bold text-xs h-9 px-4 gap-2 shadow-sm border border-white/40"
+                >
+                  <Edit3 className="h-4 w-4 text-[#0D47A1]" />
+                  Editar Perfil
+                </Button>
+              )}
+
+              <div className="hidden lg:flex flex-col items-end gap-1 bg-white/10 backdrop-blur-xs px-3 py-1.5 rounded-lg border border-white/20 text-[11px] text-white/90">
+                <div className="flex items-center gap-1.5 font-semibold text-emerald-200">
+                  <ShieldCheck className="h-3.5 w-3.5" />
+                  <span>Auditoria Ativa</span>
+                </div>
+                <span className="text-[10px] text-white/70">
+                  Acesso registrado em log_auditoria
+                </span>
               </div>
-              <span className="text-[10px] text-white/70">Acesso registrado em log_auditoria</span>
             </div>
           </div>
         </div>
@@ -1029,6 +1081,16 @@ export const FichaColaboradorModal: React.FC<FichaColaboradorModalProps> = ({
             </TabsContent>
           </div>
         </Tabs>
+
+        {/* Modal de Edição Completa do Perfil (Prompt 18) */}
+        {modalEdicaoOpen && (
+          <ModalEditarPerfilColaborador
+            colaborador={dadosExibicao}
+            open={modalEdicaoOpen}
+            onClose={() => setModalEdicaoOpen(false)}
+            onSaved={handleSalvoEdicao}
+          />
+        )}
       </DialogContent>
     </Dialog>
   )

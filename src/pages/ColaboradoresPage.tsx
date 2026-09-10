@@ -81,6 +81,11 @@ export default function ColaboradoresPage() {
   const [selectedColaborador, setSelectedColaborador] = useState<Colaborador | null>(null)
   const [fichaModalOpen, setFichaModalOpen] = useState<boolean>(false)
 
+  const handleColaboradorAtualizado = (colabAtualizado: Colaborador) => {
+    setColaboradores((prev) => prev.map((c) => (c.id === colabAtualizado.id ? colabAtualizado : c)))
+    setSelectedColaborador(colabAtualizado)
+  }
+
   const carregarColaboradores = async (showLoadingState = true) => {
     if (!user?.tenant_id) return
     try {
@@ -499,6 +504,7 @@ export default function ColaboradoresPage() {
           setFichaModalOpen(false)
           setSelectedColaborador(null)
         }}
+        onColaboradorUpdated={handleColaboradorAtualizado}
       />
     </div>
   )

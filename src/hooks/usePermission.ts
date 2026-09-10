@@ -17,6 +17,11 @@ export const HIERARQUIA_PERFIL: Record<UserPerfil, number> = {
  * Mapeamento granular de permissões por perfil no sistema Gente e Gestão Tesla.
  */
 export interface PermissoesUsuario {
+  // Edição Direta de Perfil de Colaboradores (RH, Admin RH e Admin Geral)
+  podeEditarPerfilColaborador: boolean
+  podeEditarCpfColaborador: boolean
+  podeEditarAdmissaoStatusColaborador: boolean
+
   // Configurações do Tenant (Apenas Admin Geral)
   podeGerenciarTenant: boolean
 
@@ -83,8 +88,13 @@ export function usePermission() {
     return nivel >= nivelMinimo
   }
 
-  // Permissões granulares de acordo com a especificação do Prompt 17
+  // Permissões granulares de acordo com a especificação do Prompt 17 e Prompt 18
   const permissoes: PermissoesUsuario = {
+    // Edição Direta de Perfil do Colaborador (Prompt 18)
+    podeEditarPerfilColaborador: perfil === 'rh' || perfil === 'admin_rh' || perfil === 'admin',
+    podeEditarCpfColaborador: perfil === 'admin',
+    podeEditarAdmissaoStatusColaborador: perfil === 'admin_rh' || perfil === 'admin',
+
     // 1. Apenas Administrador Geral ('admin')
     podeGerenciarTenant: perfil === 'admin',
     podeGerenciarUsuarios: perfil === 'admin',
@@ -135,6 +145,8 @@ export function usePermission() {
     hasAnyPerfil,
     hasMinPerfil,
     permissoes,
+    // Permissões desempacotadas diretamente para acesso simplificado
+    ...permissoes,
     // Atalhos semânticos comuns
     isAdminGeral: perfil === 'admin',
     isAdminRH: perfil === 'admin_rh',

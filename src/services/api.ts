@@ -155,6 +155,18 @@ export const colaboradorService = {
     return record
   },
 
+  async updateColaborador(colaboradorId: string, data: Partial<Colaborador>): Promise<Colaborador> {
+    // Garantir que tenant_id nunca seja alterado
+    const payload = { ...data }
+    delete (payload as Record<string, unknown>).tenant_id
+    delete (payload as Record<string, unknown>).id
+    delete (payload as Record<string, unknown>).created
+    delete (payload as Record<string, unknown>).updated
+
+    const record = await pb.collection('colaborador').update<Colaborador>(colaboradorId, payload)
+    return record
+  },
+
   async getColaboradorById(id: string): Promise<Colaborador> {
     const record = await pb.collection('colaborador').getOne<Colaborador>(id)
     return record
@@ -180,6 +192,23 @@ export const dependenteService = {
     const record = await pb.collection('dependente').create<Dependente>(data)
     return record
   },
+
+  async updateDependente(
+    id: string,
+    data: {
+      nome?: string
+      parentesco?: string
+      data_nascimento?: string
+    },
+  ): Promise<Dependente> {
+    const record = await pb.collection('dependente').update<Dependente>(id, data)
+    return record
+  },
+
+  async deleteDependente(id: string): Promise<boolean> {
+    await pb.collection('dependente').delete(id)
+    return true
+  },
 }
 
 export const contatoEmergenciaService = {
@@ -200,6 +229,23 @@ export const contatoEmergenciaService = {
   }): Promise<ContatoEmergencia> {
     const record = await pb.collection('contato_emergencia').create<ContatoEmergencia>(data)
     return record
+  },
+
+  async updateContato(
+    id: string,
+    data: {
+      nome?: string
+      telefone?: string
+      parentesco?: string
+    },
+  ): Promise<ContatoEmergencia> {
+    const record = await pb.collection('contato_emergencia').update<ContatoEmergencia>(id, data)
+    return record
+  },
+
+  async deleteContato(id: string): Promise<boolean> {
+    await pb.collection('contato_emergencia').delete(id)
+    return true
   },
 }
 
