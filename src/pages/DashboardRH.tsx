@@ -171,8 +171,8 @@ export default function DashboardRH() {
         </div>
       </div>
 
-      {/* Assistente de Consulta CLT & Obrigações Trabalhistas */}
-      <AssistenteConsultaClt />
+      {/* Assistente de Consulta CLT & Obrigações Trabalhistas - admin_rh e admin */}
+      {(user?.perfil === 'admin_rh' || user?.perfil === 'admin') && <AssistenteConsultaClt />}
 
       {/* Grid de 5 KPIs no topo */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">

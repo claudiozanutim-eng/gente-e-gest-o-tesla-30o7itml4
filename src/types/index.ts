@@ -1,4 +1,4 @@
-export type UserPerfil = 'colaborador' | 'gestor' | 'rh' | 'admin'
+export type UserPerfil = 'colaborador' | 'gestor' | 'rh' | 'admin_rh' | 'admin'
 
 export type TenantPlano = 'basico' | 'pro' | 'enterprise'
 export type TenantStatus = 'ativo' | 'inativo' | 'suspenso'
@@ -195,14 +195,16 @@ export const PROFILE_HOME_MAP: Record<UserPerfil, string> = {
   colaborador: '/portal',
   gestor: '/dashboard-equipe',
   rh: '/dashboard',
+  admin_rh: '/dashboard',
   admin: '/admin',
 }
 
 export const PROFILE_LABELS: Record<UserPerfil, string> = {
   colaborador: 'Colaborador',
   gestor: 'Gestor',
-  rh: 'Recursos Humanos',
-  admin: 'Administrador',
+  rh: 'RH (Operacional)',
+  admin_rh: 'Administrador de RH',
+  admin: 'Administrador Geral',
 }
 
 export const PROFILE_BADGE_COLORS: Record<
@@ -212,6 +214,7 @@ export const PROFILE_BADGE_COLORS: Record<
   colaborador: { bg: 'bg-[#E8EEF7]', text: 'text-[#1565C0]', border: 'border-[#1565C0]/30' },
   gestor: { bg: 'bg-[#F3E5F5]', text: 'text-[#6A1B9A]', border: 'border-[#6A1B9A]/30' },
   rh: { bg: 'bg-[#E0F2F1]', text: 'text-[#00695C]', border: 'border-[#00695C]/30' },
+  admin_rh: { bg: 'bg-[#FFF3E0]', text: 'text-[#E65100]', border: 'border-[#E65100]/30' },
   admin: { bg: 'bg-[#FFEBEE]', text: 'text-[#C62828]', border: 'border-[#C62828]/30' },
 }
 

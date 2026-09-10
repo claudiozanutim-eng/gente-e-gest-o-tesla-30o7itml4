@@ -290,25 +290,31 @@ export default function AdminUsuariosPage() {
     switch (perfil) {
       case 'admin':
         return (
-          <Badge className="bg-purple-100 text-purple-800 border-purple-200 text-[10px] font-bold">
-            Administrador
+          <Badge className="bg-[#FFEBEE] text-[#C62828] border-[#C62828]/30 text-[10px] font-bold">
+            Administrador Geral
+          </Badge>
+        )
+      case 'admin_rh':
+        return (
+          <Badge className="bg-[#FFF3E0] text-[#E65100] border-[#E65100]/30 text-[10px] font-bold">
+            Administrador de RH
           </Badge>
         )
       case 'rh':
         return (
-          <Badge className="bg-[#E8EEF7] text-[#0D47A1] border-[#0D47A1]/30 text-[10px] font-bold">
-            Gestor de RH
+          <Badge className="bg-[#E0F2F1] text-[#00695C] border-[#00695C]/30 text-[10px] font-bold">
+            RH (Operacional)
           </Badge>
         )
       case 'gestor':
         return (
-          <Badge className="bg-amber-100 text-amber-800 border-amber-200 text-[10px] font-bold">
-            Líder / Gestor
+          <Badge className="bg-[#F3E5F5] text-[#6A1B9A] border-[#6A1B9A]/30 text-[10px] font-bold">
+            Gestor
           </Badge>
         )
       default:
         return (
-          <Badge className="bg-slate-100 text-slate-800 border-slate-200 text-[10px] font-bold">
+          <Badge className="bg-[#E8EEF7] text-[#1565C0] border-[#1565C0]/30 text-[10px] font-bold">
             Colaborador
           </Badge>
         )
@@ -379,8 +385,9 @@ export default function AdminUsuariosPage() {
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="todos">Todos os perfis</SelectItem>
-                <SelectItem value="admin">Administrador</SelectItem>
-                <SelectItem value="rh">Gestor RH</SelectItem>
+                <SelectItem value="admin">Administrador Geral</SelectItem>
+                <SelectItem value="admin_rh">Administrador de RH</SelectItem>
+                <SelectItem value="rh">RH (Operacional)</SelectItem>
                 <SelectItem value="gestor">Gestor</SelectItem>
                 <SelectItem value="colaborador">Colaborador</SelectItem>
               </SelectContent>
@@ -614,10 +621,11 @@ export default function AdminUsuariosPage() {
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="colaborador">Colaborador (Portal do Colaborador)</SelectItem>
-                  <SelectItem value="gestor">Gestor (Liderança e Equipe)</SelectItem>
-                  <SelectItem value="rh">Gestor de RH (Módulos Operacionais de RH)</SelectItem>
-                  <SelectItem value="admin">Administrador (Acesso Total)</SelectItem>
+                  <SelectItem value="colaborador">Colaborador</SelectItem>
+                  <SelectItem value="gestor">Gestor</SelectItem>
+                  <SelectItem value="rh">RH (Operacional)</SelectItem>
+                  <SelectItem value="admin_rh">Administrador de RH</SelectItem>
+                  <SelectItem value="admin">Administrador Geral (Acesso Total)</SelectItem>
                 </SelectContent>
               </Select>
             </div>
@@ -681,8 +689,9 @@ export default function AdminUsuariosPage() {
                 <SelectContent>
                   <SelectItem value="colaborador">Colaborador</SelectItem>
                   <SelectItem value="gestor">Gestor</SelectItem>
-                  <SelectItem value="rh">Gestor de RH</SelectItem>
-                  <SelectItem value="admin">Administrador</SelectItem>
+                  <SelectItem value="rh">RH (Operacional)</SelectItem>
+                  <SelectItem value="admin_rh">Administrador de RH</SelectItem>
+                  <SelectItem value="admin">Administrador Geral</SelectItem>
                 </SelectContent>
               </Select>
             </div>

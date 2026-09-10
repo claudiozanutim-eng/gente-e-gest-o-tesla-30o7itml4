@@ -511,10 +511,11 @@ export default function AdminPage({ initialTab = 'tenant' }: AdminPageProps) {
                           <SelectValue placeholder="Selecione o perfil" />
                         </SelectTrigger>
                         <SelectContent>
-                          <SelectItem value="colaborador">Colaborador (Portal + Tempo)</SelectItem>
-                          <SelectItem value="gestor">Gestor (Pessoas + Tempo)</SelectItem>
-                          <SelectItem value="rh">RH (Todos os 3 pilares)</SelectItem>
-                          <SelectItem value="admin">Administrador (Total + Tenant)</SelectItem>
+                          <SelectItem value="colaborador">Colaborador</SelectItem>
+                          <SelectItem value="gestor">Gestor</SelectItem>
+                          <SelectItem value="rh">RH (Operacional)</SelectItem>
+                          <SelectItem value="admin_rh">Administrador de RH</SelectItem>
+                          <SelectItem value="admin">Administrador Geral</SelectItem>
                         </SelectContent>
                       </Select>
                     </div>
@@ -644,8 +645,9 @@ export default function AdminPage({ initialTab = 'tenant' }: AdminPageProps) {
                               <SelectContent>
                                 <SelectItem value="colaborador">Colaborador</SelectItem>
                                 <SelectItem value="gestor">Gestor</SelectItem>
-                                <SelectItem value="rh">RH</SelectItem>
-                                <SelectItem value="admin">Admin</SelectItem>
+                                <SelectItem value="rh">RH (Operacional)</SelectItem>
+                                <SelectItem value="admin_rh">Administrador de RH</SelectItem>
+                                <SelectItem value="admin">Administrador Geral</SelectItem>
                               </SelectContent>
                             </Select>
                           </TableCell>

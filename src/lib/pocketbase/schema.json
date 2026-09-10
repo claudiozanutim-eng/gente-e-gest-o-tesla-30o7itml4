@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-09-10T01:14:09.854Z",
+  "generatedAt": "2026-09-10T01:29:31.535Z",
   "collections": [
     {
       "name": "users",
@@ -50,7 +50,7 @@
           "type": "select",
           "required": true,
           "system": false,
-          "selectValues": ["colaborador", "gestor", "rh", "admin"]
+          "selectValues": ["colaborador", "gestor", "rh", "admin_rh", "admin"]
         },
         {
           "name": "ativo",
@@ -146,9 +146,9 @@
       "apiRules": {
         "list": "@request.auth.id != '' && tenant_id = @request.auth.tenant_id",
         "view": "@request.auth.id != '' && tenant_id = @request.auth.tenant_id",
-        "create": "@request.auth.id != '' && tenant_id = @request.auth.tenant_id && (@request.auth.perfil = 'rh' || @request.auth.perfil = 'admin')",
-        "update": "@request.auth.id != '' && tenant_id = @request.auth.tenant_id && (@request.auth.perfil = 'rh' || @request.auth.perfil = 'admin' || user_id = @request.auth.id)",
-        "delete": "@request.auth.id != '' && tenant_id = @request.auth.tenant_id && (@request.auth.perfil = 'rh' || @request.auth.perfil = 'admin')"
+        "create": "@request.auth.id != '' && tenant_id = @request.auth.tenant_id && (@request.auth.perfil = 'rh' || @request.auth.perfil = 'admin_rh' || @request.auth.perfil = 'admin')",
+        "update": "@request.auth.id != '' && tenant_id = @request.auth.tenant_id && (@request.auth.perfil = 'rh' || @request.auth.perfil = 'admin_rh' || @request.auth.perfil = 'admin' || user_id = @request.auth.id)",
+        "delete": "@request.auth.id != '' && tenant_id = @request.auth.tenant_id && (@request.auth.perfil = 'rh' || @request.auth.perfil = 'admin_rh' || @request.auth.perfil = 'admin')"
       },
       "fields": [
         {
@@ -353,9 +353,9 @@
       "apiRules": {
         "list": "@request.auth.id != '' && tenant_id = @request.auth.tenant_id",
         "view": "@request.auth.id != '' && tenant_id = @request.auth.tenant_id",
-        "create": "@request.auth.id != '' && tenant_id = @request.auth.tenant_id && (@request.auth.perfil = 'rh' || @request.auth.perfil = 'admin')",
-        "update": "@request.auth.id != '' && tenant_id = @request.auth.tenant_id && (@request.auth.perfil = 'rh' || @request.auth.perfil = 'admin')",
-        "delete": "@request.auth.id != '' && tenant_id = @request.auth.tenant_id && (@request.auth.perfil = 'rh' || @request.auth.perfil = 'admin')"
+        "create": "@request.auth.id != '' && tenant_id = @request.auth.tenant_id && (@request.auth.perfil = 'rh' || @request.auth.perfil = 'admin_rh' || @request.auth.perfil = 'admin')",
+        "update": "@request.auth.id != '' && tenant_id = @request.auth.tenant_id && (@request.auth.perfil = 'rh' || @request.auth.perfil = 'admin_rh' || @request.auth.perfil = 'admin')",
+        "delete": "@request.auth.id != '' && tenant_id = @request.auth.tenant_id && (@request.auth.perfil = 'rh' || @request.auth.perfil = 'admin_rh' || @request.auth.perfil = 'admin')"
       },
       "fields": [
         {
@@ -436,11 +436,11 @@
       "name": "dependente",
       "type": "base",
       "apiRules": {
-        "list": "@request.auth.id != '' && (colaborador_id.user_id = @request.auth.id || (tenant_id = @request.auth.tenant_id && (@request.auth.perfil = 'rh' || @request.auth.perfil = 'admin' || @request.auth.perfil = 'gestor')))",
-        "view": "@request.auth.id != '' && (colaborador_id.user_id = @request.auth.id || (tenant_id = @request.auth.tenant_id && (@request.auth.perfil = 'rh' || @request.auth.perfil = 'admin' || @request.auth.perfil = 'gestor')))",
-        "create": "@request.auth.id != '' && tenant_id = @request.auth.tenant_id && (@request.auth.perfil = 'rh' || @request.auth.perfil = 'admin' || colaborador_id.user_id = @request.auth.id)",
-        "update": "@request.auth.id != '' && tenant_id = @request.auth.tenant_id && (@request.auth.perfil = 'rh' || @request.auth.perfil = 'admin' || colaborador_id.user_id = @request.auth.id)",
-        "delete": "@request.auth.id != '' && tenant_id = @request.auth.tenant_id && (@request.auth.perfil = 'rh' || @request.auth.perfil = 'admin' || colaborador_id.user_id = @request.auth.id)"
+        "list": "@request.auth.id != '' && (colaborador_id.user_id = @request.auth.id || (tenant_id = @request.auth.tenant_id && (@request.auth.perfil = 'rh' || @request.auth.perfil = 'admin_rh' || @request.auth.perfil = 'admin' || @request.auth.perfil = 'gestor')))",
+        "view": "@request.auth.id != '' && (colaborador_id.user_id = @request.auth.id || (tenant_id = @request.auth.tenant_id && (@request.auth.perfil = 'rh' || @request.auth.perfil = 'admin_rh' || @request.auth.perfil = 'admin' || @request.auth.perfil = 'gestor')))",
+        "create": "@request.auth.id != '' && tenant_id = @request.auth.tenant_id && (@request.auth.perfil = 'rh' || @request.auth.perfil = 'admin_rh' || @request.auth.perfil = 'admin' || colaborador_id.user_id = @request.auth.id)",
+        "update": "@request.auth.id != '' && tenant_id = @request.auth.tenant_id && (@request.auth.perfil = 'rh' || @request.auth.perfil = 'admin_rh' || @request.auth.perfil = 'admin' || colaborador_id.user_id = @request.auth.id)",
+        "delete": "@request.auth.id != '' && tenant_id = @request.auth.tenant_id && (@request.auth.perfil = 'rh' || @request.auth.perfil = 'admin_rh' || @request.auth.perfil = 'admin' || colaborador_id.user_id = @request.auth.id)"
       },
       "fields": [
         {
@@ -499,11 +499,11 @@
       "name": "contato_emergencia",
       "type": "base",
       "apiRules": {
-        "list": "@request.auth.id != '' && (colaborador_id.user_id = @request.auth.id || (tenant_id = @request.auth.tenant_id && (@request.auth.perfil = 'rh' || @request.auth.perfil = 'admin' || @request.auth.perfil = 'gestor')))",
-        "view": "@request.auth.id != '' && (colaborador_id.user_id = @request.auth.id || (tenant_id = @request.auth.tenant_id && (@request.auth.perfil = 'rh' || @request.auth.perfil = 'admin' || @request.auth.perfil = 'gestor')))",
-        "create": "@request.auth.id != '' && tenant_id = @request.auth.tenant_id && (@request.auth.perfil = 'rh' || @request.auth.perfil = 'admin' || colaborador_id.user_id = @request.auth.id)",
-        "update": "@request.auth.id != '' && tenant_id = @request.auth.tenant_id && (@request.auth.perfil = 'rh' || @request.auth.perfil = 'admin' || colaborador_id.user_id = @request.auth.id)",
-        "delete": "@request.auth.id != '' && tenant_id = @request.auth.tenant_id && (@request.auth.perfil = 'rh' || @request.auth.perfil = 'admin' || colaborador_id.user_id = @request.auth.id)"
+        "list": "@request.auth.id != '' && (colaborador_id.user_id = @request.auth.id || (tenant_id = @request.auth.tenant_id && (@request.auth.perfil = 'rh' || @request.auth.perfil = 'admin_rh' || @request.auth.perfil = 'admin' || @request.auth.perfil = 'gestor')))",
+        "view": "@request.auth.id != '' && (colaborador_id.user_id = @request.auth.id || (tenant_id = @request.auth.tenant_id && (@request.auth.perfil = 'rh' || @request.auth.perfil = 'admin_rh' || @request.auth.perfil = 'admin' || @request.auth.perfil = 'gestor')))",
+        "create": "@request.auth.id != '' && tenant_id = @request.auth.tenant_id && (@request.auth.perfil = 'rh' || @request.auth.perfil = 'admin_rh' || @request.auth.perfil = 'admin' || colaborador_id.user_id = @request.auth.id)",
+        "update": "@request.auth.id != '' && tenant_id = @request.auth.tenant_id && (@request.auth.perfil = 'rh' || @request.auth.perfil = 'admin_rh' || @request.auth.perfil = 'admin' || colaborador_id.user_id = @request.auth.id)",
+        "delete": "@request.auth.id != '' && tenant_id = @request.auth.tenant_id && (@request.auth.perfil = 'rh' || @request.auth.perfil = 'admin_rh' || @request.auth.perfil = 'admin' || colaborador_id.user_id = @request.auth.id)"
       },
       "fields": [
         {
@@ -562,11 +562,11 @@
       "name": "solicitacao_alteracao",
       "type": "base",
       "apiRules": {
-        "list": "@request.auth.id != '' && (colaborador_id.user_id = @request.auth.id || (tenant_id = @request.auth.tenant_id && (@request.auth.perfil = 'rh' || @request.auth.perfil = 'admin')))",
-        "view": "@request.auth.id != '' && (colaborador_id.user_id = @request.auth.id || (tenant_id = @request.auth.tenant_id && (@request.auth.perfil = 'rh' || @request.auth.perfil = 'admin')))",
-        "create": "@request.auth.id != '' && tenant_id = @request.auth.tenant_id && (colaborador_id.user_id = @request.auth.id || @request.auth.perfil = 'rh' || @request.auth.perfil = 'admin')",
-        "update": "@request.auth.id != '' && tenant_id = @request.auth.tenant_id && (@request.auth.perfil = 'rh' || @request.auth.perfil = 'admin')",
-        "delete": "@request.auth.id != '' && tenant_id = @request.auth.tenant_id && (@request.auth.perfil = 'rh' || @request.auth.perfil = 'admin')"
+        "list": "@request.auth.id != '' && (colaborador_id.user_id = @request.auth.id || (tenant_id = @request.auth.tenant_id && (@request.auth.perfil = 'rh' || @request.auth.perfil = 'admin_rh' || @request.auth.perfil = 'admin')))",
+        "view": "@request.auth.id != '' && (colaborador_id.user_id = @request.auth.id || (tenant_id = @request.auth.tenant_id && (@request.auth.perfil = 'rh' || @request.auth.perfil = 'admin_rh' || @request.auth.perfil = 'admin')))",
+        "create": "@request.auth.id != '' && tenant_id = @request.auth.tenant_id && (colaborador_id.user_id = @request.auth.id || @request.auth.perfil = 'rh' || @request.auth.perfil = 'admin_rh' || @request.auth.perfil = 'admin')",
+        "update": "@request.auth.id != '' && tenant_id = @request.auth.tenant_id && (@request.auth.perfil = 'rh' || @request.auth.perfil = 'admin_rh' || @request.auth.perfil = 'admin')",
+        "delete": "@request.auth.id != '' && tenant_id = @request.auth.tenant_id && (@request.auth.perfil = 'rh' || @request.auth.perfil = 'admin_rh' || @request.auth.perfil = 'admin')"
       },
       "fields": [
         {
@@ -651,9 +651,9 @@
       "name": "log_auditoria",
       "type": "base",
       "apiRules": {
-        "list": "@request.auth.id != '' && tenant_id = @request.auth.tenant_id && (@request.auth.perfil = 'rh' || @request.auth.perfil = 'admin')",
-        "view": "@request.auth.id != '' && tenant_id = @request.auth.tenant_id && (@request.auth.perfil = 'rh' || @request.auth.perfil = 'admin')",
-        "create": "@request.auth.id != '' && tenant_id = @request.auth.tenant_id && (@request.auth.perfil = 'rh' || @request.auth.perfil = 'admin')",
+        "list": "@request.auth.id != '' && tenant_id = @request.auth.tenant_id && (@request.auth.perfil = 'admin_rh' || @request.auth.perfil = 'admin')",
+        "view": "@request.auth.id != '' && tenant_id = @request.auth.tenant_id && (@request.auth.perfil = 'admin_rh' || @request.auth.perfil = 'admin')",
+        "create": "@request.auth.id != '' && tenant_id = @request.auth.tenant_id",
         "update": null,
         "delete": null
       },
@@ -730,9 +730,9 @@
       "apiRules": {
         "list": "@request.auth.id != '' && tenant_id = @request.auth.tenant_id",
         "view": "@request.auth.id != '' && tenant_id = @request.auth.tenant_id",
-        "create": "@request.auth.id != '' && tenant_id = @request.auth.tenant_id && (@request.auth.perfil = 'rh' || @request.auth.perfil = 'admin')",
-        "update": "@request.auth.id != '' && tenant_id = @request.auth.tenant_id && (@request.auth.perfil = 'rh' || @request.auth.perfil = 'admin')",
-        "delete": "@request.auth.id != '' && tenant_id = @request.auth.tenant_id && (@request.auth.perfil = 'rh' || @request.auth.perfil = 'admin')"
+        "create": "@request.auth.id != '' && tenant_id = @request.auth.tenant_id && (@request.auth.perfil = 'rh' || @request.auth.perfil = 'admin_rh' || @request.auth.perfil = 'admin')",
+        "update": "@request.auth.id != '' && tenant_id = @request.auth.tenant_id && (@request.auth.perfil = 'rh' || @request.auth.perfil = 'admin_rh' || @request.auth.perfil = 'admin')",
+        "delete": "@request.auth.id != '' && tenant_id = @request.auth.tenant_id && (@request.auth.perfil = 'rh' || @request.auth.perfil = 'admin_rh' || @request.auth.perfil = 'admin')"
       },
       "fields": [
         {
@@ -772,11 +772,11 @@
       "name": "documento",
       "type": "base",
       "apiRules": {
-        "list": "@request.auth.id != '' && tenant_id = @request.auth.tenant_id && (colaborador_id = '' || colaborador_id.user_id = @request.auth.id || @request.auth.perfil = 'rh' || @request.auth.perfil = 'admin')",
-        "view": "@request.auth.id != '' && tenant_id = @request.auth.tenant_id && (colaborador_id = '' || colaborador_id.user_id = @request.auth.id || @request.auth.perfil = 'rh' || @request.auth.perfil = 'admin')",
-        "create": "@request.auth.id != '' && tenant_id = @request.auth.tenant_id && (@request.auth.perfil = 'rh' || @request.auth.perfil = 'admin' || colaborador_id.user_id = @request.auth.id)",
-        "update": "@request.auth.id != '' && tenant_id = @request.auth.tenant_id && (@request.auth.perfil = 'rh' || @request.auth.perfil = 'admin' || colaborador_id.user_id = @request.auth.id)",
-        "delete": "@request.auth.id != '' && tenant_id = @request.auth.tenant_id && (@request.auth.perfil = 'rh' || @request.auth.perfil = 'admin')"
+        "list": "@request.auth.id != '' && tenant_id = @request.auth.tenant_id && (colaborador_id = '' || colaborador_id.user_id = @request.auth.id || @request.auth.perfil = 'rh' || @request.auth.perfil = 'admin_rh' || @request.auth.perfil = 'admin')",
+        "view": "@request.auth.id != '' && tenant_id = @request.auth.tenant_id && (colaborador_id = '' || colaborador_id.user_id = @request.auth.id || @request.auth.perfil = 'rh' || @request.auth.perfil = 'admin_rh' || @request.auth.perfil = 'admin')",
+        "create": "@request.auth.id != '' && tenant_id = @request.auth.tenant_id && (@request.auth.perfil = 'rh' || @request.auth.perfil = 'admin_rh' || @request.auth.perfil = 'admin' || colaborador_id.user_id = @request.auth.id)",
+        "update": "@request.auth.id != '' && tenant_id = @request.auth.tenant_id && (@request.auth.perfil = 'rh' || @request.auth.perfil = 'admin_rh' || @request.auth.perfil = 'admin' || colaborador_id.user_id = @request.auth.id)",
+        "delete": "@request.auth.id != '' && tenant_id = @request.auth.tenant_id && (@request.auth.perfil = 'rh' || @request.auth.perfil = 'admin_rh' || @request.auth.perfil = 'admin')"
       },
       "fields": [
         {
@@ -862,11 +862,11 @@
       "name": "ciencia_documento",
       "type": "base",
       "apiRules": {
-        "list": "@request.auth.id != '' && tenant_id = @request.auth.tenant_id && (colaborador_id.user_id = @request.auth.id || @request.auth.perfil = 'rh' || @request.auth.perfil = 'admin')",
-        "view": "@request.auth.id != '' && tenant_id = @request.auth.tenant_id && (colaborador_id.user_id = @request.auth.id || @request.auth.perfil = 'rh' || @request.auth.perfil = 'admin')",
+        "list": "@request.auth.id != '' && tenant_id = @request.auth.tenant_id && (colaborador_id.user_id = @request.auth.id || @request.auth.perfil = 'rh' || @request.auth.perfil = 'admin_rh' || @request.auth.perfil = 'admin')",
+        "view": "@request.auth.id != '' && tenant_id = @request.auth.tenant_id && (colaborador_id.user_id = @request.auth.id || @request.auth.perfil = 'rh' || @request.auth.perfil = 'admin_rh' || @request.auth.perfil = 'admin')",
         "create": "@request.auth.id != '' && tenant_id = @request.auth.tenant_id && colaborador_id.user_id = @request.auth.id",
         "update": "@request.auth.id != '' && tenant_id = @request.auth.tenant_id && (@request.auth.perfil = 'rh' || @request.auth.perfil = 'admin' || colaborador_id.user_id = @request.auth.id)",
-        "delete": "@request.auth.id != '' && tenant_id = @request.auth.tenant_id && (@request.auth.perfil = 'rh' || @request.auth.perfil = 'admin')"
+        "delete": "@request.auth.id != '' && tenant_id = @request.auth.tenant_id && (@request.auth.perfil = 'rh' || @request.auth.perfil = 'admin_rh' || @request.auth.perfil = 'admin')"
       },
       "fields": [
         {
@@ -934,11 +934,11 @@
       "name": "atestado",
       "type": "base",
       "apiRules": {
-        "list": "@request.auth.id != '' && tenant_id = @request.auth.tenant_id && (@request.auth.perfil = 'rh' || @request.auth.perfil = 'admin' || colaborador_id.user_id = @request.auth.id)",
-        "view": "@request.auth.id != '' && tenant_id = @request.auth.tenant_id && (@request.auth.perfil = 'rh' || @request.auth.perfil = 'admin' || colaborador_id.user_id = @request.auth.id)",
+        "list": "@request.auth.id != '' && tenant_id = @request.auth.tenant_id && (@request.auth.perfil = 'rh' || @request.auth.perfil = 'admin_rh' || @request.auth.perfil = 'admin' || colaborador_id.user_id = @request.auth.id)",
+        "view": "@request.auth.id != '' && tenant_id = @request.auth.tenant_id && (@request.auth.perfil = 'rh' || @request.auth.perfil = 'admin_rh' || @request.auth.perfil = 'admin' || colaborador_id.user_id = @request.auth.id)",
         "create": "@request.auth.id != '' && tenant_id = @request.auth.tenant_id && (@request.auth.perfil = 'rh' || @request.auth.perfil = 'admin' || colaborador_id.user_id = @request.auth.id)",
-        "update": "@request.auth.id != '' && tenant_id = @request.auth.tenant_id && (@request.auth.perfil = 'rh' || @request.auth.perfil = 'admin' || colaborador_id.user_id = @request.auth.id)",
-        "delete": "@request.auth.id != '' && tenant_id = @request.auth.tenant_id && (@request.auth.perfil = 'rh' || @request.auth.perfil = 'admin')"
+        "update": "@request.auth.id != '' && tenant_id = @request.auth.tenant_id && (@request.auth.perfil = 'rh' || @request.auth.perfil = 'admin_rh' || @request.auth.perfil = 'admin' || colaborador_id.user_id = @request.auth.id)",
+        "delete": "@request.auth.id != '' && tenant_id = @request.auth.tenant_id && (@request.auth.perfil = 'rh' || @request.auth.perfil = 'admin_rh' || @request.auth.perfil = 'admin')"
       },
       "fields": [
         {
@@ -1032,9 +1032,9 @@
       "apiRules": {
         "list": "@request.auth.id != '' && tenant_id = @request.auth.tenant_id",
         "view": "@request.auth.id != '' && tenant_id = @request.auth.tenant_id",
-        "create": "@request.auth.id != '' && tenant_id = @request.auth.tenant_id && (@request.auth.perfil = 'rh' || @request.auth.perfil = 'admin')",
-        "update": "@request.auth.id != '' && tenant_id = @request.auth.tenant_id && (@request.auth.perfil = 'rh' || @request.auth.perfil = 'admin')",
-        "delete": "@request.auth.id != '' && tenant_id = @request.auth.tenant_id && (@request.auth.perfil = 'rh' || @request.auth.perfil = 'admin')"
+        "create": "@request.auth.id != '' && tenant_id = @request.auth.tenant_id && (@request.auth.perfil = 'rh' || @request.auth.perfil = 'admin_rh' || @request.auth.perfil = 'admin')",
+        "update": "@request.auth.id != '' && tenant_id = @request.auth.tenant_id && (@request.auth.perfil = 'rh' || @request.auth.perfil = 'admin_rh' || @request.auth.perfil = 'admin')",
+        "delete": "@request.auth.id != '' && tenant_id = @request.auth.tenant_id && (@request.auth.perfil = 'rh' || @request.auth.perfil = 'admin_rh' || @request.auth.perfil = 'admin')"
       },
       "fields": [
         {
@@ -1081,11 +1081,11 @@
       "name": "colaborador_beneficio",
       "type": "base",
       "apiRules": {
-        "list": "@request.auth.id != '' && tenant_id = @request.auth.tenant_id && (@request.auth.perfil = 'rh' || @request.auth.perfil = 'admin' || colaborador_id.user_id = @request.auth.id)",
-        "view": "@request.auth.id != '' && tenant_id = @request.auth.tenant_id && (@request.auth.perfil = 'rh' || @request.auth.perfil = 'admin' || colaborador_id.user_id = @request.auth.id)",
-        "create": "@request.auth.id != '' && tenant_id = @request.auth.tenant_id && (@request.auth.perfil = 'rh' || @request.auth.perfil = 'admin')",
-        "update": "@request.auth.id != '' && tenant_id = @request.auth.tenant_id && (@request.auth.perfil = 'rh' || @request.auth.perfil = 'admin')",
-        "delete": "@request.auth.id != '' && tenant_id = @request.auth.tenant_id && (@request.auth.perfil = 'rh' || @request.auth.perfil = 'admin')"
+        "list": "@request.auth.id != '' && tenant_id = @request.auth.tenant_id && (colaborador_id.user_id = @request.auth.id || @request.auth.perfil = 'rh' || @request.auth.perfil = 'admin_rh' || @request.auth.perfil = 'admin')",
+        "view": "@request.auth.id != '' && tenant_id = @request.auth.tenant_id && (colaborador_id.user_id = @request.auth.id || @request.auth.perfil = 'rh' || @request.auth.perfil = 'admin_rh' || @request.auth.perfil = 'admin')",
+        "create": "@request.auth.id != '' && tenant_id = @request.auth.tenant_id && (@request.auth.perfil = 'rh' || @request.auth.perfil = 'admin_rh' || @request.auth.perfil = 'admin')",
+        "update": "@request.auth.id != '' && tenant_id = @request.auth.tenant_id && (@request.auth.perfil = 'rh' || @request.auth.perfil = 'admin_rh' || @request.auth.perfil = 'admin')",
+        "delete": "@request.auth.id != '' && tenant_id = @request.auth.tenant_id && (@request.auth.perfil = 'rh' || @request.auth.perfil = 'admin_rh' || @request.auth.perfil = 'admin')"
       },
       "fields": [
         {
@@ -1148,9 +1148,9 @@
       "apiRules": {
         "list": "@request.auth.id != '' && tenant_id = @request.auth.tenant_id",
         "view": "@request.auth.id != '' && tenant_id = @request.auth.tenant_id",
-        "create": "@request.auth.id != '' && tenant_id = @request.auth.tenant_id && (@request.auth.perfil = 'rh' || @request.auth.perfil = 'admin')",
-        "update": "@request.auth.id != '' && tenant_id = @request.auth.tenant_id && (@request.auth.perfil = 'rh' || @request.auth.perfil = 'admin')",
-        "delete": "@request.auth.id != '' && tenant_id = @request.auth.tenant_id && (@request.auth.perfil = 'rh' || @request.auth.perfil = 'admin')"
+        "create": "@request.auth.id != '' && tenant_id = @request.auth.tenant_id && (@request.auth.perfil = 'admin_rh' || @request.auth.perfil = 'admin')",
+        "update": "@request.auth.id != '' && tenant_id = @request.auth.tenant_id && (@request.auth.perfil = 'admin_rh' || @request.auth.perfil = 'admin')",
+        "delete": "@request.auth.id != '' && tenant_id = @request.auth.tenant_id && (@request.auth.perfil = 'admin_rh' || @request.auth.perfil = 'admin')"
       },
       "fields": [
         {
@@ -1211,9 +1211,9 @@
       "apiRules": {
         "list": "@request.auth.id != '' && tenant_id = @request.auth.tenant_id",
         "view": "@request.auth.id != '' && tenant_id = @request.auth.tenant_id",
-        "create": "@request.auth.id != '' && tenant_id = @request.auth.tenant_id && (@request.auth.perfil = 'rh' || @request.auth.perfil = 'admin')",
-        "update": "@request.auth.id != '' && tenant_id = @request.auth.tenant_id && (@request.auth.perfil = 'rh' || @request.auth.perfil = 'admin')",
-        "delete": "@request.auth.id != '' && tenant_id = @request.auth.tenant_id && (@request.auth.perfil = 'rh' || @request.auth.perfil = 'admin')"
+        "create": "@request.auth.id != '' && tenant_id = @request.auth.tenant_id && (@request.auth.perfil = 'admin_rh' || @request.auth.perfil = 'admin')",
+        "update": "@request.auth.id != '' && tenant_id = @request.auth.tenant_id && (@request.auth.perfil = 'admin_rh' || @request.auth.perfil = 'admin')",
+        "delete": "@request.auth.id != '' && tenant_id = @request.auth.tenant_id && (@request.auth.perfil = 'admin_rh' || @request.auth.perfil = 'admin')"
       },
       "fields": [
         {
@@ -1278,11 +1278,11 @@
       "name": "avaliacao",
       "type": "base",
       "apiRules": {
-        "list": "@request.auth.id != '' && ciclo_id.tenant_id = @request.auth.tenant_id && (@request.auth.perfil = 'rh' || @request.auth.perfil = 'admin' || avaliador_id.user_id = @request.auth.id || colaborador_id.user_id = @request.auth.id)",
-        "view": "@request.auth.id != '' && ciclo_id.tenant_id = @request.auth.tenant_id && (@request.auth.perfil = 'rh' || @request.auth.perfil = 'admin' || avaliador_id.user_id = @request.auth.id || colaborador_id.user_id = @request.auth.id)",
-        "create": "@request.auth.id != '' && (@request.auth.perfil = 'rh' || @request.auth.perfil = 'admin' || avaliador_id.user_id = @request.auth.id)",
-        "update": "@request.auth.id != '' && (@request.auth.perfil = 'rh' || @request.auth.perfil = 'admin' || avaliador_id.user_id = @request.auth.id)",
-        "delete": "@request.auth.id != '' && (@request.auth.perfil = 'rh' || @request.auth.perfil = 'admin')"
+        "list": "@request.auth.id != '' && ciclo_id.tenant_id = @request.auth.tenant_id && (@request.auth.perfil = 'rh' || @request.auth.perfil = 'admin_rh' || @request.auth.perfil = 'admin' || avaliador_id.user_id = @request.auth.id || colaborador_id.user_id = @request.auth.id)",
+        "view": "@request.auth.id != '' && ciclo_id.tenant_id = @request.auth.tenant_id && (@request.auth.perfil = 'rh' || @request.auth.perfil = 'admin_rh' || @request.auth.perfil = 'admin' || avaliador_id.user_id = @request.auth.id || colaborador_id.user_id = @request.auth.id)",
+        "create": "@request.auth.id != '' && (@request.auth.perfil = 'admin_rh' || @request.auth.perfil = 'admin' || avaliador_id.user_id = @request.auth.id)",
+        "update": "@request.auth.id != '' && (@request.auth.perfil = 'admin_rh' || @request.auth.perfil = 'admin' || avaliador_id.user_id = @request.auth.id)",
+        "delete": "@request.auth.id != '' && (@request.auth.perfil = 'admin_rh' || @request.auth.perfil = 'admin')"
       },
       "fields": [
         {
@@ -1370,11 +1370,11 @@
       "name": "nota_competencia",
       "type": "base",
       "apiRules": {
-        "list": "@request.auth.id != '' && (@request.auth.perfil = 'rh' || @request.auth.perfil = 'admin' || avaliacao_id.avaliador_id.user_id = @request.auth.id || avaliacao_id.colaborador_id.user_id = @request.auth.id)",
-        "view": "@request.auth.id != '' && (@request.auth.perfil = 'rh' || @request.auth.perfil = 'admin' || avaliacao_id.avaliador_id.user_id = @request.auth.id || avaliacao_id.colaborador_id.user_id = @request.auth.id)",
-        "create": "@request.auth.id != '' && (@request.auth.perfil = 'rh' || @request.auth.perfil = 'admin' || avaliacao_id.avaliador_id.user_id = @request.auth.id)",
-        "update": "@request.auth.id != '' && (@request.auth.perfil = 'rh' || @request.auth.perfil = 'admin' || avaliacao_id.avaliador_id.user_id = @request.auth.id)",
-        "delete": "@request.auth.id != '' && (@request.auth.perfil = 'rh' || @request.auth.perfil = 'admin' || avaliacao_id.avaliador_id.user_id = @request.auth.id)"
+        "list": "@request.auth.id != '' && (@request.auth.perfil = 'rh' || @request.auth.perfil = 'admin_rh' || @request.auth.perfil = 'admin' || avaliacao_id.avaliador_id.user_id = @request.auth.id || avaliacao_id.colaborador_id.user_id = @request.auth.id)",
+        "view": "@request.auth.id != '' && (@request.auth.perfil = 'rh' || @request.auth.perfil = 'admin_rh' || @request.auth.perfil = 'admin' || avaliacao_id.avaliador_id.user_id = @request.auth.id || avaliacao_id.colaborador_id.user_id = @request.auth.id)",
+        "create": "@request.auth.id != '' && (@request.auth.perfil = 'admin_rh' || @request.auth.perfil = 'admin' || avaliacao_id.avaliador_id.user_id = @request.auth.id)",
+        "update": "@request.auth.id != '' && (@request.auth.perfil = 'admin_rh' || @request.auth.perfil = 'admin' || avaliacao_id.avaliador_id.user_id = @request.auth.id)",
+        "delete": "@request.auth.id != '' && (@request.auth.perfil = 'admin_rh' || @request.auth.perfil = 'admin' || avaliacao_id.avaliador_id.user_id = @request.auth.id)"
       },
       "fields": [
         {
@@ -1429,9 +1429,9 @@
       "apiRules": {
         "list": "@request.auth.id != '' && tenant_id = @request.auth.tenant_id",
         "view": "@request.auth.id != '' && tenant_id = @request.auth.tenant_id",
-        "create": "@request.auth.id != '' && tenant_id = @request.auth.tenant_id && (@request.auth.perfil = 'rh' || @request.auth.perfil = 'admin')",
-        "update": "@request.auth.id != '' && tenant_id = @request.auth.tenant_id && (@request.auth.perfil = 'rh' || @request.auth.perfil = 'admin')",
-        "delete": "@request.auth.id != '' && tenant_id = @request.auth.tenant_id && (@request.auth.perfil = 'rh' || @request.auth.perfil = 'admin')"
+        "create": "@request.auth.id != '' && tenant_id = @request.auth.tenant_id && (@request.auth.perfil = 'admin_rh' || @request.auth.perfil = 'admin')",
+        "update": "@request.auth.id != '' && tenant_id = @request.auth.tenant_id && (@request.auth.perfil = 'admin_rh' || @request.auth.perfil = 'admin')",
+        "delete": "@request.auth.id != '' && tenant_id = @request.auth.tenant_id && (@request.auth.perfil = 'admin_rh' || @request.auth.perfil = 'admin')"
       },
       "fields": [
         {
@@ -1489,11 +1489,11 @@
       "name": "colaborador_escala",
       "type": "base",
       "apiRules": {
-        "list": "@request.auth.id != '' && tenant_id = @request.auth.tenant_id && (@request.auth.perfil = 'rh' || @request.auth.perfil = 'admin' || colaborador_id.user_id = @request.auth.id || @request.auth.perfil = 'gestor')",
-        "view": "@request.auth.id != '' && tenant_id = @request.auth.tenant_id && (@request.auth.perfil = 'rh' || @request.auth.perfil = 'admin' || colaborador_id.user_id = @request.auth.id || @request.auth.perfil = 'gestor')",
-        "create": "@request.auth.id != '' && tenant_id = @request.auth.tenant_id && (@request.auth.perfil = 'rh' || @request.auth.perfil = 'admin')",
-        "update": "@request.auth.id != '' && tenant_id = @request.auth.tenant_id && (@request.auth.perfil = 'rh' || @request.auth.perfil = 'admin')",
-        "delete": "@request.auth.id != '' && tenant_id = @request.auth.tenant_id && (@request.auth.perfil = 'rh' || @request.auth.perfil = 'admin')"
+        "list": "@request.auth.id != '' && tenant_id = @request.auth.tenant_id && (@request.auth.perfil = 'rh' || @request.auth.perfil = 'admin_rh' || @request.auth.perfil = 'admin' || colaborador_id.user_id = @request.auth.id || @request.auth.perfil = 'gestor')",
+        "view": "@request.auth.id != '' && tenant_id = @request.auth.tenant_id && (@request.auth.perfil = 'rh' || @request.auth.perfil = 'admin_rh' || @request.auth.perfil = 'admin' || colaborador_id.user_id = @request.auth.id || @request.auth.perfil = 'gestor')",
+        "create": "@request.auth.id != '' && tenant_id = @request.auth.tenant_id && (@request.auth.perfil = 'admin_rh' || @request.auth.perfil = 'admin')",
+        "update": "@request.auth.id != '' && tenant_id = @request.auth.tenant_id && (@request.auth.perfil = 'admin_rh' || @request.auth.perfil = 'admin')",
+        "delete": "@request.auth.id != '' && tenant_id = @request.auth.tenant_id && (@request.auth.perfil = 'admin_rh' || @request.auth.perfil = 'admin')"
       },
       "fields": [
         {
@@ -1554,11 +1554,11 @@
       "name": "registro_ponto",
       "type": "base",
       "apiRules": {
-        "list": "@request.auth.id != '' && tenant_id = @request.auth.tenant_id && (@request.auth.perfil = 'rh' || @request.auth.perfil = 'admin' || colaborador_id.user_id = @request.auth.id || @request.auth.perfil = 'gestor')",
-        "view": "@request.auth.id != '' && tenant_id = @request.auth.tenant_id && (@request.auth.perfil = 'rh' || @request.auth.perfil = 'admin' || colaborador_id.user_id = @request.auth.id || @request.auth.perfil = 'gestor')",
-        "create": "@request.auth.id != '' && tenant_id = @request.auth.tenant_id && (colaborador_id.user_id = @request.auth.id || @request.auth.perfil = 'rh' || @request.auth.perfil = 'admin')",
-        "update": "@request.auth.id != '' && tenant_id = @request.auth.tenant_id && (@request.auth.perfil = 'rh' || @request.auth.perfil = 'admin')",
-        "delete": "@request.auth.id != '' && tenant_id = @request.auth.tenant_id && (@request.auth.perfil = 'rh' || @request.auth.perfil = 'admin')"
+        "list": "@request.auth.id != '' && tenant_id = @request.auth.tenant_id && (@request.auth.perfil = 'rh' || @request.auth.perfil = 'admin_rh' || @request.auth.perfil = 'admin' || colaborador_id.user_id = @request.auth.id || @request.auth.perfil = 'gestor')",
+        "view": "@request.auth.id != '' && tenant_id = @request.auth.tenant_id && (@request.auth.perfil = 'rh' || @request.auth.perfil = 'admin_rh' || @request.auth.perfil = 'admin' || colaborador_id.user_id = @request.auth.id || @request.auth.perfil = 'gestor')",
+        "create": "@request.auth.id != '' && tenant_id = @request.auth.tenant_id && (colaborador_id.user_id = @request.auth.id || @request.auth.perfil = 'rh' || @request.auth.perfil = 'admin_rh' || @request.auth.perfil = 'admin')",
+        "update": "@request.auth.id != '' && tenant_id = @request.auth.tenant_id && (@request.auth.perfil = 'rh' || @request.auth.perfil = 'admin_rh' || @request.auth.perfil = 'admin')",
+        "delete": "@request.auth.id != '' && tenant_id = @request.auth.tenant_id && (@request.auth.perfil = 'rh' || @request.auth.perfil = 'admin_rh' || @request.auth.perfil = 'admin')"
       },
       "fields": [
         {
@@ -1620,11 +1620,11 @@
       "name": "lancamento_periodico",
       "type": "base",
       "apiRules": {
-        "list": "@request.auth.id != '' && tenant_id = @request.auth.tenant_id && (@request.auth.perfil = 'rh' || @request.auth.perfil = 'admin' || colaborador_id.user_id = @request.auth.id)",
-        "view": "@request.auth.id != '' && tenant_id = @request.auth.tenant_id && (@request.auth.perfil = 'rh' || @request.auth.perfil = 'admin' || colaborador_id.user_id = @request.auth.id)",
-        "create": "@request.auth.id != '' && tenant_id = @request.auth.tenant_id && (@request.auth.perfil = 'rh' || @request.auth.perfil = 'admin')",
-        "update": "@request.auth.id != '' && tenant_id = @request.auth.tenant_id && (@request.auth.perfil = 'rh' || @request.auth.perfil = 'admin')",
-        "delete": "@request.auth.id != '' && tenant_id = @request.auth.tenant_id && (@request.auth.perfil = 'rh' || @request.auth.perfil = 'admin')"
+        "list": "@request.auth.id != '' && tenant_id = @request.auth.tenant_id && (@request.auth.perfil = 'rh' || @request.auth.perfil = 'admin_rh' || @request.auth.perfil = 'admin' || colaborador_id.user_id = @request.auth.id)",
+        "view": "@request.auth.id != '' && tenant_id = @request.auth.tenant_id && (@request.auth.perfil = 'rh' || @request.auth.perfil = 'admin_rh' || @request.auth.perfil = 'admin' || colaborador_id.user_id = @request.auth.id)",
+        "create": "@request.auth.id != '' && tenant_id = @request.auth.tenant_id && (@request.auth.perfil = 'admin_rh' || @request.auth.perfil = 'admin')",
+        "update": "@request.auth.id != '' && tenant_id = @request.auth.tenant_id && (@request.auth.perfil = 'admin_rh' || @request.auth.perfil = 'admin')",
+        "delete": "@request.auth.id != '' && tenant_id = @request.auth.tenant_id && (@request.auth.perfil = 'admin_rh' || @request.auth.perfil = 'admin')"
       },
       "fields": [
         {
@@ -1704,11 +1704,11 @@
       "name": "lancamento_pontual",
       "type": "base",
       "apiRules": {
-        "list": "@request.auth.id != '' && tenant_id = @request.auth.tenant_id && (@request.auth.perfil = 'rh' || @request.auth.perfil = 'admin' || colaborador_id.user_id = @request.auth.id)",
-        "view": "@request.auth.id != '' && tenant_id = @request.auth.tenant_id && (@request.auth.perfil = 'rh' || @request.auth.perfil = 'admin' || colaborador_id.user_id = @request.auth.id)",
-        "create": "@request.auth.id != '' && tenant_id = @request.auth.tenant_id && (@request.auth.perfil = 'rh' || @request.auth.perfil = 'admin')",
-        "update": "@request.auth.id != '' && tenant_id = @request.auth.tenant_id && (@request.auth.perfil = 'rh' || @request.auth.perfil = 'admin')",
-        "delete": "@request.auth.id != '' && tenant_id = @request.auth.tenant_id && (@request.auth.perfil = 'rh' || @request.auth.perfil = 'admin')"
+        "list": "@request.auth.id != '' && tenant_id = @request.auth.tenant_id && (@request.auth.perfil = 'rh' || @request.auth.perfil = 'admin_rh' || @request.auth.perfil = 'admin' || colaborador_id.user_id = @request.auth.id)",
+        "view": "@request.auth.id != '' && tenant_id = @request.auth.tenant_id && (@request.auth.perfil = 'rh' || @request.auth.perfil = 'admin_rh' || @request.auth.perfil = 'admin' || colaborador_id.user_id = @request.auth.id)",
+        "create": "@request.auth.id != '' && tenant_id = @request.auth.tenant_id && (@request.auth.perfil = 'admin_rh' || @request.auth.perfil = 'admin')",
+        "update": "@request.auth.id != '' && tenant_id = @request.auth.tenant_id && (@request.auth.perfil = 'admin_rh' || @request.auth.perfil = 'admin')",
+        "delete": "@request.auth.id != '' && tenant_id = @request.auth.tenant_id && (@request.auth.perfil = 'admin_rh' || @request.auth.perfil = 'admin')"
       },
       "fields": [
         {

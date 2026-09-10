@@ -3,14 +3,21 @@ import { Navigate, useLocation } from 'react-router-dom'
 import { useAuth } from '@/context/AuthContext'
 import { UserPerfil, PROFILE_HOME_MAP } from '@/types'
 import { Skeleton } from '@/components/ui/skeleton'
+import { usePermission } from '@/hooks/usePermission'
 
 interface ProtectedRouteProps {
   children: React.ReactNode
   allowedProfiles?: UserPerfil[]
+  minProfile?: UserPerfil
 }
 
-export const ProtectedRoute: React.FC<ProtectedRouteProps> = ({ children, allowedProfiles }) => {
+export const ProtectedRoute: React.FC<ProtectedRouteProps> = ({
+  children,
+  allowedProfiles,
+  minProfile,
+}) => {
   const { user, isLoading, isAuthenticated } = useAuth()
+  const { hasAnyPerfil, hasMinPerfil } = usePermission()
   const location = useLocation()
 
   if (isLoading) {
@@ -30,11 +37,17 @@ export const ProtectedRoute: React.FC<ProtectedRouteProps> = ({ children, allowe
     return <Navigate to="/login" state={{ from: location }} replace />
   }
 
-  // Profile-based route protection
-  if (allowedProfiles && allowedProfiles.length > 0 && !allowedProfiles.includes(user.perfil)) {
-    // Redirect to profile home
-    const profileHome = PROFILE_HOME_MAP[user.perfil] || '/portal'
-    return <Navigate to={profileHome} replace />
+  // Profile-based route protection (by allowed list or minimum hierarchy)
+  if (allowedProfiles && allowedProfiles.length > 0) {
+    if (!hasAnyPerfil(allowedProfiles)) {
+      const profileHome = PROFILE_HOME_MAP[user.perfil] || '/portal'
+      return <Navigate to={profileHome} replace />
+    }
+  } else if (minProfile) {
+    if (!hasMinPerfil(minProfile)) {
+      const profileHome = PROFILE_HOME_MAP[user.perfil] || '/portal'
+      return <Navigate to={profileHome} replace />
+    }
   }
 
   return <>{children}</>

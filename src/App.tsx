@@ -64,6 +64,7 @@ function RootRedirect() {
     case 'gestor':
       return <Navigate to="/dashboard-equipe" replace />
     case 'rh':
+    case 'admin_rh':
       return <Navigate to="/dashboard" replace />
     case 'admin':
       return <Navigate to="/admin" replace />
@@ -106,7 +107,9 @@ const App = () => (
             <Route
               path="/portal"
               element={
-                <ProtectedRoute allowedProfiles={['colaborador', 'gestor', 'rh', 'admin']}>
+                <ProtectedRoute
+                  allowedProfiles={['colaborador', 'gestor', 'rh', 'admin_rh', 'admin']}
+                >
                   <PortalColaborador />
                 </ProtectedRoute>
               }
@@ -116,54 +119,54 @@ const App = () => (
             <Route
               path="/dashboard-equipe"
               element={
-                <ProtectedRoute allowedProfiles={['gestor', 'rh', 'admin']}>
+                <ProtectedRoute allowedProfiles={['gestor', 'rh', 'admin_rh', 'admin']}>
                   <DashboardEquipe />
                 </ProtectedRoute>
               }
             />
 
-            {/* RH Home - Rota canônica /dashboard e redirect de /dashboard-rh */}
+            {/* RH Home - Rota canônica /dashboard ('rh', 'admin_rh', 'admin') */}
             <Route
               path="/dashboard"
               element={
-                <ProtectedRoute allowedProfiles={['rh', 'admin']}>
+                <ProtectedRoute allowedProfiles={['rh', 'admin_rh', 'admin']}>
                   <DashboardRH />
                 </ProtectedRoute>
               }
             />
             <Route path="/dashboard-rh" element={<Navigate to="/dashboard" replace />} />
 
-            {/* Pendências Documentais (RH & Admin) */}
+            {/* Pendências Documentais ('rh', 'admin_rh', 'admin') */}
             <Route
               path="/pendencias-documentais"
               element={
-                <ProtectedRoute allowedProfiles={['rh', 'admin']}>
+                <ProtectedRoute allowedProfiles={['rh', 'admin_rh', 'admin']}>
                   <PendenciasDocumentaisPage />
                 </ProtectedRoute>
               }
             />
 
-            {/* Comunicados (RH & Admin) - Prompt 16 */}
+            {/* Comunicados Gestão ('rh', 'admin_rh', 'admin') */}
             <Route
               path="/comunicados/gestao"
               element={
-                <ProtectedRoute allowedProfiles={['rh', 'admin']}>
+                <ProtectedRoute allowedProfiles={['rh', 'admin_rh', 'admin']}>
                   <GestaoComunicadosPage />
                 </ProtectedRoute>
               }
             />
 
-            {/* Aprovação de Alterações Cadastrais (RH & Admin) - Prompt 16 */}
+            {/* Aprovação de Alterações Cadastrais ('rh', 'admin_rh', 'admin') */}
             <Route
               path="/alteracoes/pendentes"
               element={
-                <ProtectedRoute allowedProfiles={['rh', 'admin']}>
+                <ProtectedRoute allowedProfiles={['rh', 'admin_rh', 'admin']}>
                   <AlteracoesPendentesPage />
                 </ProtectedRoute>
               }
             />
 
-            {/* Menu de Administração (Admin) - Prompt 16 */}
+            {/* Menu de Administração - Configurações e Usuários: APENAS 'admin' */}
             <Route
               path="/admin"
               element={
@@ -188,10 +191,11 @@ const App = () => (
                 </ProtectedRoute>
               }
             />
+            {/* Logs de Auditoria: 'admin_rh' e 'admin' */}
             <Route
               path="/admin/logs"
               element={
-                <ProtectedRoute allowedProfiles={['admin']}>
+                <ProtectedRoute allowedProfiles={['admin_rh', 'admin']}>
                   <AdminLogsPage />
                 </ProtectedRoute>
               }
@@ -205,11 +209,11 @@ const App = () => (
               }
             />
 
-            {/* Gestão de Talentos (RH & Admin) */}
+            {/* Gestão de Talentos ('rh', 'admin_rh', 'admin') */}
             <Route
               path="/vagas"
               element={
-                <ProtectedRoute allowedProfiles={['rh', 'admin']}>
+                <ProtectedRoute allowedProfiles={['rh', 'admin_rh', 'admin']}>
                   <VagasPage />
                 </ProtectedRoute>
               }
@@ -217,17 +221,17 @@ const App = () => (
             <Route
               path="/candidatos"
               element={
-                <ProtectedRoute allowedProfiles={['rh', 'admin']}>
+                <ProtectedRoute allowedProfiles={['rh', 'admin_rh', 'admin']}>
                   <CandidatosPage />
                 </ProtectedRoute>
               }
             />
 
-            {/* Gestão de Pessoas (Base de Colaboradores e Documentos restrita a RH e Admin) */}
+            {/* Gestão de Pessoas - Base de Colaboradores e Documentos ('rh', 'admin_rh', 'admin') */}
             <Route
               path="/colaboradores"
               element={
-                <ProtectedRoute allowedProfiles={['rh', 'admin']}>
+                <ProtectedRoute allowedProfiles={['rh', 'admin_rh', 'admin']}>
                   <ColaboradoresPage />
                 </ProtectedRoute>
               }
@@ -235,7 +239,7 @@ const App = () => (
             <Route
               path="/documentos"
               element={
-                <ProtectedRoute allowedProfiles={['rh', 'admin']}>
+                <ProtectedRoute allowedProfiles={['rh', 'admin_rh', 'admin']}>
                   <GestaoDocumentosPage />
                 </ProtectedRoute>
               }
@@ -243,33 +247,37 @@ const App = () => (
             <Route
               path="/estrutura"
               element={
-                <ProtectedRoute allowedProfiles={['gestor', 'rh', 'admin']}>
+                <ProtectedRoute allowedProfiles={['gestor', 'rh', 'admin_rh', 'admin']}>
                   <EstruturaPage />
                 </ProtectedRoute>
               }
             />
 
-            {/* Gestão do Tempo (Colaborador, Gestor, RH & Admin) */}
+            {/* Gestão do Tempo */}
             <Route
               path="/ponto"
               element={
-                <ProtectedRoute allowedProfiles={['colaborador', 'gestor', 'rh', 'admin']}>
+                <ProtectedRoute
+                  allowedProfiles={['colaborador', 'gestor', 'rh', 'admin_rh', 'admin']}
+                >
                   <PontoPage />
                 </ProtectedRoute>
               }
             />
+            {/* Ponto Gestão ('gestor', 'rh', 'admin_rh', 'admin') */}
             <Route
               path="/ponto/gestao"
               element={
-                <ProtectedRoute allowedProfiles={['rh', 'admin', 'gestor']}>
+                <ProtectedRoute allowedProfiles={['gestor', 'rh', 'admin_rh', 'admin']}>
                   <GestaoPontoPage />
                 </ProtectedRoute>
               }
             />
+            {/* Escalas de Trabalho: 'admin_rh' e 'admin' */}
             <Route
               path="/escalas"
               element={
-                <ProtectedRoute allowedProfiles={['rh', 'admin']}>
+                <ProtectedRoute allowedProfiles={['admin_rh', 'admin']}>
                   <EscalasPage />
                 </ProtectedRoute>
               }
@@ -279,7 +287,9 @@ const App = () => (
             <Route
               path="/documentos-importantes"
               element={
-                <ProtectedRoute allowedProfiles={['colaborador', 'gestor', 'rh', 'admin']}>
+                <ProtectedRoute
+                  allowedProfiles={['colaborador', 'gestor', 'rh', 'admin_rh', 'admin']}
+                >
                   <DocumentosImportantesPage />
                 </ProtectedRoute>
               }
@@ -287,7 +297,9 @@ const App = () => (
             <Route
               path="/meus-documentos"
               element={
-                <ProtectedRoute allowedProfiles={['colaborador', 'gestor', 'rh', 'admin']}>
+                <ProtectedRoute
+                  allowedProfiles={['colaborador', 'gestor', 'rh', 'admin_rh', 'admin']}
+                >
                   <DocumentosPage />
                 </ProtectedRoute>
               }
@@ -295,7 +307,9 @@ const App = () => (
             <Route
               path="/meu-perfil"
               element={
-                <ProtectedRoute allowedProfiles={['colaborador', 'gestor', 'rh', 'admin']}>
+                <ProtectedRoute
+                  allowedProfiles={['colaborador', 'gestor', 'rh', 'admin_rh', 'admin']}
+                >
                   <MeuPerfilPage />
                 </ProtectedRoute>
               }
@@ -303,24 +317,37 @@ const App = () => (
             <Route
               path="/minhas-ferias"
               element={
-                <ProtectedRoute allowedProfiles={['colaborador', 'gestor', 'rh', 'admin']}>
+                <ProtectedRoute
+                  allowedProfiles={['colaborador', 'gestor', 'rh', 'admin_rh', 'admin']}
+                >
                   <FeriasPage />
+                </ProtectedRoute>
+              }
+            />
+            {/* Férias Aprovações ('gestor', 'rh', 'admin_rh', 'admin') */}
+            <Route
+              path="/ferias/aprovacoes"
+              element={
+                <ProtectedRoute allowedProfiles={['gestor', 'rh', 'admin_rh', 'admin']}>
+                  <DashboardEquipe />
                 </ProtectedRoute>
               }
             />
             <Route
               path="/beneficios"
               element={
-                <ProtectedRoute allowedProfiles={['colaborador', 'gestor', 'rh', 'admin']}>
+                <ProtectedRoute
+                  allowedProfiles={['colaborador', 'gestor', 'rh', 'admin_rh', 'admin']}
+                >
                   <BeneficiosPage />
                 </ProtectedRoute>
               }
             />
-            {/* Gestão de Benefícios exclusiva para RH e Admin */}
+            {/* Gestão de Benefícios ('rh', 'admin_rh', 'admin') */}
             <Route
               path="/beneficios/gestao"
               element={
-                <ProtectedRoute allowedProfiles={['rh', 'admin']}>
+                <ProtectedRoute allowedProfiles={['rh', 'admin_rh', 'admin']}>
                   <GestaoBeneficiosPage />
                 </ProtectedRoute>
               }
@@ -328,26 +355,30 @@ const App = () => (
             <Route
               path="/atestados"
               element={
-                <ProtectedRoute allowedProfiles={['colaborador', 'gestor', 'rh', 'admin']}>
+                <ProtectedRoute
+                  allowedProfiles={['colaborador', 'gestor', 'rh', 'admin_rh', 'admin']}
+                >
                   <AtestadosPage />
                 </ProtectedRoute>
               }
             />
-            {/* Validação de Atestados para RH e Admin */}
+            {/* Validação de Atestados ('rh', 'admin_rh', 'admin') */}
             <Route
               path="/atestados/validacao"
               element={
-                <ProtectedRoute allowedProfiles={['rh', 'admin']}>
+                <ProtectedRoute allowedProfiles={['rh', 'admin_rh', 'admin']}>
                   <ValidacaoAtestadosPage />
                 </ProtectedRoute>
               }
             />
 
-            {/* Avaliação de Desempenho (Prompt 13) */}
+            {/* Avaliação de Desempenho */}
             <Route
               path="/avaliacoes"
               element={
-                <ProtectedRoute allowedProfiles={['colaborador', 'gestor', 'rh', 'admin']}>
+                <ProtectedRoute
+                  allowedProfiles={['colaborador', 'gestor', 'rh', 'admin_rh', 'admin']}
+                >
                   <MinhasAvaliacoesPage />
                 </ProtectedRoute>
               }
@@ -355,43 +386,47 @@ const App = () => (
             <Route
               path="/minha-equipe"
               element={
-                <ProtectedRoute allowedProfiles={['gestor', 'rh', 'admin']}>
+                <ProtectedRoute allowedProfiles={['gestor', 'rh', 'admin_rh', 'admin']}>
                   <MinhaEquipePage />
                 </ProtectedRoute>
               }
             />
+            {/* Avaliações Admin (Ciclos e Competências): 'admin_rh' e 'admin' */}
             <Route
               path="/avaliacoes/admin"
               element={
-                <ProtectedRoute allowedProfiles={['rh', 'admin']}>
+                <ProtectedRoute allowedProfiles={['admin_rh', 'admin']}>
                   <AvaliacoesAdminPage />
                 </ProtectedRoute>
               }
             />
 
-            {/* Relatórios e Exportações (RH & Admin) */}
+            {/* Relatórios e Exportações ('rh', 'admin_rh', 'admin') */}
             <Route
               path="/relatorios"
               element={
-                <ProtectedRoute allowedProfiles={['rh', 'admin']}>
+                <ProtectedRoute allowedProfiles={['rh', 'admin_rh', 'admin']}>
                   <RelatoriosPage />
                 </ProtectedRoute>
               }
             />
 
-            {/* Folha de Pagamento & Demonstrativos (Prompt 15) */}
+            {/* Folha de Pagamento & Demonstrativos */}
             <Route
               path="/demonstrativo"
               element={
-                <ProtectedRoute allowedProfiles={['colaborador', 'gestor', 'rh', 'admin']}>
+                <ProtectedRoute
+                  allowedProfiles={['colaborador', 'gestor', 'rh', 'admin_rh', 'admin']}
+                >
                   <DemonstrativoPage />
                 </ProtectedRoute>
               }
             />
+            {/* Folha Gestão: 'admin_rh' e 'admin' */}
             <Route
               path="/folha/gestao"
               element={
-                <ProtectedRoute allowedProfiles={['rh', 'admin']}>
+                <ProtectedRoute allowedProfiles={['admin_rh', 'admin']}>
                   <GestaoFolhaPage />
                 </ProtectedRoute>
               }

@@ -61,7 +61,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
   const sections: PillarSection[] = [
     {
       title: 'Principal',
-      allowedProfiles: ['colaborador', 'gestor', 'rh', 'admin'],
+      allowedProfiles: ['colaborador', 'gestor', 'rh', 'admin_rh', 'admin'],
       items: [
         {
           title:
@@ -69,7 +69,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
               ? 'Meu Portal'
               : perfil === 'gestor'
                 ? 'Painel da Equipe'
-                : perfil === 'rh'
+                : perfil === 'rh' || perfil === 'admin_rh'
                   ? 'Painel RH'
                   : 'Painel Geral',
           path: PROFILE_HOME_MAP[perfil],
@@ -104,7 +104,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
     },
     {
       title: 'Gestão de Talentos',
-      allowedProfiles: ['rh', 'admin'],
+      allowedProfiles: ['rh', 'admin_rh', 'admin'],
       items: [
         { title: 'Vagas', path: '/vagas', icon: Briefcase },
         { title: 'Candidatos', path: '/candidatos', icon: UserCheck },
@@ -112,15 +112,21 @@ export const Sidebar: React.FC<SidebarProps> = ({
     },
     {
       title: 'Gestão de Pessoas',
-      allowedProfiles: ['gestor', 'rh', 'admin'],
+      allowedProfiles: ['gestor', 'rh', 'admin_rh', 'admin'],
       items: [
-        ...(perfil === 'rh' || perfil === 'admin'
+        ...(perfil === 'rh' || perfil === 'admin_rh' || perfil === 'admin'
           ? [
               { title: 'Colaboradores', path: '/colaboradores', icon: Users },
-              { title: 'Gestão da Folha', path: '/folha/gestao', icon: Briefcase },
+              // Gestão da Folha visível apenas para admin_rh e admin
+              ...(perfil === 'admin_rh' || perfil === 'admin'
+                ? [{ title: 'Gestão da Folha', path: '/folha/gestao', icon: Briefcase }]
+                : []),
               { title: 'Comunicados', path: '/comunicados/gestao', icon: Megaphone },
               { title: 'Alterações Pendentes', path: '/alteracoes/pendentes', icon: UserCog },
-              { title: 'Avaliações Admin', path: '/avaliacoes/admin', icon: Award },
+              // Avaliações Admin (ciclos e competências) visível para admin_rh e admin
+              ...(perfil === 'admin_rh' || perfil === 'admin'
+                ? [{ title: 'Avaliações Admin', path: '/avaliacoes/admin', icon: Award }]
+                : []),
               { title: 'Pendências Docs', path: '/pendencias-documentais', icon: FileWarning },
               { title: 'Documentos', path: '/documentos', icon: FolderOpen },
               { title: 'Gestão Benefícios', path: '/beneficios/gestao', icon: Gift },
@@ -140,25 +146,35 @@ export const Sidebar: React.FC<SidebarProps> = ({
     },
     {
       title: 'Gestão do Tempo',
-      allowedProfiles: ['colaborador', 'gestor', 'rh', 'admin'],
+      allowedProfiles: ['colaborador', 'gestor', 'rh', 'admin_rh', 'admin'],
       items: [
         { title: 'Meu Ponto', path: '/ponto', icon: Clock },
-        ...(perfil === 'rh' || perfil === 'admin' || perfil === 'gestor'
+        ...(perfil === 'rh' || perfil === 'admin_rh' || perfil === 'admin' || perfil === 'gestor'
           ? [{ title: 'Gestão de Ponto', path: '/ponto/gestao', icon: CheckCircle2 }]
           : []),
-        ...(perfil === 'rh' || perfil === 'admin'
+        // Escalas visível para admin_rh e admin
+        ...(perfil === 'admin_rh' || perfil === 'admin'
           ? [{ title: 'Escalas', path: '/escalas', icon: CalendarDays }]
           : []),
       ],
     },
     {
       title: 'Administração',
-      allowedProfiles: ['admin'],
+      allowedProfiles: ['admin_rh', 'admin'],
       items: [
-        { title: 'Configurações da Empresa', path: '/admin/configuracoes', icon: Building },
-        { title: 'Usuários e Permissões', path: '/admin/usuarios', icon: Users },
+        // Configurações da Empresa e Usuários e Permissões: APENAS 'admin'
+        ...(perfil === 'admin'
+          ? [
+              { title: 'Configurações da Empresa', path: '/admin/configuracoes', icon: Building },
+              { title: 'Usuários e Permissões', path: '/admin/usuarios', icon: Users },
+            ]
+          : []),
+        // Logs de Auditoria: 'admin_rh' e 'admin'
         { title: 'Logs de Auditoria', path: '/admin/logs', icon: ShieldCheck },
-        { title: 'Gestão de Tenant (SaaS)', path: '/admin/tenant', icon: Building2 },
+        // Gestão de Tenant: APENAS 'admin'
+        ...(perfil === 'admin'
+          ? [{ title: 'Gestão de Tenant (SaaS)', path: '/admin/tenant', icon: Building2 }]
+          : []),
       ],
     },
   ]
