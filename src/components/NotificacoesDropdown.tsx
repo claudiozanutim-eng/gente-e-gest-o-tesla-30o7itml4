@@ -83,8 +83,10 @@ export const NotificacoesDropdown: React.FC = () => {
 
     if (!user?.id) return
 
-    // Assinar mudanças via Realtime do PocketBase
-    let unsubscribeFn: (() => void) | undefined
+    // Assinar mudanças via Realtime do PocketBase com tratamento seguro de ciclo de vida
+    let unsubscribeFn: (() => Promise<void> | void) | undefined
+    let cancelada = false
+
     pb.collection('notificacao')
       .subscribe('*', (e) => {
         if (e.record && (e.record.destinatario_id === user.id || !e.record.destinatario_id)) {
@@ -92,15 +94,37 @@ export const NotificacoesDropdown: React.FC = () => {
         }
       })
       .then((unsub) => {
-        unsubscribeFn = unsub
+        if (cancelada) {
+          try {
+            const res = unsub()
+            if (res && typeof res.catch === 'function') {
+              res.catch(() => {})
+            }
+          } catch {
+            // Ignora erro ao desinscrever se desmontado
+          }
+        } else {
+          unsubscribeFn = unsub
+        }
       })
       .catch((err) => {
-        console.warn('Realtime para notificações indisponível:', err)
+        // Log discreto — serviço se auto-recupera via fallback
+        if (import.meta.env.DEV) {
+          console.debug('Realtime para notificações temporariamente indisponível:', err)
+        }
       })
 
     return () => {
+      cancelada = true
       if (unsubscribeFn) {
-        unsubscribeFn()
+        try {
+          const res = unsubscribeFn()
+          if (res && typeof res.catch === 'function') {
+            res.catch(() => {})
+          }
+        } catch {
+          // Ignora silenciosamente erros no cleanup
+        }
       } else {
         pb.collection('notificacao')
           .unsubscribe('*')
