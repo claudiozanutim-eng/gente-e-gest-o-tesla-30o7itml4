@@ -334,7 +334,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
             <p className="text-[11px] text-[#757575] leading-snug font-medium">Tesla Mecatrônica</p>
           </div>
           <p className="text-[10px] font-medium text-[#0D47A1]" title="Versão do Sistema">
-            Tesla RH v0.0.24
+            Tesla RH v0.0.25
           </p>
         </div>
       )}

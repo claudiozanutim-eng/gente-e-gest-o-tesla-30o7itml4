@@ -13,10 +13,25 @@ import {
   RefreshCw,
   Search,
   Filter,
-  Info,
-  Layers,
-  ArrowUpRight,
+  CheckCircle2,
+  XCircle,
+  AlertCircle,
+  BarChart2,
+  PieChart as PieChartIcon,
 } from 'lucide-react'
+import {
+  BarChart,
+  Bar,
+  XAxis,
+  YAxis,
+  CartesianGrid,
+  Tooltip as RechartsTooltip,
+  ResponsiveContainer,
+  PieChart,
+  Pie,
+  Cell,
+  Legend,
+} from 'recharts'
 import { useAuth } from '@/context/AuthContext'
 import {
   colaboradorService,
@@ -25,7 +40,16 @@ import {
   atestadoService,
 } from '@/services/api'
 import { feriasService } from '@/services/feriasService'
-import { Colaborador, Documento, CienciaDocumento, Atestado } from '@/types'
+import { bancoHorasService } from '@/services/bancoHorasService'
+import { compensacaoService } from '@/services/compensacaoService'
+import {
+  Colaborador,
+  Documento,
+  CienciaDocumento,
+  Atestado,
+  BancoHorasFechamento,
+  CompensacaoBancoHoras,
+} from '@/types'
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card'
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs'
 import { Badge } from '@/components/ui/badge'
@@ -37,6 +61,8 @@ import { ReportExportActions } from '@/components/relatorios/ReportExportActions
 import { ColumnDefinition, formatDataPtBr } from '@/lib/exportReports'
 
 export type RelatorioTab =
+  | 'banco_horas'
+  | 'compensacoes'
   | 'admissoes'
   | 'desligamentos'
   | 'turnover'
@@ -47,18 +73,44 @@ export type RelatorioTab =
   | 'documentos'
   | 'horas_extras'
 
+export interface BancoHorasReportRow {
+  colaborador: string
+  cpf: string
+  departamento: string
+  cargo: string
+  saldoPeriodoHoras: number
+  saldoPeriodoFormatado: string
+  saldoAcumuladoHoras: number
+  saldoAcumuladoFormatado: string
+  fechamentosNoPeriodo: string
+}
+
+export interface CompensacaoReportRow {
+  colaborador: string
+  cpf: string
+  departamento: string
+  cargo: string
+  data: string
+  horas: number
+  motivo: string
+  status: string
+  dataResposta: string
+  parecer: string
+}
+
 export default function RelatoriosPage() {
   const { user } = useAuth()
   const tenantId = user?.tenant_id
 
-  // Tab ativa
-  const [activeTab, setActiveTab] = useState<RelatorioTab>('admissoes')
+  // Tab ativa: iniciar por padrão em 'banco_horas'
+  const [activeTab, setActiveTab] = useState<RelatorioTab>('banco_horas')
 
   // Filtros de período (Ano corrente por padrão)
   const currentYear = new Date().getFullYear()
   const [dataInicio, setDataInicio] = useState<string>(`${currentYear}-01-01`)
   const [dataFim, setDataFim] = useState<string>(`${currentYear}-12-31`)
   const [filtroDepto, setFiltroDepto] = useState<string>('todos')
+  const [filtroStatusComp, setFiltroStatusComp] = useState<string>('todos')
   const [busca, setBusca] = useState<string>('')
 
   // Dados do tenant
@@ -67,22 +119,29 @@ export default function RelatoriosPage() {
   const [documentos, setDocumentos] = useState<Documento[]>([])
   const [ciencias, setCiencias] = useState<CienciaDocumento[]>([])
   const [atestados, setAtestados] = useState<Atestado[]>([])
+  const [fechamentosBanco, setFechamentosBanco] = useState<BancoHorasFechamento[]>([])
+  const [compensacoes, setCompensacoes] = useState<CompensacaoBancoHoras[]>([])
 
   const carregarDados = useCallback(async () => {
     if (!tenantId) return
     try {
       setLoading(true)
-      const [colabs, docs, cienciasList, atestadosList] = await Promise.all([
-        colaboradorService.getColaboradores(tenantId),
-        documentoService.getDocumentos(tenantId),
-        cienciaDocumentoService.getCienciasTenant(tenantId),
-        atestadoService.getAtestadosTenant(tenantId),
-      ])
+      const [colabs, docs, cienciasList, atestadosList, fechamentosList, compensacoesList] =
+        await Promise.all([
+          colaboradorService.getColaboradores(tenantId),
+          documentoService.getDocumentos(tenantId),
+          cienciaDocumentoService.getCienciasTenant(tenantId),
+          atestadoService.getAtestadosTenant(tenantId),
+          bancoHorasService.getAllFechamentosTenant(tenantId).catch(() => []),
+          compensacaoService.getCompensacoesTenant(tenantId).catch(() => []),
+        ])
 
       setColaboradores(colabs)
       setDocumentos(docs)
       setCiencias(cienciasList)
       setAtestados(atestadosList)
+      setFechamentosBanco(fechamentosList)
+      setCompensacoes(compensacoesList)
     } catch (err) {
       console.error('Erro ao carregar dados para relatórios:', err)
     } finally {
@@ -127,8 +186,262 @@ export default function RelatoriosPage() {
   )
 
   // -------------------------------------------------------------
-  // 1. RELATÓRIO: Admissões
+  // RELATÓRIO 1: BANCO DE HORAS
   // -------------------------------------------------------------
+  const dadosBancoHoras = useMemo<BancoHorasReportRow[]>(() => {
+    const termo = busca.trim().toLowerCase()
+    const colabsAtivos = colaboradores.filter((c) => c.status === 'ativo')
+
+    const inicioComp = dataInicio.slice(0, 7) // "YYYY-MM"
+    const fimComp = dataFim.slice(0, 7)
+
+    return colabsAtivos
+      .filter((c) => {
+        if (filtroDepto !== 'todos' && c.departamento !== filtroDepto) return false
+        if (termo) {
+          const matchNome = (c.nome || '').toLowerCase().includes(termo)
+          const matchCargo = (c.cargo || '').toLowerCase().includes(termo)
+          const matchCpf = (c.cpf || '').includes(termo)
+          return matchNome || matchCargo || matchCpf
+        }
+        return true
+      })
+      .map((c) => {
+        // Fechamentos do colaborador
+        const todosFechamentosColab = fechamentosBanco.filter((f) => f.colaborador_id === c.id)
+
+        // Fechamentos que caem no período
+        const fechamentosPeriodo = todosFechamentosColab.filter(
+          (f) => f.competencia >= inicioComp && f.competencia <= fimComp,
+        )
+
+        // Compensações aprovadas do colaborador
+        const todasCompAprovadas = compensacoes.filter(
+          (comp) => comp.colaborador_id === c.id && comp.status === 'aprovada',
+        )
+        const compPeriodo = todasCompAprovadas.filter((comp) =>
+          isInPeriod(comp.data_compensacao || comp.created),
+        )
+
+        // Saldo no período: soma saldo_ms dos fechamentos no período menos horas compensadas no período
+        const saldoFechamentosPeriodoMs = fechamentosPeriodo.reduce(
+          (acc, f) => acc + (f.saldo_ms || 0),
+          0,
+        )
+        const horasCompensadasPeriodo = compPeriodo.reduce(
+          (acc, comp) => acc + (comp.horas || 0),
+          0,
+        )
+        const saldoPeriodoHoras =
+          Math.round(
+            (saldoFechamentosPeriodoMs / (1000 * 60 * 60) - horasCompensadasPeriodo) * 10,
+          ) / 10
+
+        // Saldo acumulado histórico total
+        const saldoFechamentosTotalMs = todosFechamentosColab.reduce(
+          (acc, f) => acc + (f.saldo_ms || 0),
+          0,
+        )
+        const horasCompensadasTotal = todasCompAprovadas.reduce(
+          (acc, comp) => acc + (comp.horas || 0),
+          0,
+        )
+        const saldoAcumuladoHoras =
+          Math.round((saldoFechamentosTotalMs / (1000 * 60 * 60) - horasCompensadasTotal) * 10) / 10
+
+        // Competências fechadas no período
+        const compsFormatadas = fechamentosPeriodo
+          .map((f) => bancoHorasService.formatarCompetenciaLabel(f.competencia))
+          .join(', ')
+
+        const formatarSinal = (val: number) => {
+          if (val > 0) return `+${val.toFixed(1)}h`
+          if (val < 0) return `${val.toFixed(1)}h`
+          return '0.0h'
+        }
+
+        return {
+          colaborador: c.nome,
+          cpf: c.cpf || '-',
+          departamento: c.departamento || '-',
+          cargo: c.cargo || '-',
+          saldoPeriodoHoras,
+          saldoPeriodoFormatado: formatarSinal(saldoPeriodoHoras),
+          saldoAcumuladoHoras,
+          saldoAcumuladoFormatado: formatarSinal(saldoAcumuladoHoras),
+          fechamentosNoPeriodo: compsFormatadas || 'Nenhum fechamento',
+        }
+      })
+      .sort((a, b) => b.saldoAcumuladoHoras - a.saldoAcumuladoHoras)
+  }, [
+    colaboradores,
+    fechamentosBanco,
+    compensacoes,
+    dataInicio,
+    dataFim,
+    isInPeriod,
+    filtroDepto,
+    busca,
+  ])
+
+  const colunasBancoHoras: ColumnDefinition<BancoHorasReportRow>[] = [
+    { header: 'Colaborador', key: 'colaborador', width: 25 },
+    { header: 'Departamento', key: 'departamento', width: 20 },
+    { header: 'Cargo', key: 'cargo', width: 20 },
+    { header: 'Saldo do Período (h)', key: 'saldoPeriodoFormatado', width: 18 },
+    { header: 'Saldo Acumulado (h)', key: 'saldoAcumuladoFormatado', width: 18 },
+    { header: 'Fechamentos no Período', key: 'fechamentosNoPeriodo', width: 30 },
+  ]
+
+  // Gráfico do Banco de Horas: Saldo acumulado médio ou total por departamento
+  const dadosGraficoBancoHoras = useMemo(() => {
+    const mapaDeptos: Record<string, { totalSaldo: number; count: number }> = {}
+
+    dadosBancoHoras.forEach((item) => {
+      const depto = item.departamento || 'Outros'
+      if (!mapaDeptos[depto]) {
+        mapaDeptos[depto] = { totalSaldo: 0, count: 0 }
+      }
+      mapaDeptos[depto].totalSaldo += item.saldoAcumuladoHoras
+      mapaDeptos[depto].count++
+    })
+
+    return Object.entries(mapaDeptos).map(([depto, info]) => ({
+      departamento: depto,
+      saldoTotal: Math.round(info.totalSaldo * 10) / 10,
+      saldoMedio: Math.round((info.totalSaldo / Math.max(1, info.count)) * 10) / 10,
+      colaboradores: info.count,
+    }))
+  }, [dadosBancoHoras])
+
+  // -------------------------------------------------------------
+  // RELATÓRIO 2: COMPENSAÇÕES
+  // -------------------------------------------------------------
+  const dadosCompensacoes = useMemo<CompensacaoReportRow[]>(() => {
+    const termo = busca.trim().toLowerCase()
+    const colabMap = new Map<string, Colaborador>()
+    colaboradores.forEach((c) => colabMap.set(c.id, c))
+
+    return compensacoes
+      .filter((comp) => {
+        // Filtro de período pela data de compensação ou criação
+        const dataRef = comp.data_compensacao || comp.created
+        if (!isInPeriod(dataRef)) return false
+
+        // Filtro de status
+        if (filtroStatusComp !== 'todos' && comp.status !== filtroStatusComp) return false
+
+        const colab = colabMap.get(comp.colaborador_id)
+        if (filtroDepto !== 'todos' && colab?.departamento !== filtroDepto) return false
+
+        if (termo) {
+          const matchNome = (colab?.nome || '').toLowerCase().includes(termo)
+          const matchCargo = (colab?.cargo || '').toLowerCase().includes(termo)
+          const matchMotivo = (comp.motivo || '').toLowerCase().includes(termo)
+          const matchCpf = (colab?.cpf || '').includes(termo)
+          return matchNome || matchCargo || matchMotivo || matchCpf
+        }
+        return true
+      })
+      .map((comp) => {
+        const colab = colabMap.get(comp.colaborador_id)
+        let statusFormatado = 'Pendente'
+        if (comp.status === 'aprovada') statusFormatado = 'Aprovada'
+        else if (comp.status === 'recusada') statusFormatado = 'Recusada'
+
+        return {
+          colaborador: colab?.nome || 'Não identificado',
+          cpf: colab?.cpf || '-',
+          departamento: colab?.departamento || '-',
+          cargo: colab?.cargo || '-',
+          data: comp.data_compensacao || comp.created,
+          horas: comp.horas,
+          motivo: comp.motivo,
+          status: statusFormatado,
+          dataResposta: comp.data_resposta || '-',
+          parecer: comp.motivo_resposta || '-',
+        }
+      })
+      .sort((a, b) => new Date(b.data).getTime() - new Date(a.data).getTime())
+  }, [compensacoes, colaboradores, isInPeriod, filtroStatusComp, filtroDepto, busca])
+
+  const colunasCompensacoes: ColumnDefinition<CompensacaoReportRow>[] = [
+    { header: 'Colaborador', key: 'colaborador', width: 25 },
+    { header: 'Departamento', key: 'departamento', width: 20 },
+    { header: 'Data da Compensação', key: 'data', format: 'date', width: 16 },
+    { header: 'Horas', key: 'horas', format: 'number', width: 12 },
+    { header: 'Motivo', key: 'motivo', width: 28 },
+    { header: 'Status', key: 'status', width: 16 },
+    { header: 'Data da Resposta', key: 'dataResposta', format: 'date', width: 16 },
+    { header: 'Parecer', key: 'parecer', width: 28 },
+  ]
+
+  // Resumo de Horas Solicitadas, Aprovadas e Recusadas
+  const resumoCompensacoes = useMemo(() => {
+    let horasSolicitadas = 0
+    let horasAprovadas = 0
+    let horasRecusadas = 0
+    let qtdAprovadas = 0
+    let qtdPendentes = 0
+    let qtdRecusadas = 0
+
+    dadosCompensacoes.forEach((item) => {
+      horasSolicitadas += item.horas || 0
+      if (item.status === 'Aprovada') {
+        horasAprovadas += item.horas || 0
+        qtdAprovadas++
+      } else if (item.status === 'Recusada') {
+        horasRecusadas += item.horas || 0
+        qtdRecusadas++
+      } else {
+        qtdPendentes++
+      }
+    })
+
+    return {
+      horasSolicitadas: Math.round(horasSolicitadas * 10) / 10,
+      horasAprovadas: Math.round(horasAprovadas * 10) / 10,
+      horasRecusadas: Math.round(horasRecusadas * 10) / 10,
+      qtdAprovadas,
+      qtdPendentes,
+      qtdRecusadas,
+    }
+  }, [dadosCompensacoes])
+
+  // Gráfico pizza/barras de compensações por status
+  const dadosGraficoCompensacoes = useMemo(() => {
+    return [
+      {
+        name: 'Aprovadas',
+        horas: resumoCompensacoes.horasAprovadas,
+        quantidade: resumoCompensacoes.qtdAprovadas,
+        fill: '#2E7D32',
+      },
+      {
+        name: 'Pendentes',
+        horas:
+          Math.round(
+            (resumoCompensacoes.horasSolicitadas -
+              resumoCompensacoes.horasAprovadas -
+              resumoCompensacoes.horasRecusadas) *
+              10,
+          ) / 10,
+        quantidade: resumoCompensacoes.qtdPendentes,
+        fill: '#FB8C00',
+      },
+      {
+        name: 'Recusadas',
+        horas: resumoCompensacoes.horasRecusadas,
+        quantidade: resumoCompensacoes.qtdRecusadas,
+        fill: '#C62828',
+      },
+    ].filter((item) => item.quantidade > 0 || item.horas > 0)
+  }, [resumoCompensacoes])
+
+  // -------------------------------------------------------------
+  // 3. DEMAIS RELATÓRIOS EXISTENTES
+  // -------------------------------------------------------------
+  // Admissões
   const dadosAdmissoes = useMemo(() => {
     const termo = busca.trim().toLowerCase()
     return colaboradores
@@ -161,15 +474,12 @@ export default function RelatoriosPage() {
     },
   ]
 
-  // -------------------------------------------------------------
-  // 2. RELATÓRIO: Desligamentos
-  // -------------------------------------------------------------
+  // Desligamentos
   const dadosDesligamentos = useMemo(() => {
     const termo = busca.trim().toLowerCase()
     return colaboradores
       .filter((c) => {
         if (c.status !== 'inativo') return false
-        // Colaboradores inativos no período de atualização/saída
         const dataSaida = c.updated || c.created
         if (!isInPeriod(dataSaida)) return false
         if (filtroDepto !== 'todos' && c.departamento !== filtroDepto) return false
@@ -198,22 +508,19 @@ export default function RelatoriosPage() {
     { header: 'Tempo de Empresa', key: 'tempo_empresa', width: 18 },
   ]
 
-  // -------------------------------------------------------------
-  // 3. RELATÓRIO: Turnover (Rotatividade por Departamento)
-  // -------------------------------------------------------------
+  // Turnover
   interface TurnoverRow {
     departamento: string
     admissoes: number
     desligamentos: number
     ativosAtuais: number
     efetivoMedio: number
-    taxaTurnover: number // percentual ex: 5.2
+    taxaTurnover: number
   }
 
   const dadosTurnover = useMemo<TurnoverRow[]>(() => {
     const deptosMap: Record<string, { adm: number; des: number; ativos: number }> = {}
 
-    // Inicializa todos os departamentos
     departamentos.forEach((d) => {
       deptosMap[d] = { adm: 0, des: 0, ativos: 0 }
     })
@@ -241,12 +548,11 @@ export default function RelatoriosPage() {
       }
     })
 
-    const rows: TurnoverRow[] = Object.entries(deptosMap)
+    return Object.entries(deptosMap)
       .filter(
         ([depto]) => filtroDepto === 'todos' || depto === filtroDepto || depto === 'Geral (Tenant)',
       )
       .map(([depto, stats]) => {
-        // Fórmula oficial RH: ((Admissões + Desligamentos) / 2) / Efetivo Médio * 100
         const efetivoMedio = Math.max(1, stats.ativos)
         const taxa = ((stats.adm + stats.des) / 2 / efetivoMedio) * 100
         return {
@@ -258,8 +564,6 @@ export default function RelatoriosPage() {
           taxaTurnover: Math.round(taxa * 10) / 10,
         }
       })
-
-    return rows
   }, [colaboradores, departamentos, isInPeriod, filtroDepto])
 
   const colunasTurnover: ColumnDefinition<TurnoverRow>[] = [
@@ -271,9 +575,7 @@ export default function RelatoriosPage() {
     { header: 'Taxa de Turnover (%)', key: 'taxaTurnover', format: 'percent', width: 18 },
   ]
 
-  // -------------------------------------------------------------
-  // 4. RELATÓRIO: Absenteísmo (Faltas e Atestados Médicos)
-  // -------------------------------------------------------------
+  // Absenteísmo
   interface AbsenteismoRow {
     colaborador: string
     cpf: string
@@ -282,7 +584,7 @@ export default function RelatoriosPage() {
     totalAtestados: number
     totalDiasAfastamento: number
     diasUteisEstimados: number
-    taxaAbsenteismo: number // percentual ex: 4.5%
+    taxaAbsenteismo: number
   }
 
   const dadosAbsenteismo = useMemo<AbsenteismoRow[]>(() => {
@@ -312,7 +614,6 @@ export default function RelatoriosPage() {
       })
       .map((c) => {
         const stats = mapColabAtestados[c.id] || { count: 0, dias: 0 }
-        // Estimativa padrão de 22 dias úteis/mês
         const diasUteis = 22
         const taxa = diasUteis > 0 ? (stats.dias / diasUteis) * 100 : 0
         return {
@@ -339,9 +640,7 @@ export default function RelatoriosPage() {
     { header: 'Taxa de Absenteísmo (%)', key: 'taxaAbsenteismo', format: 'percent', width: 20 },
   ]
 
-  // -------------------------------------------------------------
-  // 5. RELATÓRIO: Férias (Vencimentos e Previsões CLT)
-  // -------------------------------------------------------------
+  // Férias
   interface FeriasRow {
     colaborador: string
     cpf: string
@@ -403,9 +702,7 @@ export default function RelatoriosPage() {
     { header: 'Situação', key: 'situacao', width: 20 },
   ]
 
-  // -------------------------------------------------------------
-  // 6. RELATÓRIO: Atestados
-  // -------------------------------------------------------------
+  // Atestados
   interface AtestadoRow {
     colaborador: string
     cpf: string
@@ -465,12 +762,10 @@ export default function RelatoriosPage() {
     { header: 'Qtd. Dias', key: 'qtdDias', format: 'number', width: 12 },
     { header: 'Status', key: 'status', width: 16 },
     { header: 'Data de Envio', key: 'dataEnvio', format: 'date', width: 16 },
-    { header: 'Comentário do RH', key: 'comentarioRh', width: 28 },
+    { header: 'Parecer RH', key: 'comentarioRh', width: 28 },
   ]
 
-  // -------------------------------------------------------------
-  // 7. RELATÓRIO: Ciências Pendentes (Compliance em Documentos Obrigatórios)
-  // -------------------------------------------------------------
+  // Ciências Pendentes
   interface CienciaPendenteRow {
     documento: string
     versao: string
@@ -500,7 +795,6 @@ export default function RelatoriosPage() {
 
       colabsAtivos.forEach((colab) => {
         if (!cientesSet.has(colab.id)) {
-          // Filtros
           if (filtroDepto !== 'todos' && colab.departamento !== filtroDepto) return
           if (termo) {
             const matchNome = (colab.nome || '').toLowerCase().includes(termo)
@@ -536,9 +830,7 @@ export default function RelatoriosPage() {
     { header: 'Data Publicação', key: 'dataPublicacao', format: 'date', width: 16 },
   ]
 
-  // -------------------------------------------------------------
-  // 8. RELATÓRIO: Documentos Pendentes (Documentação Admissional / Cadastral)
-  // -------------------------------------------------------------
+  // Documentos Pendentes
   interface DocPendenteRow {
     colaborador: string
     cpf: string
@@ -552,16 +844,6 @@ export default function RelatoriosPage() {
   const dadosDocumentosPendentes = useMemo<DocPendenteRow[]>(() => {
     const termo = busca.trim().toLowerCase()
     const colabsAtivos = colaboradores.filter((c) => c.status === 'ativo')
-
-    // Documentos anexados por colaborador
-    const docsPorColab = new Map<string, Documento[]>()
-    documentos.forEach((d) => {
-      if (d.colaborador_id) {
-        const list = docsPorColab.get(d.colaborador_id) || []
-        list.push(d)
-        docsPorColab.set(d.colaborador_id, list)
-      }
-    })
 
     return colabsAtivos
       .map((colab) => {
@@ -595,7 +877,7 @@ export default function RelatoriosPage() {
         return true
       })
       .sort((a, b) => b.totalPendentes - a.totalPendentes)
-  }, [colaboradores, documentos, filtroDepto, busca])
+  }, [colaboradores, filtroDepto, busca])
 
   const colunasDocumentosPendentes: ColumnDefinition<DocPendenteRow>[] = [
     { header: 'Colaborador', key: 'colaborador', width: 25 },
@@ -622,8 +904,8 @@ export default function RelatoriosPage() {
             </Badge>
           </div>
           <p className="text-sm text-[#757575] mt-1">
-            Geração e exportação analítica de indicadores de gestão de pessoas com download em .xlsx
-            e .pdf.
+            Geração analítica de indicadores de gestão de pessoas, ponto e compensações com download
+            em .xlsx e .pdf com logo oficial Tesla.
           </p>
         </div>
 
@@ -709,6 +991,24 @@ export default function RelatoriosPage() {
       >
         <div className="overflow-x-auto pb-1">
           <TabsList className="bg-[#E8EEF7]/60 p-1 border border-[#E0E0E0] h-auto flex flex-wrap sm:flex-nowrap gap-1 min-w-max">
+            {/* 1. Banco de Horas */}
+            <TabsTrigger
+              value="banco_horas"
+              className="text-xs py-1.5 px-3 data-[state=active]:bg-[#0D47A1] data-[state=active]:text-white data-[state=active]:shadow-xs font-semibold"
+            >
+              <Clock className="h-3.5 w-3.5 mr-1.5" />
+              Banco de Horas
+            </TabsTrigger>
+
+            {/* 2. Compensações */}
+            <TabsTrigger
+              value="compensacoes"
+              className="text-xs py-1.5 px-3 data-[state=active]:bg-[#0D47A1] data-[state=active]:text-white data-[state=active]:shadow-xs font-semibold"
+            >
+              <CalendarDays className="h-3.5 w-3.5 mr-1.5" />
+              Compensações
+            </TabsTrigger>
+
             <TabsTrigger
               value="admissoes"
               className="text-xs py-1.5 px-3 data-[state=active]:bg-[#0D47A1] data-[state=active]:text-white data-[state=active]:shadow-xs"
@@ -716,6 +1016,7 @@ export default function RelatoriosPage() {
               <UserPlus className="h-3.5 w-3.5 mr-1.5" />
               Admissões
             </TabsTrigger>
+
             <TabsTrigger
               value="desligamentos"
               className="text-xs py-1.5 px-3 data-[state=active]:bg-[#0D47A1] data-[state=active]:text-white data-[state=active]:shadow-xs"
@@ -723,6 +1024,7 @@ export default function RelatoriosPage() {
               <UserMinus className="h-3.5 w-3.5 mr-1.5" />
               Desligamentos
             </TabsTrigger>
+
             <TabsTrigger
               value="turnover"
               className="text-xs py-1.5 px-3 data-[state=active]:bg-[#0D47A1] data-[state=active]:text-white data-[state=active]:shadow-xs"
@@ -730,6 +1032,7 @@ export default function RelatoriosPage() {
               <TrendingDown className="h-3.5 w-3.5 mr-1.5" />
               Turnover
             </TabsTrigger>
+
             <TabsTrigger
               value="absenteismo"
               className="text-xs py-1.5 px-3 data-[state=active]:bg-[#0D47A1] data-[state=active]:text-white data-[state=active]:shadow-xs"
@@ -737,6 +1040,7 @@ export default function RelatoriosPage() {
               <CalendarDays className="h-3.5 w-3.5 mr-1.5" />
               Absenteísmo
             </TabsTrigger>
+
             <TabsTrigger
               value="ferias"
               className="text-xs py-1.5 px-3 data-[state=active]:bg-[#0D47A1] data-[state=active]:text-white data-[state=active]:shadow-xs"
@@ -744,6 +1048,7 @@ export default function RelatoriosPage() {
               <Palmtree className="h-3.5 w-3.5 mr-1.5" />
               Férias
             </TabsTrigger>
+
             <TabsTrigger
               value="atestados"
               className="text-xs py-1.5 px-3 data-[state=active]:bg-[#0D47A1] data-[state=active]:text-white data-[state=active]:shadow-xs"
@@ -751,20 +1056,23 @@ export default function RelatoriosPage() {
               <Stethoscope className="h-3.5 w-3.5 mr-1.5" />
               Atestados
             </TabsTrigger>
+
             <TabsTrigger
               value="ciencias"
               className="text-xs py-1.5 px-3 data-[state=active]:bg-[#0D47A1] data-[state=active]:text-white data-[state=active]:shadow-xs"
             >
               <ShieldCheck className="h-3.5 w-3.5 mr-1.5" />
-              Ciências Pendentes
+              Ciências
             </TabsTrigger>
+
             <TabsTrigger
               value="documentos"
               className="text-xs py-1.5 px-3 data-[state=active]:bg-[#0D47A1] data-[state=active]:text-white data-[state=active]:shadow-xs"
             >
               <FileWarning className="h-3.5 w-3.5 mr-1.5" />
-              Documentos Pendentes
+              Documentos
             </TabsTrigger>
+
             <TabsTrigger
               value="horas_extras"
               className="text-xs py-1.5 px-3 data-[state=active]:bg-[#0D47A1] data-[state=active]:text-white data-[state=active]:shadow-xs"
@@ -781,7 +1089,376 @@ export default function RelatoriosPage() {
           </TabsList>
         </div>
 
-        {/* 1. ABA ADMISSÕES */}
+        {/* 1. ABA NOVO RELATÓRIO: BANCO DE HORAS */}
+        <TabsContent value="banco_horas" className="space-y-4">
+          <Card className="border border-[#E0E0E0] bg-white shadow-xs">
+            <CardHeader className="pb-3 border-b border-[#F0F0F0] flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+              <div>
+                <CardTitle className="text-base font-bold text-[#212121] flex items-center gap-2">
+                  <Clock className="h-5 w-5 text-[#0D47A1]" />
+                  Relatório de Banco de Horas
+                </CardTitle>
+                <CardDescription className="text-xs text-[#757575]">
+                  Extrato consolidado de saldo do período, saldo acumulado e competências mensais
+                  fechadas por colaborador.
+                </CardDescription>
+              </div>
+              <div className="flex items-center gap-2">
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={carregarDados}
+                  disabled={loading}
+                  className="h-8 text-xs font-semibold text-[#0D47A1] border-[#0D47A1]/30 hover:bg-[#E8EEF7]"
+                >
+                  <RefreshCw className={`h-3.5 w-3.5 mr-1.5 ${loading ? 'animate-spin' : ''}`} />
+                  Gerar Relatório
+                </Button>
+                <Badge
+                  variant="outline"
+                  className="text-xs font-semibold bg-[#E8EEF7] text-[#0D47A1]"
+                >
+                  {dadosBancoHoras.length} colaborador(es)
+                </Badge>
+              </div>
+            </CardHeader>
+
+            <CardContent className="pt-4 space-y-6">
+              {/* Gráfico Simples: Saldo Acumulado por Departamento */}
+              {dadosGraficoBancoHoras.length > 0 && (
+                <div className="p-4 rounded-lg border border-[#E0E0E0] bg-slate-50/50 space-y-2">
+                  <div className="flex items-center justify-between">
+                    <h3 className="text-xs font-bold uppercase tracking-wider text-slate-700 flex items-center gap-1.5">
+                      <BarChart2 className="h-4 w-4 text-[#0D47A1]" />
+                      Saldo Acumulado de Banco de Horas por Departamento (Horas)
+                    </h3>
+                    <span className="text-[11px] text-slate-500">Total acumulado (h)</span>
+                  </div>
+                  <div className="h-56 w-full pt-2">
+                    <ResponsiveContainer width="100%" height="100%">
+                      <BarChart
+                        data={dadosGraficoBancoHoras}
+                        margin={{ top: 10, right: 20, left: 0, bottom: 20 }}
+                      >
+                        <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#E0E0E0" />
+                        <XAxis
+                          dataKey="departamento"
+                          tick={{ fontSize: 11, fill: '#616161' }}
+                          interval={0}
+                        />
+                        <YAxis tick={{ fontSize: 11, fill: '#616161' }} unit="h" />
+                        <RechartsTooltip
+                          formatter={(value: any) => [`${value} horas`, 'Saldo Acumulado']}
+                          labelFormatter={(label) => `Departamento: ${label}`}
+                        />
+                        <Bar
+                          dataKey="saldoTotal"
+                          fill="#0D47A1"
+                          radius={[4, 4, 0, 0]}
+                          name="Saldo Total"
+                        />
+                      </BarChart>
+                    </ResponsiveContainer>
+                  </div>
+                </div>
+              )}
+
+              {/* Tabela do Banco de Horas */}
+              <div className="overflow-x-auto rounded-md border border-[#E0E0E0]">
+                <table className="w-full text-xs text-left">
+                  <thead className="bg-[#F8F9FA] text-[#757575] font-semibold uppercase border-b border-[#E0E0E0]">
+                    <tr>
+                      <th className="py-2.5 px-3">Colaborador</th>
+                      <th className="py-2.5 px-3">Departamento</th>
+                      <th className="py-2.5 px-3 text-right">Saldo do Período</th>
+                      <th className="py-2.5 px-3 text-right">Saldo Acumulado</th>
+                      <th className="py-2.5 px-3">Fechamentos no Período</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-[#F0F0F0]">
+                    {loading ? (
+                      <tr>
+                        <td colSpan={5} className="py-6 text-center text-[#757575]">
+                          Carregando dados de banco de horas...
+                        </td>
+                      </tr>
+                    ) : dadosBancoHoras.length === 0 ? (
+                      <tr>
+                        <td colSpan={5} className="py-6 text-center text-[#757575]">
+                          Nenhum colaborador encontrado para os filtros aplicados.
+                        </td>
+                      </tr>
+                    ) : (
+                      dadosBancoHoras.map((row, idx) => (
+                        <tr key={idx} className="hover:bg-[#FAFAFA]">
+                          <td className="py-2.5 px-3 font-semibold text-[#212121]">
+                            {row.colaborador}
+                            <span className="block text-[10px] text-slate-400 font-normal">
+                              {row.cargo}
+                            </span>
+                          </td>
+                          <td className="py-2.5 px-3 text-[#616161]">{row.departamento}</td>
+                          <td className="py-2.5 px-3 text-right font-mono font-bold">
+                            <span
+                              className={
+                                row.saldoPeriodoHoras > 0
+                                  ? 'text-[#2E7D32]'
+                                  : row.saldoPeriodoHoras < 0
+                                    ? 'text-[#C62828]'
+                                    : 'text-slate-600'
+                              }
+                            >
+                              {row.saldoPeriodoFormatado}
+                            </span>
+                          </td>
+                          <td className="py-2.5 px-3 text-right font-mono font-bold">
+                            <span
+                              className={
+                                row.saldoAcumuladoHoras > 0
+                                  ? 'text-[#0D47A1]'
+                                  : row.saldoAcumuladoHoras < 0
+                                    ? 'text-[#C62828]'
+                                    : 'text-slate-600'
+                              }
+                            >
+                              {row.saldoAcumuladoFormatado}
+                            </span>
+                          </td>
+                          <td
+                            className="py-2.5 px-3 text-slate-600 max-w-xs truncate"
+                            title={row.fechamentosNoPeriodo}
+                          >
+                            {row.fechamentosNoPeriodo}
+                          </td>
+                        </tr>
+                      ))
+                    )}
+                  </tbody>
+                </table>
+              </div>
+
+              {/* Ações de Exportação Excel e PDF */}
+              <ReportExportActions
+                options={{
+                  reportTitle: 'Relatório de Banco de Horas',
+                  filePrefix: 'Banco_Horas',
+                  startDate: dataInicio,
+                  endDate: dataFim,
+                  columns: colunasBancoHoras,
+                  data: dadosBancoHoras,
+                }}
+                disabled={loading}
+              />
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        {/* 2. ABA NOVO RELATÓRIO: COMPENSAÇÕES */}
+        <TabsContent value="compensacoes" className="space-y-4">
+          <Card className="border border-[#E0E0E0] bg-white shadow-xs">
+            <CardHeader className="pb-3 border-b border-[#F0F0F0] flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+              <div>
+                <CardTitle className="text-base font-bold text-[#212121] flex items-center gap-2">
+                  <CalendarDays className="h-5 w-5 text-[#0D47A1]" />
+                  Relatório de Compensações de Banco de Horas
+                </CardTitle>
+                <CardDescription className="text-xs text-[#757575]">
+                  Histórico de solicitações de compensação (folgas/redução de jornada), status de
+                  aprovação e parecer do gestor/RH.
+                </CardDescription>
+              </div>
+
+              {/* Filtro adicional por status de compensação */}
+              <div className="flex items-center gap-2">
+                <select
+                  value={filtroStatusComp}
+                  onChange={(e) => setFiltroStatusComp(e.target.value)}
+                  className="h-8 rounded-md border border-[#E0E0E0] bg-white px-2.5 text-xs text-[#212121] focus:outline-none focus:ring-1 focus:ring-[#0D47A1]"
+                >
+                  <option value="todos">Todos os status</option>
+                  <option value="pendente">Pendente</option>
+                  <option value="aprovada">Aprovada</option>
+                  <option value="recusada">Recusada</option>
+                </select>
+                <Badge
+                  variant="outline"
+                  className="text-xs font-semibold bg-[#E8EEF7] text-[#0D47A1]"
+                >
+                  {dadosCompensacoes.length} registro(s)
+                </Badge>
+              </div>
+            </CardHeader>
+
+            <CardContent className="pt-4 space-y-6">
+              {/* Resumo no topo: Horas solicitadas, aprovadas e recusadas */}
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                <div className="p-3.5 rounded-lg border border-slate-200 bg-blue-50/50">
+                  <span className="text-[11px] font-bold uppercase tracking-wider text-slate-600 block">
+                    Horas Solicitadas
+                  </span>
+                  <div className="text-2xl font-black text-[#0D47A1] font-mono mt-0.5">
+                    {resumoCompensacoes.horasSolicitadas.toFixed(1)}h
+                  </div>
+                  <p className="text-[10px] text-slate-500 mt-0.5">
+                    Total em {dadosCompensacoes.length} solicitações no período
+                  </p>
+                </div>
+
+                <div className="p-3.5 rounded-lg border border-emerald-200 bg-emerald-50/50">
+                  <span className="text-[11px] font-bold uppercase tracking-wider text-emerald-800 block">
+                    Horas Aprovadas
+                  </span>
+                  <div className="text-2xl font-black text-[#2E7D32] font-mono mt-0.5">
+                    {resumoCompensacoes.horasAprovadas.toFixed(1)}h
+                  </div>
+                  <p className="text-[10px] text-emerald-700 mt-0.5">
+                    {resumoCompensacoes.qtdAprovadas} solicitações homologadas
+                  </p>
+                </div>
+
+                <div className="p-3.5 rounded-lg border border-rose-200 bg-rose-50/50">
+                  <span className="text-[11px] font-bold uppercase tracking-wider text-rose-800 block">
+                    Horas Recusadas
+                  </span>
+                  <div className="text-2xl font-black text-[#C62828] font-mono mt-0.5">
+                    {resumoCompensacoes.horasRecusadas.toFixed(1)}h
+                  </div>
+                  <p className="text-[10px] text-rose-700 mt-0.5">
+                    {resumoCompensacoes.qtdRecusadas} solicitações recusadas
+                  </p>
+                </div>
+              </div>
+
+              {/* Gráfico Simples: Distribuição por Status */}
+              {dadosGraficoCompensacoes.length > 0 && (
+                <div className="p-4 rounded-lg border border-[#E0E0E0] bg-slate-50/50 space-y-2">
+                  <div className="flex items-center justify-between">
+                    <h3 className="text-xs font-bold uppercase tracking-wider text-slate-700 flex items-center gap-1.5">
+                      <PieChartIcon className="h-4 w-4 text-[#0D47A1]" />
+                      Distribuição de Horas de Compensação por Status
+                    </h3>
+                  </div>
+                  <div className="h-48 w-full">
+                    <ResponsiveContainer width="100%" height="100%">
+                      <PieChart>
+                        <Pie
+                          data={dadosGraficoCompensacoes}
+                          dataKey="horas"
+                          nameKey="name"
+                          cx="50%"
+                          cy="50%"
+                          outerRadius={65}
+                          label={({ name, value }) => `${name}: ${value}h`}
+                        >
+                          {dadosGraficoCompensacoes.map((entry, index) => (
+                            <Cell key={`cell-${index}`} fill={entry.fill} />
+                          ))}
+                        </Pie>
+                        <RechartsTooltip formatter={(val: any) => [`${val}h`, 'Horas']} />
+                        <Legend />
+                      </PieChart>
+                    </ResponsiveContainer>
+                  </div>
+                </div>
+              )}
+
+              {/* Tabela de Compensações */}
+              <div className="overflow-x-auto rounded-md border border-[#E0E0E0]">
+                <table className="w-full text-xs text-left">
+                  <thead className="bg-[#F8F9FA] text-[#757575] font-semibold uppercase border-b border-[#E0E0E0]">
+                    <tr>
+                      <th className="py-2.5 px-3">Colaborador</th>
+                      <th className="py-2.5 px-3">Departamento</th>
+                      <th className="py-2.5 px-3">Data</th>
+                      <th className="py-2.5 px-3 text-right">Horas</th>
+                      <th className="py-2.5 px-3">Motivo</th>
+                      <th className="py-2.5 px-3">Status</th>
+                      <th className="py-2.5 px-3">Data da Resposta</th>
+                      <th className="py-2.5 px-3">Parecer</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-[#F0F0F0]">
+                    {loading ? (
+                      <tr>
+                        <td colSpan={8} className="py-6 text-center text-[#757575]">
+                          Carregando dados de compensações...
+                        </td>
+                      </tr>
+                    ) : dadosCompensacoes.length === 0 ? (
+                      <tr>
+                        <td colSpan={8} className="py-6 text-center text-[#757575]">
+                          Nenhuma compensação encontrada para os filtros aplicados.
+                        </td>
+                      </tr>
+                    ) : (
+                      dadosCompensacoes.map((row, idx) => (
+                        <tr key={idx} className="hover:bg-[#FAFAFA]">
+                          <td className="py-2.5 px-3 font-semibold text-[#212121]">
+                            {row.colaborador}
+                            <span className="block text-[10px] text-slate-400 font-normal">
+                              {row.cargo}
+                            </span>
+                          </td>
+                          <td className="py-2.5 px-3 text-[#616161]">{row.departamento}</td>
+                          <td className="py-2.5 px-3 font-medium text-[#0D47A1]">
+                            {formatDataPtBr(row.data)}
+                          </td>
+                          <td className="py-2.5 px-3 text-right font-mono font-bold text-slate-900">
+                            {row.horas.toFixed(1)}h
+                          </td>
+                          <td
+                            className="py-2.5 px-3 text-[#616161] max-w-xs truncate"
+                            title={row.motivo}
+                          >
+                            {row.motivo}
+                          </td>
+                          <td className="py-2.5 px-3">
+                            <Badge
+                              variant="outline"
+                              className={
+                                row.status === 'Aprovada'
+                                  ? 'bg-[#E8F5E9] text-[#2E7D32] border-[#2E7D32]/30 font-semibold'
+                                  : row.status === 'Recusada'
+                                    ? 'bg-[#FFEBEE] text-[#C62828] border-[#C62828]/30 font-semibold'
+                                    : 'bg-[#FFFDE7] text-[#F57F17] border-yellow-300 font-semibold'
+                              }
+                            >
+                              {row.status}
+                            </Badge>
+                          </td>
+                          <td className="py-2.5 px-3 text-[#757575]">
+                            {row.dataResposta !== '-' ? formatDataPtBr(row.dataResposta) : '-'}
+                          </td>
+                          <td
+                            className="py-2.5 px-3 text-[#616161] max-w-xs truncate"
+                            title={row.parecer}
+                          >
+                            {row.parecer}
+                          </td>
+                        </tr>
+                      ))
+                    )}
+                  </tbody>
+                </table>
+              </div>
+
+              {/* Ações de Exportação Excel e PDF */}
+              <ReportExportActions
+                options={{
+                  reportTitle: 'Relatório de Compensações de Banco de Horas',
+                  filePrefix: 'Compensacoes_Banco_Horas',
+                  startDate: dataInicio,
+                  endDate: dataFim,
+                  columns: colunasCompensacoes,
+                  data: dadosCompensacoes,
+                }}
+                disabled={loading}
+              />
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        {/* 3. ABA ADMISSÕES */}
         <TabsContent value="admissoes" className="space-y-4">
           <Card className="border border-[#E0E0E0] bg-white shadow-xs">
             <CardHeader className="pb-3 border-b border-[#F0F0F0] flex flex-row items-center justify-between">
@@ -859,7 +1536,6 @@ export default function RelatoriosPage() {
                 </table>
               </div>
 
-              {/* Botões de Exportação Excel e PDF */}
               <ReportExportActions
                 options={{
                   reportTitle: 'Relatório de Admissões',
@@ -875,7 +1551,7 @@ export default function RelatoriosPage() {
           </Card>
         </TabsContent>
 
-        {/* 2. ABA DESLIGAMENTOS */}
+        {/* 4. ABA DESLIGAMENTOS */}
         <TabsContent value="desligamentos" className="space-y-4">
           <Card className="border border-[#E0E0E0] bg-white shadow-xs">
             <CardHeader className="pb-3 border-b border-[#F0F0F0] flex flex-row items-center justify-between">
@@ -959,7 +1635,7 @@ export default function RelatoriosPage() {
           </Card>
         </TabsContent>
 
-        {/* 3. ABA TURNOVER */}
+        {/* 5. ABA TURNOVER */}
         <TabsContent value="turnover" className="space-y-4">
           <Card className="border border-[#E0E0E0] bg-white shadow-xs">
             <CardHeader className="pb-3 border-b border-[#F0F0F0] flex flex-row items-center justify-between">
@@ -1047,7 +1723,7 @@ export default function RelatoriosPage() {
           </Card>
         </TabsContent>
 
-        {/* 4. ABA ABSENTEÍSMO */}
+        {/* 6. ABA ABSENTEÍSMO */}
         <TabsContent value="absenteismo" className="space-y-4">
           <Card className="border border-[#E0E0E0] bg-white shadow-xs">
             <CardHeader className="pb-3 border-b border-[#F0F0F0] flex flex-row items-center justify-between">
@@ -1132,7 +1808,7 @@ export default function RelatoriosPage() {
           </Card>
         </TabsContent>
 
-        {/* 5. ABA FÉRIAS */}
+        {/* 7. ABA FÉRIAS */}
         <TabsContent value="ferias" className="space-y-4">
           <Card className="border border-[#E0E0E0] bg-white shadow-xs">
             <CardHeader className="pb-3 border-b border-[#F0F0F0] flex flex-row items-center justify-between">
@@ -1226,7 +1902,7 @@ export default function RelatoriosPage() {
           </Card>
         </TabsContent>
 
-        {/* 6. ABA ATESTADOS */}
+        {/* 8. ABA ATESTADOS */}
         <TabsContent value="atestados" className="space-y-4">
           <Card className="border border-[#E0E0E0] bg-white shadow-xs">
             <CardHeader className="pb-3 border-b border-[#F0F0F0] flex flex-row items-center justify-between">
@@ -1333,7 +2009,7 @@ export default function RelatoriosPage() {
           </Card>
         </TabsContent>
 
-        {/* 7. ABA CIÊNCIAS PENDENTES */}
+        {/* 9. ABA CIÊNCIAS PENDENTES */}
         <TabsContent value="ciencias" className="space-y-4">
           <Card className="border border-[#E0E0E0] bg-white shadow-xs">
             <CardHeader className="pb-3 border-b border-[#F0F0F0] flex flex-row items-center justify-between">
@@ -1420,7 +2096,7 @@ export default function RelatoriosPage() {
           </Card>
         </TabsContent>
 
-        {/* 8. ABA DOCUMENTOS PENDENTES */}
+        {/* 10. ABA DOCUMENTOS PENDENTES */}
         <TabsContent value="documentos" className="space-y-4">
           <Card className="border border-[#E0E0E0] bg-white shadow-xs">
             <CardHeader className="pb-3 border-b border-[#F0F0F0] flex flex-row items-center justify-between">
@@ -1509,13 +2185,13 @@ export default function RelatoriosPage() {
           </Card>
         </TabsContent>
 
-        {/* 9. ABA HORAS EXTRAS (Placeholder "Em breve", sem tabela e sem exportação) */}
+        {/* 11. ABA HORAS EXTRAS (Placeholder "Em breve") */}
         <TabsContent value="horas_extras" className="space-y-4">
           <Card className="border border-[#E0E0E0] bg-white shadow-xs">
             <CardHeader className="pb-3 border-b border-[#F0F0F0]">
               <CardTitle className="text-base font-bold text-[#212121] flex items-center gap-2">
                 <Clock className="h-5 w-5 text-[#FB8C00]" />
-                Relatório de Horas Extras e Banco de Horas
+                Relatório de Horas Extras
                 <Badge
                   variant="outline"
                   className="bg-yellow-50 text-yellow-800 border-yellow-300 text-xs font-semibold"
@@ -1524,8 +2200,8 @@ export default function RelatoriosPage() {
                 </Badge>
               </CardTitle>
               <CardDescription className="text-xs text-[#757575]">
-                Módulo em desenvolvimento para apuração de ponto eletrônico, horas extraordinárias e
-                compensações.
+                Módulo em desenvolvimento para apuração analítica detalhada de horas extraordinárias
+                por convenção coletiva.
               </CardDescription>
             </CardHeader>
             <CardContent className="p-8 text-center space-y-3">

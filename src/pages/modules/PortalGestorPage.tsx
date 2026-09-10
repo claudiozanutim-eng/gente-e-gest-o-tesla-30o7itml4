@@ -59,6 +59,7 @@ import {
 } from '@/components/ui/dialog'
 import { Textarea } from '@/components/ui/textarea'
 import { formatDataPtBr } from '@/lib/exportReports'
+import { CalendarioFeriasEquipe } from '@/components/gestor/CalendarioFeriasEquipe'
 
 export const PortalGestorPage: React.FC = () => {
   const { user, colaborador } = useAuth()
@@ -67,6 +68,7 @@ export const PortalGestorPage: React.FC = () => {
   const [loading, setLoading] = useState(true)
   const [colaboradoresEquipe, setColaboradoresEquipe] = useState<Colaborador[]>([])
   const [solicitacoesFerias, setSolicitacoesFerias] = useState<SolicitacaoFerias[]>([])
+  const [todasFeriasEquipe, setTodasFeriasEquipe] = useState<SolicitacaoFerias[]>([])
   const [compensacoesHoras, setCompensacoesHoras] = useState<CompensacaoBancoHoras[]>([])
   const [alteracoesCadastrais, setAlteracoesCadastrais] = useState<
     (SolicitacaoAlteracao & { expand?: { colaborador_id?: Colaborador } })[]
@@ -109,12 +111,12 @@ export const PortalGestorPage: React.FC = () => {
 
       const idsEquipe = new Set(equipe.map((c) => c.id))
 
-      // 2. Férias pendentes da equipe
+      // 2. Férias pendentes da equipe e todas as férias (para o calendário)
       try {
         const todasFerias = await pb
           .collection('solicitacao_ferias')
           .getFullList<SolicitacaoFerias>({
-            filter: `tenant_id = "${user.tenant_id}" && status = "pendente"`,
+            filter: `tenant_id = "${user.tenant_id}"`,
             sort: '-data_solicitacao,-created',
             expand: 'colaborador_id',
           })
@@ -122,9 +124,11 @@ export const PortalGestorPage: React.FC = () => {
           isRHGeral && !departamento
             ? todasFerias
             : todasFerias.filter((f) => idsEquipe.has(f.colaborador_id))
-        setSolicitacoesFerias(feriasEquipe)
+
+        setTodasFeriasEquipe(feriasEquipe)
+        setSolicitacoesFerias(feriasEquipe.filter((f) => f.status === 'pendente'))
       } catch (e) {
-        console.warn('Erro ao carregar férias pendentes da equipe:', e)
+        console.warn('Erro ao carregar férias da equipe:', e)
       }
 
       // 3. Compensações de Banco de Horas pendentes
@@ -608,6 +612,16 @@ export const PortalGestorPage: React.FC = () => {
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         {/* Coluna Esquerda (2 spans): Aprovações Pendentes Unificadas com Ação Rápida */}
         <div className="lg:col-span-2 space-y-6">
+          {/* Seção Calendário de Férias da Equipe */}
+          <CalendarioFeriasEquipe
+            colaboradores={colaboradoresEquipe}
+            solicitacoesFerias={todasFeriasEquipe}
+            departamentoNome={
+              colaborador?.departamento ||
+              (user?.perfil === 'gestor' ? 'Minha Equipe' : 'Equipes do Tenant')
+            }
+          />
+
           <Card className="border border-slate-200 bg-white shadow-xs">
             <CardHeader className="p-4 sm:p-5 border-b border-slate-100 flex flex-col sm:flex-row sm:items-center justify-between gap-2">
               <div>
