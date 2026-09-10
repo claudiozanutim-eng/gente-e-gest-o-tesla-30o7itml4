@@ -4,6 +4,7 @@ import {
   RegistroPontoTipo,
   EscalaTrabalho,
   ColaboradorEscala,
+  DepartamentoEscala,
   Colaborador,
   Atestado,
   SolicitacaoFerias,
@@ -44,10 +45,95 @@ export interface DiaEspelhoPonto {
   isFuturo: boolean
   ausenciaTipo?: 'atestado' | 'ferias' | 'folga'
   ausenciaDetalhe?: string
+  tipoFolgaEspecial?: '12x36' | 'revezamento'
   irregularidades: string[]
 }
 
 export const pontoService = {
+  /**
+   * Determina se uma data específica é dia de trabalho ou folga com base na escala (semanal ou especial).
+   * Considera data de início do vínculo para ciclos de 12x36 e revezamento.
+   */
+  isDiaDeTrabalho(
+    dataIso: string,
+    escala?: EscalaTrabalho,
+    dataInicioVinculo?: string,
+  ): {
+    trabalho: boolean
+    folgaEspecial?: '12x36' | 'revezamento'
+    motivoFolga?: string
+  } {
+    if (!escala) {
+      // Sem escala, adota seg a sex como padrão
+      const [ano, mes, dia] = dataIso.split('-').map(Number)
+      const d = new Date(ano, mes - 1, dia)
+      const diaSemana = d.getDay()
+      const isSemana = diaSemana >= 1 && diaSemana <= 5
+      return { trabalho: isSemana, motivoFolga: isSemana ? undefined : 'Folga semanal' }
+    }
+
+    const tipo = escala.tipo || 'semanal'
+
+    // 1. Escala Semanal tradicional
+    if (tipo === 'semanal') {
+      const [ano, mes, dia] = dataIso.split('-').map(Number)
+      const d = new Date(ano, mes - 1, dia)
+      const diasSemanaMap = ['dom', 'seg', 'ter', 'qua', 'qui', 'sex', 'sab']
+      const diaTag = diasSemanaMap[d.getDay()]
+      const diasEscalados = escala.dias_semana
+        ? escala.dias_semana.toLowerCase().split(',')
+        : ['seg', 'ter', 'qua', 'qui', 'sex']
+      const trabalho = diasEscalados.includes(diaTag)
+      return {
+        trabalho,
+        motivoFolga: trabalho ? undefined : 'Folga semanal / Descanso remunerado',
+      }
+    }
+
+    // 2. Escalas Especiais (12x36 ou Revezamento)
+    const modelo = escala.modelo_especial || '12x36'
+    const dataBaseStr = (dataInicioVinculo || escala.created || dataIso).slice(0, 10)
+
+    const [aTarget, mTarget, dTarget] = dataIso.split('-').map(Number)
+    const targetDate = new Date(Date.UTC(aTarget, mTarget - 1, dTarget))
+
+    const [aBase, mBase, dBase] = dataBaseStr.split('-').map(Number)
+    const baseDate = new Date(Date.UTC(aBase, mBase - 1, dBase))
+
+    // Diferença em dias inteiros UTC
+    const diffMs = targetDate.getTime() - baseDate.getTime()
+    const diffDias = Math.floor(diffMs / (24 * 60 * 60 * 1000))
+
+    if (modelo === '12x36') {
+      // Alternância de 2 dias: Dia 0 = Trabalho, Dia 1 = Folga, etc.
+      // Modulo seguro para datas anteriores à data base
+      const mod = ((diffDias % 2) + 2) % 2
+      const trabalho = mod === 0
+      return {
+        trabalho,
+        folgaEspecial: trabalho ? undefined : '12x36',
+        motivoFolga: trabalho ? undefined : 'Folga (12x36)',
+      }
+    }
+
+    if (modelo === 'revezamento') {
+      const cicloTotal = escala.ciclo_dias && escala.ciclo_dias > 0 ? escala.ciclo_dias : 4
+      const cicloTrab =
+        escala.ciclo_dias_trabalho && escala.ciclo_dias_trabalho > 0
+          ? escala.ciclo_dias_trabalho
+          : Math.floor(cicloTotal / 2) || 2
+
+      const mod = ((diffDias % cicloTotal) + cicloTotal) % cicloTotal
+      const trabalho = mod < cicloTrab
+      return {
+        trabalho,
+        folgaEspecial: trabalho ? undefined : 'revezamento',
+        motivoFolga: trabalho ? undefined : 'Folga (Revezamento)',
+      }
+    }
+
+    return { trabalho: true }
+  },
   /**
    * Registra uma batida de ponto para o colaborador.
    * O horário oficial é garantido pelo servidor no backend (pb_hooks onRecordCreateRequest).
@@ -188,15 +274,13 @@ export const pontoService = {
     atestados: Atestado[] = [],
     colaborador?: Colaborador,
     feriasAprovadas: SolicitacaoFerias[] = [],
+    dataInicioVinculo?: string,
   ): DiaEspelhoPonto[] {
     const totalDiasNoMes = new Date(ano, mesZeroIndex + 1, 0).getDate()
-    const diasSemanaMap = ['dom', 'seg', 'ter', 'qua', 'qui', 'sex', 'sab']
     const diasSemanaLabelMap = ['Dom', 'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb']
 
     const hoje = new Date()
     const hojeStr = `${hoje.getFullYear()}-${String(hoje.getMonth() + 1).padStart(2, '0')}-${String(hoje.getDate()).padStart(2, '0')}`
-
-    const diasEscalados = escala?.dias_semana ? escala.dias_semana.toLowerCase().split(',') : []
 
     // Calcula horas esperadas na escala
     let duracaoEscalaMs = 8 * 60 * 60 * 1000 // default 8h
@@ -204,44 +288,41 @@ export const pontoService = {
       const [hIni, mIni] = escala.horario_inicio.split(':').map(Number)
       const [hFim, mFim] = escala.horario_fim.split(':').map(Number)
       let minEsperados = hFim * 60 + mFim - (hIni * 60 + mIni)
-      if (minEsperados > 360) {
-        minEsperados -= 60 // subtrai 1h de almoço se > 6h
+      if (minEsperados < 0) {
+        // Turno noturno que cruza meia-noite (ex: 19:00 às 07:00 = 12h)
+        minEsperados += 24 * 60
       }
-      if (minEsperados > 0) {
-        duracaoEscalaMs = minEsperados * 60 * 1000
+      if (escala.tipo === 'especial' && escala.modelo_especial === '12x36') {
+        // Escala 12x36: 12 horas nominais com 1h de descanso inclusa ou 11h úteis dependendo da convenção
+        duracaoEscalaMs = (minEsperados > 0 ? minEsperados : 12 * 60) * 60 * 1000
+      } else {
+        if (minEsperados > 360) {
+          minEsperados -= 60 // subtrai 1h de almoço se > 6h
+        }
+        if (minEsperados > 0) {
+          duracaoEscalaMs = minEsperados * 60 * 1000
+        }
       }
     }
 
     // Filtrar atestados validados
     const atestadosValidados = atestados.filter((a) => a.status === 'validado')
 
-    // Checar férias concessivas se colaborador informado
-    let statusFerias
-    if (colaborador?.data_admissao) {
-      try {
-        const analise = feriasService.analisarFeriasProximas(
-          [colaborador],
-          new Date(ano, mesZeroIndex, 15),
-        )
-        statusFerias = analise.colaboradoresProximos[0]
-      } catch {
-        /* intentionally ignored */
-      }
-    }
-
     const resultado: DiaEspelhoPonto[] = []
 
     for (let dia = 1; dia <= totalDiasNoMes; dia++) {
       const dataObj = new Date(ano, mesZeroIndex, dia)
       const diaSemanaIndex = dataObj.getDay()
-      const diaSemanaTag = diasSemanaMap[diaSemanaIndex]
       const diaSemanaLabel = diasSemanaLabelMap[diaSemanaIndex]
       const diaIso = `${ano}-${String(mesZeroIndex + 1).padStart(2, '0')}-${String(dia).padStart(2, '0')}`
 
       const isFimDeSemana = diaSemanaIndex === 0 || diaSemanaIndex === 6
-      const isDiaEscalado = diasEscalados.includes(diaSemanaTag)
       const isHoje = diaIso === hojeStr
       const isFuturo = diaIso > hojeStr
+
+      // Avaliação de dia de trabalho vs folga considerando escala semanal ou especial
+      const avaliacaoEscala = this.isDiaDeTrabalho(diaIso, escala, dataInicioVinculo)
+      const isDiaEscalado = avaliacaoEscala.trabalho
 
       // Filtrar registros deste dia
       const regsDoDia = registros.filter((r) => {
@@ -273,6 +354,7 @@ export const pontoService = {
       // Verificar ausências justificadas (Férias Aprovadas e Atestados Validados)
       let ausenciaTipo: 'atestado' | 'ferias' | 'folga' | undefined
       let ausenciaDetalhe: string | undefined
+      let tipoFolgaEspecial: '12x36' | 'revezamento' | undefined
 
       // 1. Prioridade para Férias aprovadas
       for (const fer of feriasAprovadas) {
@@ -314,10 +396,11 @@ export const pontoService = {
         }
       }
 
-      // Folga semanal
+      // 3. Folga por escala (semanal ou especial)
       if (!isDiaEscalado && !ausenciaTipo) {
         ausenciaTipo = 'folga'
-        ausenciaDetalhe = 'Folga semanal / Descanso remunerado'
+        tipoFolgaEspecial = avaliacaoEscala.folgaEspecial
+        ausenciaDetalhe = avaliacaoEscala.motivoFolga || 'Folga semanal / Descanso remunerado'
       }
 
       // Irregularidades e saldo
@@ -378,6 +461,7 @@ export const pontoService = {
         isFuturo,
         ausenciaTipo,
         ausenciaDetalhe,
+        tipoFolgaEspecial,
         irregularidades,
       })
     }
@@ -408,6 +492,10 @@ export const escalaService = {
       horario_inicio: string
       horario_fim: string
       dias_semana: string
+      tipo?: 'semanal' | 'especial'
+      modelo_especial?: '12x36' | 'revezamento'
+      ciclo_dias?: number
+      ciclo_dias_trabalho?: number
     },
     userId?: string,
   ): Promise<EscalaTrabalho> {
@@ -424,6 +512,8 @@ export const escalaService = {
           nome: data.nome,
           horario: `${data.horario_inicio}–${data.horario_fim}`,
           dias: data.dias_semana,
+          tipo: data.tipo,
+          modelo_especial: data.modelo_especial,
         },
       })
     }
@@ -486,27 +576,187 @@ export const escalaService = {
   },
 
   /**
-   * Retorna a escala ativa de um colaborador específico
+   * Retorna a escala ativa de um colaborador específico.
+   * Precedência: Vínculo individual > Escala do Departamento.
    */
   async getEscalaAtivaColaborador(
     tenantId: string,
     colaboradorId: string,
-  ): Promise<{ vinculo: ColaboradorEscala; escala: EscalaTrabalho } | null> {
+    departamento?: string,
+  ): Promise<{
+    vinculo?: ColaboradorEscala
+    departamentoVinculo?: DepartamentoEscala
+    escala: EscalaTrabalho
+    origem: 'individual' | 'departamento'
+    dataInicioVigencia: string
+  } | null> {
     try {
+      // 1. Precedência: Vínculo individual do colaborador
       const records = await pb.collection('colaborador_escala').getFullList<ColaboradorEscala>({
         filter: `tenant_id = "${tenantId}" && colaborador_id = "${colaboradorId}"`,
         sort: '-data_inicio',
         expand: 'escala_id',
       })
 
-      if (records.length === 0) return null
-      const vinculo = records[0]
-      const escala = vinculo.expand?.escala_id
-      if (!escala) return null
-      return { vinculo, escala }
+      if (records.length > 0) {
+        const vinculo = records[0]
+        const escala = vinculo.expand?.escala_id
+        if (escala) {
+          return {
+            vinculo,
+            escala,
+            origem: 'individual',
+            dataInicioVigencia: vinculo.data_inicio,
+          }
+        }
+      }
+
+      // 2. Se não tem vínculo individual, tentar escala do departamento do colaborador
+      let depto = departamento
+      if (!depto) {
+        try {
+          const colab = await pb.collection('colaborador').getOne<Colaborador>(colaboradorId)
+          depto = colab?.departamento
+        } catch {
+          /* intentionally ignored */
+        }
+      }
+
+      if (depto) {
+        const depEscala = await this.getEscalaAtivaDepartamento(tenantId, depto)
+        if (depEscala && depEscala.expand?.escala_id) {
+          return {
+            departamentoVinculo: depEscala,
+            escala: depEscala.expand.escala_id,
+            origem: 'departamento',
+            dataInicioVigencia: depEscala.data_inicio,
+          }
+        }
+      }
+
+      return null
     } catch {
       return null
     }
+  },
+
+  /**
+   * Retorna todas as escalas vinculadas a departamentos do tenant
+   */
+  async getEscalasDepartamento(tenantId: string): Promise<DepartamentoEscala[]> {
+    try {
+      const records = await pb.collection('departamento_escala').getFullList<DepartamentoEscala>({
+        filter: `tenant_id = "${tenantId}"`,
+        sort: 'departamento',
+        expand: 'escala_id',
+      })
+      return records
+    } catch {
+      return []
+    }
+  },
+
+  /**
+   * Retorna a escala ativa de um departamento específico
+   */
+  async getEscalaAtivaDepartamento(
+    tenantId: string,
+    departamento: string,
+  ): Promise<DepartamentoEscala | null> {
+    try {
+      const records = await pb.collection('departamento_escala').getFullList<DepartamentoEscala>({
+        filter: `tenant_id = "${tenantId}" && departamento = "${departamento}"`,
+        sort: '-data_inicio',
+        expand: 'escala_id',
+      })
+      return records.length > 0 ? records[0] : null
+    } catch {
+      return null
+    }
+  },
+
+  /**
+   * Vincula ou atualiza escala de um departamento
+   */
+  async vincularDepartamento(
+    data: {
+      tenant_id: string
+      departamento: string
+      escala_id: string
+      data_inicio: string
+      data_fim?: string
+    },
+    userId?: string,
+  ): Promise<DepartamentoEscala> {
+    const record = await pb.collection('departamento_escala').create<DepartamentoEscala>(data, {
+      expand: 'escala_id',
+    })
+
+    if (userId) {
+      await logAuditoriaService.registrarLog({
+        tenant_id: data.tenant_id,
+        user_id: userId,
+        acao: 'Vínculo de escala a departamento',
+        entidade: 'departamento_escala',
+        entidade_id: record.id,
+        dados_json: {
+          departamento: data.departamento,
+          escala_id: data.escala_id,
+          data_inicio: data.data_inicio,
+          data_fim: data.data_fim,
+        },
+      })
+    }
+
+    return record
+  },
+
+  /**
+   * Atualiza vínculo de departamento
+   */
+  async updateVinculoDepartamento(
+    id: string,
+    data: Partial<Omit<DepartamentoEscala, 'id' | 'created' | 'updated'>>,
+    userId?: string,
+    tenantId?: string,
+  ): Promise<DepartamentoEscala> {
+    const record = await pb.collection('departamento_escala').update<DepartamentoEscala>(id, data, {
+      expand: 'escala_id',
+    })
+
+    if (userId && tenantId) {
+      await logAuditoriaService.registrarLog({
+        tenant_id: tenantId,
+        user_id: userId,
+        acao: 'Atualização de vínculo de escala por departamento',
+        entidade: 'departamento_escala',
+        entidade_id: id,
+        dados_json: data as Record<string, unknown>,
+      })
+    }
+
+    return record
+  },
+
+  /**
+   * Remove vínculo de escala com departamento
+   */
+  async removerVinculoDepartamento(
+    id: string,
+    userId?: string,
+    tenantId?: string,
+  ): Promise<boolean> {
+    await pb.collection('departamento_escala').delete(id)
+    if (userId && tenantId) {
+      await logAuditoriaService.registrarLog({
+        tenant_id: tenantId,
+        user_id: userId,
+        acao: 'Remoção de vínculo de escala por departamento',
+        entidade: 'departamento_escala',
+        entidade_id: id,
+      })
+    }
+    return true
   },
 
   /**

@@ -1,5 +1,5 @@
 import pb from '@/lib/pocketbase/client'
-import { Colaborador, SolicitacaoFerias, PeriodoAquisitivoFerias } from '@/types'
+import { Colaborador, SolicitacaoFerias, PeriodoAquisitivoFerias, AppUser } from '@/types'
 import { logAuditoriaService, colaboradorService } from '@/services/api'
 import { notificacaoService } from '@/services/notificacaoService'
 

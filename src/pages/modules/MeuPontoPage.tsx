@@ -52,6 +52,7 @@ export default function MeuPontoPage() {
   const [registrosHoje, setRegistrosHoje] = useState<RegistroPonto[]>([])
   const [registrosMes, setRegistrosMes] = useState<RegistroPonto[]>([])
   const [escala, setEscala] = useState<EscalaTrabalho | null>(null)
+  const [dataInicioVinculo, setDataInicioVinculo] = useState<string | undefined>(undefined)
   const [atestados, setAtestados] = useState<Atestado[]>([])
   const [feriasAprovadas, setFeriasAprovadas] = useState<SolicitacaoFerias[]>([])
 
@@ -72,7 +73,7 @@ export default function MeuPontoPage() {
       setLoading(true)
       const [regsHoje, escalaRes, atestsRes, regsMesRes, feriasRes] = await Promise.all([
         pontoService.getRegistrosDoDia(tenantId, colaboradorId, new Date()),
-        escalaService.getEscalaAtivaColaborador(tenantId, colaboradorId),
+        escalaService.getEscalaAtivaColaborador(tenantId, colaboradorId, colaborador?.departamento),
         atestadoService.getAtestadosColaborador(tenantId, colaboradorId),
         pontoService.getRegistrosMes(tenantId, colaboradorId, mesAtual.ano, mesAtual.mes),
         feriasService.listarSolicitacoes({
@@ -85,6 +86,10 @@ export default function MeuPontoPage() {
       setRegistrosHoje(regsHoje)
       if (escalaRes) {
         setEscala(escalaRes.escala)
+        setDataInicioVinculo(escalaRes.dataInicioVigencia)
+      } else {
+        setEscala(null)
+        setDataInicioVinculo(undefined)
       }
       setAtestados(atestsRes)
       setRegistrosMes(regsMesRes)
@@ -172,8 +177,18 @@ export default function MeuPontoPage() {
       atestados,
       colaborador || undefined,
       feriasAprovadas,
+      dataInicioVinculo,
     )
-  }, [mesAtual.ano, mesAtual.mes, registrosMes, escala, atestados, colaborador, feriasAprovadas])
+  }, [
+    mesAtual.ano,
+    mesAtual.mes,
+    registrosMes,
+    escala,
+    atestados,
+    colaborador,
+    feriasAprovadas,
+    dataInicioVinculo,
+  ])
 
   // Totais do mês
   const metricasMes = useMemo(() => {
@@ -631,8 +646,24 @@ export default function MeuPontoPage() {
                           </Badge>
                         </td>
                       ) : isFolga ? (
-                        <td colSpan={4} className="py-2.5 text-center text-[11px] text-[#9E9E9E]">
-                          Folga semanal
+                        <td colSpan={4} className="py-2.5 text-center text-[11px]">
+                          {dia.tipoFolgaEspecial === '12x36' ? (
+                            <Badge
+                              variant="outline"
+                              className="bg-purple-50 text-purple-700 border-purple-200 text-[10px] font-semibold"
+                            >
+                              Folga (12x36)
+                            </Badge>
+                          ) : dia.tipoFolgaEspecial === 'revezamento' ? (
+                            <Badge
+                              variant="outline"
+                              className="bg-indigo-50 text-indigo-700 border-indigo-200 text-[10px] font-semibold"
+                            >
+                              Folga (Revezamento)
+                            </Badge>
+                          ) : (
+                            <span className="text-[#9E9E9E]">Folga semanal</span>
+                          )}
                         </td>
                       ) : (
                         <>

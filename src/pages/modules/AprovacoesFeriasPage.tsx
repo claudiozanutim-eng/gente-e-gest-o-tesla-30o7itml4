@@ -17,6 +17,7 @@ import {
   X,
   Palmtree,
   ShieldAlert,
+  AlertTriangle,
 } from 'lucide-react'
 import { useAuth } from '@/context/AuthContext'
 import { feriasService } from '@/services/feriasService'
@@ -808,11 +809,12 @@ export default function AprovacoesFeriasPage() {
 
               {/* Aviso inline de sobreposição na aprovação */}
               {alertaSobreposicao?.temSobreposicao && (
-                <div className="p-3 bg-amber-50 border border-amber-300 rounded-lg text-xs space-y-1 text-amber-900">
-                  <div className="font-bold flex items-center gap-1.5 text-amber-800">
+                <div className="p-3 bg-amber-50 border border-amber-300 rounded-lg text-xs space-y-1 text-amber-900 shadow-2xs">
+                  <div className="font-bold flex items-center gap-1.5 text-amber-900">
                     <AlertTriangle className="h-4 w-4 text-amber-600 shrink-0" />
-                    Atenção: {alertaSobreposicao.qtdColegas} colega(s) da equipe estarão de férias
-                    neste período!
+                    Atenção: {alertaSobreposicao.qtdColegas}{' '}
+                    {alertaSobreposicao.qtdColegas === 1 ? 'colega' : 'colegas'} da equipe estarão
+                    de férias neste período
                   </div>
                   <p className="text-[11px] text-amber-800/90 leading-relaxed">
                     Colegas ausentes: <strong>{alertaSobreposicao.nomesColegas.join(', ')}</strong>.

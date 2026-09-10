@@ -28,6 +28,7 @@ import {
   RegistroPonto,
   EscalaTrabalho,
   ColaboradorEscala,
+  DepartamentoEscala,
   Atestado,
   SolicitacaoFerias,
 } from '@/types'
@@ -87,6 +88,7 @@ export default function GestaoPontoPage() {
   const [registrosDia, setRegistrosDia] = useState<RegistroPonto[]>([])
   const [escalas, setEscalas] = useState<EscalaTrabalho[]>([])
   const [vinculos, setVinculos] = useState<ColaboradorEscala[]>([])
+  const [escalasDepartamento, setEscalasDepartamento] = useState<DepartamentoEscala[]>([])
   const [atestados, setAtestados] = useState<Atestado[]>([])
   const [feriasAprovadasMes, setFeriasAprovadasMes] = useState<SolicitacaoFerias[]>([])
 
@@ -109,11 +111,12 @@ export default function GestaoPontoPage() {
 
     try {
       setLoading(true)
-      const [colabs, regs, escList, vincList, atests, feriasList] = await Promise.all([
+      const [colabs, regs, escList, vincList, depEscList, atests, feriasList] = await Promise.all([
         colaboradorService.getColaboradores(tenantId),
         pontoService.getRegistrosDiaTenant(tenantId, dataSelecionada),
         escalaService.getEscalas(tenantId),
         escalaService.getVinculosColaboradorEscala(tenantId),
+        escalaService.getEscalasDepartamento(tenantId),
         atestadoService.getAtestadosTenant(tenantId),
         feriasService.listarSolicitacoes({
           tenantId,
@@ -125,6 +128,7 @@ export default function GestaoPontoPage() {
       setRegistrosDia(regs)
       setEscalas(escList)
       setVinculos(vincList)
+      setEscalasDepartamento(depEscList)
       setAtestados(atests)
       setFeriasAprovadasMes(feriasList)
     } catch (err) {
@@ -155,18 +159,24 @@ export default function GestaoPontoPage() {
   // Mapeamento e consolidação das linhas do dia
   const linhasConsolidadas = useMemo<LinhaGestaoPonto[]>(() => {
     const dataObj = new Date(`${dataSelecionada}T12:00:00Z`)
-    const diasSemanaMap = ['dom', 'seg', 'ter', 'qua', 'qui', 'sex', 'sab']
-    const diaSemanaTag = diasSemanaMap[dataObj.getUTCDay()]
-
     const hojeStr = new Date().toISOString().slice(0, 10)
     const isHoje = dataSelecionada === hojeStr
 
     return colaboradores
       .filter((c) => c.status === 'ativo')
       .map((colab) => {
-        // Encontra vínculo de escala ativo
+        // Precedência de escala: Vínculo Individual > Escala do Departamento
         const vinc = vinculos.find((v) => v.colaborador_id === colab.id)
-        const escala = vinc?.expand?.escala_id || escalas.find((e) => e.id === vinc?.escala_id)
+        let escala = vinc?.expand?.escala_id || escalas.find((e) => e.id === vinc?.escala_id)
+        let dataInicioVigencia = vinc?.data_inicio
+
+        if (!escala && colab.departamento) {
+          const deptoEsc = escalasDepartamento.find((d) => d.departamento === colab.departamento)
+          if (deptoEsc) {
+            escala = deptoEsc.expand?.escala_id || escalas.find((e) => e.id === deptoEsc.escala_id)
+            dataInicioVigencia = deptoEsc.data_inicio
+          }
+        }
 
         // Registros deste colaborador neste dia
         const regs = registrosDia
@@ -204,11 +214,13 @@ export default function GestaoPontoPage() {
           return currTime >= dIni && currTime < dFim
         })
 
-        // Escala e dia de trabalho
-        const diasEscalados = escala?.dias_semana
-          ? escala.dias_semana.toLowerCase().split(',')
-          : ['seg', 'ter', 'qua', 'qui', 'sex']
-        const isDiaEscalado = diasEscalados.includes(diaSemanaTag)
+        // Avaliação correta de trabalho vs folga (semanal ou especial 12x36 / Revezamento)
+        const avaliacaoEscala = pontoService.isDiaDeTrabalho(
+          dataSelecionada,
+          escala,
+          dataInicioVigencia,
+        )
+        const isDiaEscalado = avaliacaoEscala.trabalho
 
         let status: 'presente' | 'ausente' | 'nao_registrado' | 'atestado' | 'folga' | 'ferias' =
           'nao_registrado'
@@ -236,7 +248,7 @@ export default function GestaoPontoPage() {
             irregularidades.push('Sem registro de saída')
           }
         } else {
-          // Sem batida
+          // Sem batida em dia que era para trabalhar
           if (isHoje) {
             status = 'nao_registrado'
           } else {
@@ -257,7 +269,16 @@ export default function GestaoPontoPage() {
           irregularidades,
         }
       })
-  }, [colaboradores, vinculos, escalas, registrosDia, dataSelecionada, atestados])
+  }, [
+    colaboradores,
+    vinculos,
+    escalas,
+    escalasDepartamento,
+    registrosDia,
+    dataSelecionada,
+    atestados,
+    feriasAprovadasMes,
+  ])
 
   // Filtragem da tabela
   const linhasFiltradas = useMemo(() => {
@@ -336,12 +357,29 @@ export default function GestaoPontoPage() {
     }
   }
 
-  // Escala do colaborador aberto no modal
-  const escalaColaboradorSelecionado = useMemo(() => {
-    if (!colaboradorSelecionado) return undefined
+  // Escala e data de vigência do colaborador aberto no modal (com precedência)
+  const infoEscalaModal = useMemo(() => {
+    if (!colaboradorSelecionado) return { escala: undefined, dataInicio: undefined }
     const vinc = vinculos.find((v) => v.colaborador_id === colaboradorSelecionado.id)
-    return vinc?.expand?.escala_id || escalas.find((e) => e.id === vinc?.escala_id)
-  }, [colaboradorSelecionado, vinculos, escalas])
+    if (vinc) {
+      const esc = vinc.expand?.escala_id || escalas.find((e) => e.id === vinc.escala_id)
+      if (esc) return { escala: esc, dataInicio: vinc.data_inicio }
+    }
+
+    if (colaboradorSelecionado.departamento) {
+      const depEsc = escalasDepartamento.find(
+        (d) => d.departamento === colaboradorSelecionado.departamento,
+      )
+      if (depEsc) {
+        const esc = depEsc.expand?.escala_id || escalas.find((e) => e.id === depEsc.escala_id)
+        if (esc) return { escala: esc, dataInicio: depEsc.data_inicio }
+      }
+    }
+
+    return { escala: undefined, dataInicio: undefined }
+  }, [colaboradorSelecionado, vinculos, escalas, escalasDepartamento])
+
+  const escalaColaboradorSelecionado = infoEscalaModal.escala
 
   // Espelho montado para o modal
   const espelhoModalCalculado = useMemo<DiaEspelhoPonto[]>(() => {
@@ -354,6 +392,7 @@ export default function GestaoPontoPage() {
       atestados,
       colaboradorSelecionado,
       feriasAprovadasMes.filter((f) => f.colaborador_id === colaboradorSelecionado.id),
+      infoEscalaModal.dataInicio,
     )
   }, [
     mesEspelho,
@@ -362,6 +401,7 @@ export default function GestaoPontoPage() {
     atestados,
     colaboradorSelecionado,
     feriasAprovadasMes,
+    infoEscalaModal.dataInicio,
   ])
 
   return (
@@ -832,8 +872,24 @@ export default function GestaoPontoPage() {
                               </Badge>
                             </td>
                           ) : isFolga ? (
-                            <td colSpan={4} className="py-2 text-center text-[11px] text-[#9E9E9E]">
-                              Folga semanal
+                            <td colSpan={4} className="py-2 text-center text-[11px]">
+                              {dia.tipoFolgaEspecial === '12x36' ? (
+                                <Badge
+                                  variant="outline"
+                                  className="bg-purple-50 text-purple-700 border-purple-200 text-[10px] font-semibold"
+                                >
+                                  Folga (12x36)
+                                </Badge>
+                              ) : dia.tipoFolgaEspecial === 'revezamento' ? (
+                                <Badge
+                                  variant="outline"
+                                  className="bg-indigo-50 text-indigo-700 border-indigo-200 text-[10px] font-semibold"
+                                >
+                                  Folga (Revezamento)
+                                </Badge>
+                              ) : (
+                                <span className="text-[#9E9E9E]">Folga semanal</span>
+                              )}
                             </td>
                           ) : (
                             <>
