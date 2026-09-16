@@ -917,6 +917,17 @@ export const comunicadoService = {
     return record
   },
 
+  async deleteComunicado(id: string, tenantId?: string): Promise<boolean> {
+    if (tenantId) {
+      const record = await pb.collection('comunicado').getOne<import('@/types').Comunicado>(id)
+      if (record.tenant_id !== tenantId) {
+        throw new Error('Acesso negado: comunicado não pertence ao tenant do usuário.')
+      }
+    }
+    await pb.collection('comunicado').delete(id)
+    return true
+  },
+
   /**
    * Filtra comunicados visíveis para o colaborador/usuário atual.
    * Regras:

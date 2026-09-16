@@ -17,8 +17,11 @@ import {
   Loader2,
   Check,
   AlertCircle,
+  Trash2,
+  AlertTriangle,
 } from 'lucide-react'
 import { useAuth } from '@/context/AuthContext'
+import { usePermission } from '@/hooks/usePermission'
 import { comunicadoService, logAuditoriaService } from '@/services/api'
 import {
   Comunicado,
@@ -48,6 +51,16 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog'
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog'
 import { Skeleton } from '@/components/ui/skeleton'
 import { useToast } from '@/hooks/use-toast'
 
@@ -55,6 +68,10 @@ export default function GestaoComunicadosPage() {
   const { user } = useAuth()
   const tenantId = user?.tenant_id
   const { toast } = useToast()
+  const { isRHOrAbove } = usePermission()
+
+  const podeExcluir =
+    isRHOrAbove || user?.perfil === 'rh' || user?.perfil === 'admin_rh' || user?.perfil === 'admin'
 
   const [comunicados, setComunicados] = useState<Comunicado[]>([])
   const [loading, setLoading] = useState(true)
@@ -75,6 +92,10 @@ export default function GestaoComunicadosPage() {
 
   // Modal Leitura/Detalhes
   const [modalVisualizar, setModalVisualizar] = useState<Comunicado | null>(null)
+
+  // Modal de Exclusão
+  const [comunicadoParaExcluir, setComunicadoParaExcluir] = useState<Comunicado | null>(null)
+  const [excluindo, setExcluindo] = useState(false)
 
   const carregarComunicados = async () => {
     if (!tenantId) return
@@ -258,6 +279,53 @@ export default function GestaoComunicadosPage() {
       })
     } catch {
       return '—'
+    }
+  }
+
+  // Exclusão de comunicado
+  const handleConfirmarExclusao = async () => {
+    if (!comunicadoParaExcluir || !tenantId) return
+
+    try {
+      setExcluindo(true)
+      await comunicadoService.deleteComunicado(comunicadoParaExcluir.id, tenantId)
+
+      // Registrar auditoria
+      if (user?.id) {
+        await logAuditoriaService.registrarLog({
+          tenant_id: tenantId,
+          user_id: user.id,
+          acao: 'exclusao_comunicado',
+          entidade: 'comunicado',
+          entidade_id: comunicadoParaExcluir.id,
+          dados_json: {
+            titulo: comunicadoParaExcluir.titulo,
+            categoria: comunicadoParaExcluir.categoria,
+            segmentacao_tipo: comunicadoParaExcluir.segmentacao_tipo,
+            segmentacao_valor: comunicadoParaExcluir.segmentacao_valor,
+            status: comunicadoParaExcluir.status,
+            usuario_executor: user.name || user.email,
+          },
+        })
+      }
+
+      setComunicados((prev) => prev.filter((c) => c.id !== comunicadoParaExcluir.id))
+      setComunicadoParaExcluir(null)
+
+      toast({
+        title: 'Comunicado excluído com sucesso',
+        description: `O comunicado "${comunicadoParaExcluir.titulo}" foi removido do sistema.`,
+      })
+    } catch (err) {
+      console.error('Erro ao excluir comunicado:', err)
+      toast({
+        title: 'Erro ao excluir comunicado',
+        description:
+          'Não foi possível excluir o comunicado. Verifique suas permissões e tente novamente.',
+        variant: 'destructive',
+      })
+    } finally {
+      setExcluindo(false)
     }
   }
 
@@ -493,6 +561,19 @@ export default function GestaoComunicadosPage() {
                               <Archive className="h-3 w-3 mr-1" />
                               {isAtivo ? 'Arquivar' : 'Reativar'}
                             </Button>
+
+                            {podeExcluir && (
+                              <Button
+                                variant="outline"
+                                size="sm"
+                                onClick={() => setComunicadoParaExcluir(item)}
+                                className="h-7 px-2 text-[11px] font-semibold border border-red-200 text-red-600 hover:bg-red-50 hover:text-red-700"
+                                title="Excluir comunicado permanentemente"
+                              >
+                                <Trash2 className="h-3 w-3 mr-1" />
+                                Excluir
+                              </Button>
+                            )}
                           </div>
                         </td>
                       </tr>
@@ -742,6 +823,76 @@ export default function GestaoComunicadosPage() {
           </div>
         </DialogContent>
       </Dialog>
+
+      {/* Modal de Confirmação de Exclusão */}
+      <AlertDialog
+        open={Boolean(comunicadoParaExcluir)}
+        onOpenChange={(open) => !open && !excluindo && setComunicadoParaExcluir(null)}
+      >
+        <AlertDialogContent className="bg-white border border-[#E0E0E0] max-w-md">
+          <AlertDialogHeader>
+            <div className="flex items-center gap-2 text-red-600 mb-1">
+              <AlertTriangle className="h-5 w-5" />
+              <AlertDialogTitle className="text-base font-bold text-[#212121]">
+                Excluir Comunicado?
+              </AlertDialogTitle>
+            </div>
+            <AlertDialogDescription className="text-xs text-[#616161] leading-relaxed">
+              Tem certeza que deseja excluir o comunicado{' '}
+              <strong className="text-[#212121]">"{comunicadoParaExcluir?.titulo}"</strong>? Esta
+              ação é irreversível e removerá permanentemente o aviso do mural de todos os
+              colaboradores do tenant.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+
+          {comunicadoParaExcluir && (
+            <div className="py-2 text-xs space-y-1.5">
+              <div className="p-3 rounded-lg bg-[#FAFAFA] border border-[#E0E0E0] text-[11px] text-[#424242] space-y-1">
+                <p>
+                  <strong>Categoria:</strong> {comunicadoParaExcluir.categoria}
+                </p>
+                <p>
+                  <strong>Segmentação:</strong>{' '}
+                  {comunicadoParaExcluir.segmentacao_tipo === 'todos'
+                    ? 'Todos os colaboradores'
+                    : comunicadoParaExcluir.segmentacao_tipo === 'gestores'
+                      ? 'Liderança e Gestores'
+                      : `${comunicadoParaExcluir.segmentacao_tipo}: ${comunicadoParaExcluir.segmentacao_valor || '—'}`}
+                </p>
+                <p>
+                  <strong>Publicado em:</strong>{' '}
+                  {formatarData(
+                    comunicadoParaExcluir.data_publicacao || comunicadoParaExcluir.created,
+                  )}
+                </p>
+              </div>
+            </div>
+          )}
+
+          <AlertDialogFooter className="gap-2 pt-2 border-t border-[#F0F0F0]">
+            <AlertDialogCancel
+              disabled={excluindo}
+              className="text-xs h-9 border-[#E0E0E0] text-[#212121]"
+            >
+              Cancelar
+            </AlertDialogCancel>
+            <AlertDialogAction
+              onClick={handleConfirmarExclusao}
+              disabled={excluindo}
+              className="bg-red-600 hover:bg-red-700 text-white text-xs font-semibold h-9"
+            >
+              {excluindo ? (
+                <>
+                  <Loader2 className="h-3.5 w-3.5 animate-spin mr-1.5" />
+                  Excluindo...
+                </>
+              ) : (
+                'Excluir'
+              )}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
 
       {/* Modal Leitura Completa de Comunicado */}
       <Dialog open={!!modalVisualizar} onOpenChange={(open) => !open && setModalVisualizar(null)}>
