@@ -37,7 +37,13 @@ import {
   Loader2,
   Info,
 } from 'lucide-react'
-import { Colaborador, Dependente, ContatoEmergencia, SolicitacaoAlteracao } from '@/types'
+import {
+  Colaborador,
+  Dependente,
+  ContatoEmergencia,
+  SolicitacaoAlteracao,
+  DEPARTAMENTOS_PADRAO,
+} from '@/types'
 import { useAuth } from '@/context/AuthContext'
 import { usePermission } from '@/hooks/usePermission'
 import {
@@ -312,21 +318,16 @@ export const ModalEditarPerfilColaborador: React.FC<ModalEditarPerfilColaborador
         setSolicitacoesPendentes(pendentes)
 
         // Extrair departamentos distintos do tenant para alimentar o dropdown
-        const depts = new Set<string>()
-        if (colaborador.departamento) depts.add(colaborador.departamento)
-        depts.add('Recursos Humanos')
-        depts.add('Marketing')
-        depts.add('TI')
-        depts.add('Financeiro')
-        depts.add('Diretoria')
-        depts.add('Operações')
-        depts.add('Comercial')
+        const depts = new Set<string>(DEPARTAMENTOS_PADRAO)
+        if (colaborador.departamento && colaborador.departamento.trim()) {
+          depts.add(colaborador.departamento.trim())
+        }
         todosColabs.forEach((c) => {
           if (c.departamento && c.departamento.trim()) {
             depts.add(c.departamento.trim())
           }
         })
-        setDepartamentosTenant(Array.from(depts).sort())
+        setDepartamentosTenant(Array.from(depts).sort((a, b) => a.localeCompare(b, 'pt-BR')))
       } catch (err) {
         console.error('Erro ao carregar dados complementares para edição:', err)
       } finally {

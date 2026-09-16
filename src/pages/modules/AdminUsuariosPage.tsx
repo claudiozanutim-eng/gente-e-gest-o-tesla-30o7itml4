@@ -22,7 +22,7 @@ import {
 import { useAuth } from '@/context/AuthContext'
 import pb from '@/lib/pocketbase/client'
 import { userService, colaboradorService, logAuditoriaService } from '@/services/api'
-import { AppUser, UserPerfil, Colaborador } from '@/types'
+import { AppUser, UserPerfil, Colaborador, DEPARTAMENTOS_PADRAO } from '@/types'
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
@@ -1027,13 +1027,21 @@ export default function AdminUsuariosPage() {
                 <Label htmlFor="departamento" className="text-xs font-semibold text-[#212121]">
                   Departamento
                 </Label>
-                <Input
-                  id="departamento"
-                  value={novoDepartamento}
-                  onChange={(e) => setNovoDepartamento(e.target.value)}
-                  placeholder="Ex: Contábil"
-                  className="text-xs h-9 border-[#E0E0E0]"
-                />
+                <Select value={novoDepartamento} onValueChange={(val) => setNovoDepartamento(val)}>
+                  <SelectTrigger
+                    id="departamento"
+                    className="text-xs h-9 border-[#E0E0E0] bg-white"
+                  >
+                    <SelectValue placeholder="Selecione o departamento" />
+                  </SelectTrigger>
+                  <SelectContent className="bg-white border-[#E0E0E0]">
+                    {DEPARTAMENTOS_PADRAO.map((dep) => (
+                      <SelectItem key={dep} value={dep}>
+                        {dep}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
               </div>
             </div>
 

@@ -1081,3 +1081,18 @@ export interface PermissaoUsuario {
     atualizado_por?: AppUser
   }
 }
+
+// ----------------------------------------------------
+// Departamentos Padrão da Empresa (ordenados alfabeticamente)
+// ----------------------------------------------------
+export const DEPARTAMENTOS_PADRAO: readonly string[] = [
+  'Comercial',
+  'Diretoria',
+  'Expedição',
+  'Financeiro',
+  'Marketing',
+  'Operações',
+  'Produção',
+  'Recursos Humanos',
+  'TI',
+] as const
