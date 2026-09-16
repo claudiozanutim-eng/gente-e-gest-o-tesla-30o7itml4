@@ -2,6 +2,7 @@ import React, { useState } from 'react'
 import { Outlet } from 'react-router-dom'
 import { Sidebar } from './Sidebar'
 import { Header } from './Header'
+import { NikoFloatingWidget } from '@/components/chat/NikoFloatingWidget'
 
 export default function Layout() {
   const [collapsed, setCollapsed] = useState(false)
@@ -30,6 +31,9 @@ export default function Layout() {
           <Outlet />
         </div>
       </main>
+
+      {/* Widget flutuante do assistente NIKO RH presente em todas as páginas autenticadas */}
+      <NikoFloatingWidget />
     </div>
   )
 }

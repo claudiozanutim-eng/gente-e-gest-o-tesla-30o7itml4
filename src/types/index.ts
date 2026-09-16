@@ -1058,6 +1058,7 @@ export type PermissaoMenuKey =
   // Extras / Legado
   | 'dashboard_rh'
   | 'assistente_clt'
+  | 'niko_rh'
   | 'documentos_importantes'
   | 'demonstrativo'
   | 'beneficios_colaborador'

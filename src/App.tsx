@@ -52,6 +52,7 @@ import AdminLogsPage from '@/pages/modules/AdminLogsPage'
 import AdminEmailPage from '@/pages/modules/AdminEmailPage'
 import { FeriasColetivoPage } from '@/pages/modules/FeriasColetivoPage'
 import { DashboardFinanceiroPage } from '@/pages/modules/DashboardFinanceiroPage'
+import NikoRhPage from '@/pages/modules/NikoRhPage'
 import NotFound from '@/pages/NotFound'
 
 // Root redirect handler based on user profile or login
@@ -246,6 +247,18 @@ const App = () => (
                 </ProtectedRoute>
               }
             />
+            {/* NIKO RH — Assistente Virtual (para todos os colaboradores e gestores) */}
+            <Route
+              path="/niko-rh"
+              element={
+                <ProtectedRoute
+                  allowedProfiles={['colaborador', 'gestor', 'rh', 'admin_rh', 'admin']}
+                  permissionKey="niko_rh"
+                >
+                  <NikoRhPage />
+                </ProtectedRoute>
+              }
+            />
             {/* Gestão de Pessoas - Base de Colaboradores e Documentos ('rh', 'admin_rh', 'admin') */}
             <Route
               path="/colaboradores"
@@ -254,7 +267,7 @@ const App = () => (
                   <ColaboradoresPage />
                 </ProtectedRoute>
               }
-            />
+            />{' '}
             <Route
               path="/documentos"
               element={

@@ -83,6 +83,15 @@ export const ITENS_PERMISSAO_CATALOGO: ItemPermissaoConfig[] = [
   // PILAR 2: GESTÃO DE PESSOAS
   // ==========================================
   {
+    key: 'niko_rh',
+    label: 'NIKO RH — Assistente Virtual',
+    descricao:
+      'Assistente inteligente nativo especializado em CLT, cultura Tesla e direitos dos colaboradores',
+    grupo: 'pessoas',
+    rota: '/niko-rh',
+    perfisPadrao: ['colaborador', 'gestor', 'rh', 'admin_rh', 'admin'],
+  },
+  {
     key: 'colaboradores',
     label: 'Colaboradores (Base Geral)',
     descricao: 'Ficha cadastral completa, dependentes, documentos e histórico funcional',
@@ -329,6 +338,7 @@ export const ROTA_PARA_CHAVE_MAP: Record<string, PermissaoMenuKey> = {
   '/estrutura': 'estrutura',
 
   // Pilar 2: Gestão de Pessoas
+  '/niko-rh': 'niko_rh',
   '/colaboradores': 'colaboradores',
   '/folha/gestao': 'folha',
   '/comunicados/gestao': 'comunicados',

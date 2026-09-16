@@ -28,6 +28,7 @@ import {
   Mail,
   DollarSign,
   HeartHandshake,
+  Bot,
 } from 'lucide-react'
 import { useAuth } from '@/context/AuthContext'
 import { usePermission } from '@/hooks/usePermission'
@@ -221,6 +222,24 @@ export const Sidebar: React.FC<SidebarProps> = ({
       title: 'Gestão de Pessoas',
       allowedProfiles: ['colaborador', 'gestor', 'rh', 'admin_rh', 'admin'],
       items: [
+        ...(deveExibirItem(
+          {
+            title: 'NIKO RH — Assistente Virtual',
+            path: '/niko-rh',
+            icon: Bot,
+            permissionKey: 'niko_rh',
+          },
+          true,
+        )
+          ? [
+              {
+                title: 'NIKO RH — Assistente',
+                path: '/niko-rh',
+                icon: Bot,
+                permissionKey: 'niko_rh' as PermissaoMenuKey,
+              },
+            ]
+          : []),
         ...(deveExibirItem(
           { title: 'Colaboradores', path: '/colaboradores', icon: Users },
           isRHOrAbove,
