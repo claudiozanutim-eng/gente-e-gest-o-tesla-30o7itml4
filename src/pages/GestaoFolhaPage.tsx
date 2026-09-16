@@ -46,7 +46,8 @@ import { DemonstrativoFinanceiroView } from '@/components/folha/DemonstrativoFin
 import { ModalLancamentoPeriodico } from '@/components/folha/ModalLancamentoPeriodico'
 import { ModalLancamentoPontual } from '@/components/folha/ModalLancamentoPontual'
 import { ModalImportarLancamentos } from '@/components/folha/ModalImportarLancamentos'
-import { FileSpreadsheet } from 'lucide-react'
+import { ModalImportarHoleritePDF } from '@/components/folha/ModalImportarHoleritePDF'
+import { FileSpreadsheet, UploadCloud } from 'lucide-react'
 
 const MESES = [
   { valor: 1, nome: 'Janeiro' },
@@ -98,9 +99,10 @@ export const GestaoFolhaPage: React.FC = () => {
   const [pontualParaEditar, setPontualParaEditar] = useState<LancamentoPontual | null>(null)
 
   const [modalImportacaoAberto, setModalImportacaoAberto] = useState(false)
+  const [modalImportarPdfAberto, setModalImportarPdfAberto] = useState(false)
 
-  // Permissão para importar planilha: apenas admin_rh e admin
-  const podeImportarPlanilha = useMemo(() => {
+  // Permissão para importar holerites / folha: apenas admin_rh e admin
+  const podeImportarFolha = useMemo(() => {
     return user?.perfil === 'admin_rh' || user?.perfil === 'admin'
   }, [user?.perfil])
 
@@ -362,6 +364,7 @@ export const GestaoFolhaPage: React.FC = () => {
             onRemoverPontual={handleRemoverPontual}
             onReload={() => setRefreshTrigger((prev) => prev + 1)}
             refreshTrigger={refreshTrigger}
+            onImportarHoleritePdf={() => setModalImportarPdfAberto(true)}
           />
         )}
 
@@ -450,16 +453,30 @@ export const GestaoFolhaPage: React.FC = () => {
             <RefreshCw className={`h-3.5 w-3.5 ${loading ? 'animate-spin' : ''}`} />
           </Button>
 
-          {/* Botão Importar Planilha (visível apenas para admin_rh e admin) */}
-          {podeImportarPlanilha && (
-            <Button
-              size="sm"
-              onClick={() => setModalImportacaoAberto(true)}
-              className="h-9 gap-1.5 bg-[#0D47A1] hover:bg-[#0b3c8a] text-white text-xs font-semibold shadow-xs"
-            >
-              <FileSpreadsheet className="h-4 w-4" />
-              Importar Planilha
-            </Button>
+          {/* Botão Importar Holerite PDF e Planilha (apenas admin_rh e admin) */}
+          {podeImportarFolha && (
+            <div className="flex items-center gap-2">
+              <Button
+                size="sm"
+                onClick={() => setModalImportarPdfAberto(true)}
+                className="h-9 gap-1.5 bg-[#0D47A1] hover:bg-[#0B3D91] text-white text-xs font-semibold shadow-sm"
+                title="Importar um ou vários holerites em PDF no modelo oficial da Tesla"
+              >
+                <UploadCloud className="h-4 w-4" />
+                Importar Holerite (PDF)
+              </Button>
+
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={() => setModalImportacaoAberto(true)}
+                className="h-9 gap-1.5 border-[#0D47A1] text-[#0D47A1] hover:bg-blue-50 text-xs font-semibold"
+                title="Importar lote de lançamentos via planilha CSV ou Excel"
+              >
+                <FileSpreadsheet className="h-4 w-4" />
+                Planilha
+              </Button>
+            </div>
           )}
         </div>
       </div>
@@ -538,7 +555,7 @@ export const GestaoFolhaPage: React.FC = () => {
       </div>
 
       {/* Modal de Importação de Planilha (CSV / Excel) */}
-      {user && podeImportarPlanilha && (
+      {user && podeImportarFolha && (
         <ModalImportarLancamentos
           open={modalImportacaoAberto}
           onClose={() => setModalImportacaoAberto(false)}
@@ -546,6 +563,21 @@ export const GestaoFolhaPage: React.FC = () => {
           userId={user.id}
           colaboradores={itensGestao.map((i) => i.colaborador)}
           onSuccess={() => carregarDadosGestao()}
+        />
+      )}
+
+      {/* Modal de Importação de Holerites em PDF (Modelo Oficial Tesla) */}
+      {user && podeImportarFolha && (
+        <ModalImportarHoleritePDF
+          open={modalImportarPdfAberto}
+          onClose={() => setModalImportarPdfAberto(false)}
+          tenantId={user.tenant_id}
+          userId={user.id}
+          colaboradores={itensGestao.map((i) => i.colaborador)}
+          onSuccess={() => {
+            carregarDadosGestao()
+            setRefreshTrigger((prev) => prev + 1)
+          }}
         />
       )}
 

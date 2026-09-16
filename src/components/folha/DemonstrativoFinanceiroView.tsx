@@ -92,6 +92,7 @@ export interface DemonstrativoFinanceiroViewProps {
   onRemoverPontual?: (item: LancamentoPontual) => Promise<void>
   onReload?: () => void
   refreshTrigger?: number // número que muda para disparar reload
+  onImportarHoleritePdf?: () => void
 }
 
 export function formatarDataBR(dataStr?: string | null): string {
@@ -118,6 +119,7 @@ export const DemonstrativoFinanceiroView: React.FC<DemonstrativoFinanceiroViewPr
   onRemoverPontual,
   onReload,
   refreshTrigger = 0,
+  onImportarHoleritePdf,
 }) => {
   // Estado de seleção de competência (Mês / Ano)
   // Padrão: Setembro 2026 (ou data atual do sistema)
@@ -452,6 +454,20 @@ export const DemonstrativoFinanceiroView: React.FC<DemonstrativoFinanceiroViewPr
           >
             <RefreshCw className={`h-3.5 w-3.5 ${loading ? 'animate-spin' : ''}`} />
           </Button>
+
+          {/* Botão Importar Holerite PDF (caso o usuário tenha permissão de gestão) */}
+          {canManage && onImportarHoleritePdf && (
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={onImportarHoleritePdf}
+              className="h-9 text-xs border-[#0D47A1] text-[#0D47A1] hover:bg-blue-50 gap-1.5 font-semibold"
+              title="Importar novo holerite oficial em PDF"
+            >
+              <FileText className="h-3.5 w-3.5" />
+              Importar Holerite (PDF)
+            </Button>
+          )}
 
           {/* Botão Baixar Holerite (PDF) */}
           <Button

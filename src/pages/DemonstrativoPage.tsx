@@ -8,13 +8,17 @@ import { useAuth } from '@/context/AuthContext'
 import { colaboradorService } from '@/services/api'
 import { Colaborador } from '@/types'
 import { DemonstrativoFinanceiroView } from '@/components/folha/DemonstrativoFinanceiroView'
+import { ModalImportarHoleritePDF } from '@/components/folha/ModalImportarHoleritePDF'
 import { NavLink } from 'react-router-dom'
 
 export const DemonstrativoPage: React.FC = () => {
   const { user } = useAuth()
   const [colaborador, setColaborador] = useState<Colaborador | null>(null)
+  const [todosColaboradores, setTodosColaboradores] = useState<Colaborador[]>([])
   const [loading, setLoading] = useState<boolean>(true)
   const [errorMsg, setErrorMsg] = useState<string | null>(null)
+  const [modalImportarPdfAberto, setModalImportarPdfAberto] = useState<boolean>(false)
+  const [refreshTrigger, setRefreshTrigger] = useState<number>(0)
 
   useEffect(() => {
     async function loadColaborador() {
@@ -22,13 +26,19 @@ export const DemonstrativoPage: React.FC = () => {
       setLoading(true)
       setErrorMsg(null)
       try {
+        // Carrega lista geral para modal de importação se for admin
+        if (user.perfil === 'admin_rh' || user.perfil === 'admin' || user.perfil === 'rh') {
+          const list = await colaboradorService.getColaboradores(user.tenant_id)
+          setTodosColaboradores(list)
+        }
+
         // Se o usuário já tiver vínculo com colaborador pelo id do user
         const colab = await colaboradorService.getColaboradorByUserId(user.id)
         if (colab) {
           setColaborador(colab)
         } else {
           // Se for RH/Admin ou não encontrar direto, buscar primeiro colaborador do tenant para demonstração
-          if (user.perfil === 'rh' || user.perfil === 'admin') {
+          if (user.perfil === 'rh' || user.perfil === 'admin' || user.perfil === 'admin_rh') {
             const list = await colaboradorService.getColaboradores(user.tenant_id)
             if (list.length > 0) {
               setColaborador(list[0])
@@ -59,9 +69,11 @@ export const DemonstrativoPage: React.FC = () => {
     }
 
     loadColaborador()
-  }, [user])
+  }, [user, refreshTrigger])
 
-  const canManageRH = user?.perfil === 'rh' || user?.perfil === 'admin'
+  const canManageRH =
+    user?.perfil === 'rh' || user?.perfil === 'admin' || user?.perfil === 'admin_rh'
+  const podeImportarPdf = user?.perfil === 'admin_rh' || user?.perfil === 'admin'
 
   return (
     <div className="space-y-6 pb-12">
@@ -81,18 +93,33 @@ export const DemonstrativoPage: React.FC = () => {
           </p>
         </div>
 
-        {canManageRH && (
-          <Button
-            asChild
-            className="bg-[#0D47A1] hover:bg-[#0B3D91] text-white text-xs h-9 gap-2 shadow-xs"
-          >
-            <NavLink to="/folha/gestao">
-              <Briefcase className="h-3.5 w-3.5" />
-              Gestão de Folha (RH)
-              <ArrowRight className="h-3.5 w-3.5" />
-            </NavLink>
-          </Button>
-        )}
+        <div className="flex items-center gap-2">
+          {podeImportarPdf && (
+            <Button
+              size="sm"
+              onClick={() => setModalImportarPdfAberto(true)}
+              className="bg-[#0D47A1] hover:bg-[#0B3D91] text-white text-xs h-9 gap-1.5 shadow-sm font-semibold"
+              title="Importar holerites em PDF no modelo oficial Tesla"
+            >
+              <FileText className="h-4 w-4" />
+              Importar Holerite (PDF)
+            </Button>
+          )}
+
+          {canManageRH && (
+            <Button
+              asChild
+              variant="outline"
+              className="border-[#0D47A1] text-[#0D47A1] hover:bg-blue-50 text-xs h-9 gap-2 font-semibold"
+            >
+              <NavLink to="/folha/gestao">
+                <Briefcase className="h-3.5 w-3.5" />
+                Gestão Geral da Folha
+                <ArrowRight className="h-3.5 w-3.5" />
+              </NavLink>
+            </Button>
+          )}
+        </div>
       </div>
 
       {/* Card com identificação do colaborador */}
@@ -160,6 +187,24 @@ export const DemonstrativoPage: React.FC = () => {
           colaboradorId={colaborador.id}
           colaborador={colaborador}
           canManage={false} // Nesta tela (do colaborador), o modo é somente leitura para o usuário
+          refreshTrigger={refreshTrigger}
+        />
+      )}
+
+      {/* Modal de Importação de Holerites em PDF */}
+      {user && podeImportarPdf && (
+        <ModalImportarHoleritePDF
+          open={modalImportarPdfAberto}
+          onClose={() => setModalImportarPdfAberto(false)}
+          tenantId={user.tenant_id}
+          userId={user.id}
+          colaboradores={
+            todosColaboradores.length > 0 ? todosColaboradores : colaborador ? [colaborador] : []
+          }
+          colaboradorPreSelecionado={colaborador}
+          onSuccess={() => {
+            setRefreshTrigger((prev) => prev + 1)
+          }}
         />
       )}
     </div>
