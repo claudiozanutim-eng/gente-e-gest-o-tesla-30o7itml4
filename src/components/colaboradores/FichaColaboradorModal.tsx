@@ -36,6 +36,7 @@ import {
   LogAuditoria,
 } from '@/types'
 import { useAuth } from '@/context/AuthContext'
+import pb from '@/lib/pocketbase/client'
 import {
   dependenteService,
   contatoEmergenciaService,
@@ -261,9 +262,13 @@ export const FichaColaboradorModal: React.FC<FichaColaboradorModalProps> = ({
           <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
             <div className="flex items-center gap-4">
               <Avatar className="h-16 w-16 rounded-full border-2 border-white/50 shadow-md ring-2 ring-white/20 bg-[#1E88E5]">
-                {colaborador.foto_url && (
+                {(colaborador.foto || colaborador.foto_url) && (
                   <AvatarImage
-                    src={colaborador.foto_url}
+                    src={
+                      colaborador.foto
+                        ? pb.files.getURL(colaborador, colaborador.foto)
+                        : colaborador.foto_url
+                    }
                     alt={nomeExibicao}
                     className="object-cover"
                   />

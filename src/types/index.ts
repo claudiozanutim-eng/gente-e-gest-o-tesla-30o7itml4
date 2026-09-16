@@ -2,7 +2,7 @@ export type UserPerfil = 'colaborador' | 'gestor' | 'rh' | 'admin_rh' | 'admin'
 
 export type TenantPlano = 'basico' | 'pro' | 'enterprise'
 export type TenantStatus = 'ativo' | 'inativo' | 'suspenso'
-export type ColaboradorStatus = 'ativo' | 'inativo'
+export type ColaboradorStatus = 'ativo' | 'inativo' | 'afastado' | 'ferias'
 
 export type TenantRegimeTributario = 'Simples Nacional' | 'Lucro Presumido' | 'Lucro Real' | 'MEI'
 

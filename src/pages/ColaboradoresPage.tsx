@@ -17,6 +17,7 @@ import {
   UserPlus,
 } from 'lucide-react'
 import { useAuth } from '@/context/AuthContext'
+import pb from '@/lib/pocketbase/client'
 import { colaboradorService } from '@/services/api'
 import { Colaborador } from '@/types'
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card'
@@ -74,7 +75,9 @@ export default function ColaboradoresPage() {
 
   // Filtros
   const [searchTerm, setSearchTerm] = useState<string>('')
-  const [statusFilter, setStatusFilter] = useState<'todos' | 'ativo' | 'inativo'>('todos')
+  const [statusFilter, setStatusFilter] = useState<
+    'todos' | 'ativo' | 'inativo' | 'afastado' | 'ferias'
+  >('todos')
   const [departamentoFilter, setDepartamentoFilter] = useState<string>('todos')
 
   // Modal Ficha Completa
@@ -92,6 +95,13 @@ export default function ColaboradoresPage() {
       if (showLoadingState) setLoading(true)
       else setRefreshing(true)
 
+      // 1. Sincronização retroativa: usuários do tenant que ainda não têm ficha em colaborador
+      // (cria a ficha com cargo do perfil ou vincula ficha existente com mesmo e-mail)
+      await colaboradorService.sincronizarUsuariosSemFicha(user.tenant_id).catch((err) => {
+        console.warn('Aviso na sincronização retroativa de usuários:', err)
+      })
+
+      // 2. Carregar lista completa de colaboradores
       const list = await colaboradorService.getColaboradores(user.tenant_id)
       setColaboradores(list)
     } catch (err) {
@@ -262,11 +272,13 @@ export default function ColaboradoresPage() {
               />
             </div>
 
-            {/* Filtro Status (Ativo, Inativo, Todos) */}
+            {/* Filtro Status (Ativo, Inativo, Afastado, Férias, Todos) */}
             <div className="sm:col-span-3">
               <Select
                 value={statusFilter}
-                onValueChange={(val: 'todos' | 'ativo' | 'inativo') => setStatusFilter(val)}
+                onValueChange={(val: 'todos' | 'ativo' | 'inativo' | 'afastado' | 'ferias') =>
+                  setStatusFilter(val)
+                }
               >
                 <SelectTrigger className="text-xs border-[#E0E0E0] h-9 bg-white">
                   <div className="flex items-center gap-1.5 truncate">
@@ -278,6 +290,8 @@ export default function ColaboradoresPage() {
                   <SelectItem value="todos">Todos os status</SelectItem>
                   <SelectItem value="ativo">Ativo</SelectItem>
                   <SelectItem value="inativo">Inativo</SelectItem>
+                  <SelectItem value="afastado">Afastado</SelectItem>
+                  <SelectItem value="ferias">Férias</SelectItem>
                 </SelectContent>
               </Select>
             </div>
@@ -400,12 +414,12 @@ export default function ColaboradoresPage() {
                       onClick={() => handleOpenFicha(c)}
                       className="cursor-pointer border-b border-[#F0F0F0] hover:bg-[#F8FAFC] transition-colors group"
                     >
-                      {/* Foto (miniatura) */}
+                      {/* Foto (miniatura com fallback de c.foto via pb.files ou c.foto_url) */}
                       <TableCell className="text-center py-3">
                         <Avatar className="h-9 w-9 border border-[#E0E0E0] mx-auto shadow-xs group-hover:ring-2 group-hover:ring-[#0D47A1]/30 transition-all">
-                          {c.foto_url && (
+                          {(c.foto || c.foto_url) && (
                             <AvatarImage
-                              src={c.foto_url}
+                              src={c.foto ? pb.files.getURL(c, c.foto) : c.foto_url}
                               alt={nomeExibicao}
                               className="object-cover"
                             />
@@ -430,7 +444,7 @@ export default function ColaboradoresPage() {
 
                       {/* Cargo */}
                       <TableCell className="py-3 text-xs text-[#424242] font-medium">
-                        {c.cargo || 'Não informado'}
+                        {c.cargo || 'Cargo não definido'}
                       </TableCell>
 
                       {/* Departamento */}
@@ -439,24 +453,38 @@ export default function ColaboradoresPage() {
                           variant="outline"
                           className="bg-[#FAFAFA] text-[#424242] border-[#E0E0E0] text-[11px] font-medium"
                         >
-                          {c.departamento || 'Geral'}
+                          {c.departamento || '—'}
                         </Badge>
                       </TableCell>
 
-                      {/* Status (Ativo/Inativo) */}
+                      {/* Status com badges elegantes: Ativo, Inativo, Afastado, Férias */}
                       <TableCell className="py-3">
                         <Badge
                           variant="outline"
                           className={`text-[11px] font-semibold capitalize ${
                             c.status === 'ativo'
                               ? 'bg-[#E8F5E9] text-[#2E7D32] border-[#2E7D32]/30'
-                              : 'bg-[#FFEBEE] text-[#C62828] border-[#C62828]/30'
+                              : c.status === 'afastado'
+                                ? 'bg-amber-50 text-amber-700 border-amber-300'
+                                : c.status === 'ferias'
+                                  ? 'bg-blue-50 text-blue-700 border-blue-300'
+                                  : 'bg-[#FFEBEE] text-[#C62828] border-[#C62828]/30'
                           }`}
                         >
                           {c.status === 'ativo' ? (
                             <span className="flex items-center gap-1">
                               <span className="h-1.5 w-1.5 rounded-full bg-[#2E7D32]" />
                               Ativo
+                            </span>
+                          ) : c.status === 'afastado' ? (
+                            <span className="flex items-center gap-1">
+                              <span className="h-1.5 w-1.5 rounded-full bg-amber-500" />
+                              Afastado
+                            </span>
+                          ) : c.status === 'ferias' ? (
+                            <span className="flex items-center gap-1">
+                              <span className="h-1.5 w-1.5 rounded-full bg-blue-500" />
+                              Férias
                             </span>
                           ) : (
                             <span className="flex items-center gap-1">

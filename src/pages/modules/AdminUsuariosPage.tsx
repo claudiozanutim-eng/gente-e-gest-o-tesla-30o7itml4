@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react'
+import React, { useState, useEffect, useRef } from 'react'
 import {
   Users,
   UserPlus,
@@ -17,15 +17,18 @@ import {
   Mail,
   Trash2,
   AlertTriangle,
+  Upload,
 } from 'lucide-react'
 import { useAuth } from '@/context/AuthContext'
-import { userService, logAuditoriaService } from '@/services/api'
-import { AppUser, UserPerfil } from '@/types'
+import pb from '@/lib/pocketbase/client'
+import { userService, colaboradorService, logAuditoriaService } from '@/services/api'
+import { AppUser, UserPerfil, Colaborador } from '@/types'
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
+import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
 import {
   Select,
   SelectContent,
@@ -84,8 +87,14 @@ export default function AdminUsuariosPage() {
   // Form Novo Usuário
   const [novoNome, setNovoNome] = useState('')
   const [novoEmail, setNovoEmail] = useState('')
+  const [novoCargo, setNovoCargo] = useState('')
+  const [novoDepartamento, setNovoDepartamento] = useState('')
   const [novaSenha, setNovaSenha] = useState('')
   const [novoPerfil, setNovoPerfil] = useState<UserPerfil>('colaborador')
+  const [novoFotoFile, setNovoFotoFile] = useState<File | null>(null)
+  const [novoFotoPreview, setNovoFotoPreview] = useState<string>('')
+  const [novoFotoErro, setNovoFotoErro] = useState<string>('')
+  const fileInputNovoUserRef = useRef<HTMLInputElement | null>(null)
   const [savingNovo, setSavingNovo] = useState(false)
 
   // Form Editar Usuário
@@ -121,7 +130,41 @@ export default function AdminUsuariosPage() {
     carregarUsuarios()
   }, [tenantId])
 
-  // Criar Usuário
+  const handleFotoNovoUserChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
+    setNovoFotoErro('')
+    if (!file) return
+
+    if (file.size > 5 * 1024 * 1024) {
+      setNovoFotoErro('A imagem deve ter no máximo 5 MB.')
+      toast({
+        title: 'Arquivo muito grande',
+        description: 'Selecione uma imagem PNG ou JPEG com menos de 5 MB.',
+        variant: 'destructive',
+      })
+      return
+    }
+
+    const validTypes = ['image/jpeg', 'image/png', 'image/jpg']
+    if (!validTypes.includes(file.type)) {
+      setNovoFotoErro('Formato inválido. Apenas PNG ou JPEG.')
+      toast({
+        title: 'Formato inválido',
+        description: 'Envie um arquivo PNG ou JPEG.',
+        variant: 'destructive',
+      })
+      return
+    }
+
+    if (novoFotoPreview && novoFotoPreview.startsWith('blob:')) {
+      URL.revokeObjectURL(novoFotoPreview)
+    }
+
+    setNovoFotoFile(file)
+    setNovoFotoPreview(URL.createObjectURL(file))
+  }
+
+  // Criar Usuário com criação automática de ficha de colaborador e upload de foto nativo
   const handleCriarUsuario = async (e: React.FormEvent) => {
     e.preventDefault()
     if (!novoNome.trim() || !novoEmail.trim()) {
@@ -137,40 +180,104 @@ export default function AdminUsuariosPage() {
 
     try {
       setSavingNovo(true)
-      const created = await userService.createUser({
-        tenant_id: tenantId,
-        name: novoNome.trim(),
-        email: novoEmail.trim().toLowerCase(),
-        password: novaSenha.trim() || 'Skip@Pass',
-        perfil: novoPerfil,
-      })
 
-      // Auditoria
+      // 1. Criar usuário em `users`
+      const created = await userService.createUser(
+        {
+          tenant_id: tenantId,
+          name: novoNome.trim(),
+          email: novoEmail.trim().toLowerCase(),
+          password: novaSenha.trim() || 'Skip@Pass',
+          perfil: novoPerfil,
+        },
+        novoFotoFile,
+      )
+
+      // 2. Mapeamento de cargo fallback pelo perfil
+      const perfilCargoMap: Record<UserPerfil, string> = {
+        admin: 'Administrador Geral',
+        admin_rh: 'Administrador de RH',
+        rh: 'Analista de RH',
+        gestor: 'Gestor',
+        colaborador: 'Colaborador',
+      }
+      const cargoFinal = novoCargo.trim() || perfilCargoMap[novoPerfil] || 'Colaborador'
+      const deptoFinal =
+        novoDepartamento.trim() ||
+        (novoPerfil === 'admin'
+          ? 'Diretoria'
+          : novoPerfil === 'admin_rh' || novoPerfil === 'rh'
+            ? 'Recursos Humanos'
+            : 'Geral')
+
+      // 3. Criar automaticamente a ficha em `colaborador`
+      let novoColabFicha: Colaborador | null = null
+      try {
+        novoColabFicha = await colaboradorService.createColaborador({
+          tenant_id: tenantId,
+          user_id: created.id,
+          nome: created.name,
+          nome_completo: created.name,
+          email: created.email,
+          cargo: cargoFinal,
+          departamento: deptoFinal,
+          status: 'ativo',
+          data_admissao: new Date().toISOString(),
+        })
+
+        // 3.1 Se houve upload de foto, anexar à ficha do colaborador via uploadFotoArquivo
+        if (novoFotoFile && novoColabFicha?.id) {
+          try {
+            await colaboradorService.uploadFotoArquivo(novoColabFicha.id, novoFotoFile)
+          } catch (fotoErr) {
+            console.warn('Erro ao salvar foto na ficha do colaborador:', fotoErr)
+          }
+        }
+      } catch (colabErr) {
+        console.warn('Erro ao criar ficha de colaborador automática:', colabErr)
+      }
+
+      // 4. Auditoria
       await logAuditoriaService.registrarLog({
         tenant_id: tenantId,
         user_id: currentUser.id,
-        acao: 'criacao_usuario',
+        acao: `Criação do usuário e ficha de colaborador: ${created.name} (${created.email})`,
         entidade: 'users',
         entidade_id: created.id,
         dados_json: {
           nome: created.name,
           email: created.email,
           perfil: created.perfil,
+          cargo: cargoFinal,
+          departamento: deptoFinal,
+          colaborador_ficha_id: novoColabFicha?.id || null,
+          possui_foto: Boolean(novoFotoFile),
           admin_responsavel: currentUser.name,
+          criado_em: new Date().toISOString(),
         },
       })
 
       setUsuarios((prev) => [created, ...prev])
       setModalNovoUsuarioOpen(false)
 
+      // Limpar formulário
       setNovoNome('')
       setNovoEmail('')
+      setNovoCargo('')
+      setNovoDepartamento('')
       setNovaSenha('')
       setNovoPerfil('colaborador')
+      if (novoFotoPreview && novoFotoPreview.startsWith('blob:')) {
+        URL.revokeObjectURL(novoFotoPreview)
+      }
+      setNovoFotoFile(null)
+      setNovoFotoPreview('')
+      setNovoFotoErro('')
+      if (fileInputNovoUserRef.current) fileInputNovoUserRef.current.value = ''
 
       toast({
-        title: 'Usuário criado com sucesso!',
-        description: `O acesso para ${created.name} (${created.perfil}) foi configurado no sistema.`,
+        title: 'Usuário e ficha criados com sucesso!',
+        description: `O acesso e a ficha funcional de ${created.name} (${cargoFinal}) foram configurados no sistema.`,
       })
     } catch (err: any) {
       console.error(err)
@@ -627,16 +734,30 @@ export default function AdminUsuariosPage() {
                         }`}
                       >
                         <td className="py-3 px-4 font-bold text-[#212121]">
-                          <div className="flex items-center gap-2">
-                            <div className="h-7 w-7 rounded-full bg-[#0D47A1] text-white flex items-center justify-center text-xs font-bold shrink-0">
-                              {(item.name || item.email || 'U').charAt(0).toUpperCase()}
+                          <div className="flex items-center gap-2.5">
+                            <Avatar className="h-8 w-8 rounded-full border border-[#0D47A1]/20">
+                              {item.avatar && (
+                                <AvatarImage
+                                  src={pb.files.getURL(item, item.avatar)}
+                                  className="object-cover"
+                                />
+                              )}
+                              <AvatarFallback className="bg-[#0D47A1] text-white text-[11px] font-bold">
+                                {(item.name || item.email || 'U').charAt(0).toUpperCase()}
+                              </AvatarFallback>
+                            </Avatar>
+                            <div className="min-w-0">
+                              <div className="flex items-center gap-1.5">
+                                <span className="truncate text-xs font-bold text-[#212121]">
+                                  {item.name || 'Sem nome'}
+                                </span>
+                                {isSelf && (
+                                  <span className="text-[10px] bg-blue-100 text-blue-800 px-1.5 py-0.2 rounded font-semibold">
+                                    Você
+                                  </span>
+                                )}
+                              </div>
                             </div>
-                            <span className="truncate">{item.name || 'Sem nome'}</span>
-                            {isSelf && (
-                              <span className="text-[10px] bg-blue-100 text-blue-800 px-1.5 py-0.2 rounded font-semibold">
-                                Você
-                              </span>
-                            )}
                           </div>
                         </td>
 
@@ -788,6 +909,60 @@ export default function AdminUsuariosPage() {
           </DialogHeader>
 
           <form onSubmit={handleCriarUsuario} className="space-y-4 py-2">
+            {/* Foto com preview circular */}
+            <div className="p-3 rounded-lg bg-[#FAFAFA] border border-[#E0E0E0] flex items-center gap-4">
+              <Avatar className="h-16 w-16 rounded-full border-2 border-[#0D47A1]/20 shadow-xs ring-2 ring-blue-50">
+                {novoFotoPreview && <AvatarImage src={novoFotoPreview} className="object-cover" />}
+                <AvatarFallback className="bg-[#0D47A1] text-white text-base font-bold">
+                  {(novoNome || 'U').charAt(0).toUpperCase()}
+                </AvatarFallback>
+              </Avatar>
+
+              <div className="space-y-1 flex-1">
+                <Label className="text-xs font-bold text-[#212121]">Foto de Perfil</Label>
+                <p className="text-[10px] text-[#757575]">PNG ou JPEG até 5 MB (opcional)</p>
+                {novoFotoErro && <p className="text-[10px] text-red-600">{novoFotoErro}</p>}
+                <div className="flex items-center gap-2 pt-0.5">
+                  <input
+                    ref={fileInputNovoUserRef}
+                    type="file"
+                    accept="image/png, image/jpeg, image/jpg"
+                    onChange={handleFotoNovoUserChange}
+                    className="hidden"
+                  />
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    onClick={() => fileInputNovoUserRef.current?.click()}
+                    className="h-7 text-xs border-[#E0E0E0] text-[#0D47A1] hover:bg-blue-50 gap-1 px-2.5"
+                  >
+                    <Upload className="h-3 w-3" />
+                    Escolher Imagem
+                  </Button>
+                  {novoFotoPreview && (
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => {
+                        if (novoFotoPreview.startsWith('blob:')) {
+                          URL.revokeObjectURL(novoFotoPreview)
+                        }
+                        setNovoFotoPreview('')
+                        setNovoFotoFile(null)
+                        setNovoFotoErro('')
+                        if (fileInputNovoUserRef.current) fileInputNovoUserRef.current.value = ''
+                      }}
+                      className="h-7 text-xs text-rose-600 hover:bg-rose-50 px-2"
+                    >
+                      Remover
+                    </Button>
+                  )}
+                </div>
+              </div>
+            </div>
+
             <div className="space-y-1.5">
               <Label htmlFor="nome" className="text-xs font-semibold text-[#212121]">
                 Nome Completo *
@@ -832,6 +1007,34 @@ export default function AdminUsuariosPage() {
               <p className="text-[10px] text-[#757575]">
                 Se deixar em branco, a senha padrão será <strong>Skip@Pass</strong>.
               </p>
+            </div>
+
+            <div className="grid grid-cols-2 gap-3">
+              <div className="space-y-1.5">
+                <Label htmlFor="cargo" className="text-xs font-semibold text-[#212121]">
+                  Cargo (Ficha)
+                </Label>
+                <Input
+                  id="cargo"
+                  value={novoCargo}
+                  onChange={(e) => setNovoCargo(e.target.value)}
+                  placeholder="Ex: Contador Sênior"
+                  className="text-xs h-9 border-[#E0E0E0]"
+                />
+              </div>
+
+              <div className="space-y-1.5">
+                <Label htmlFor="departamento" className="text-xs font-semibold text-[#212121]">
+                  Departamento
+                </Label>
+                <Input
+                  id="departamento"
+                  value={novoDepartamento}
+                  onChange={(e) => setNovoDepartamento(e.target.value)}
+                  placeholder="Ex: Contábil"
+                  className="text-xs h-9 border-[#E0E0E0]"
+                />
+              </div>
             </div>
 
             <div className="space-y-1.5">

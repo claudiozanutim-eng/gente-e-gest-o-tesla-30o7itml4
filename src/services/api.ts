@@ -67,21 +67,41 @@ export const userService = {
     return record
   },
 
-  async createUser(data: {
-    tenant_id: string
-    name: string
-    email: string
-    password?: string
-    perfil: UserPerfil
-  }): Promise<AppUser> {
+  async createUser(
+    data: {
+      tenant_id: string
+      name: string
+      email: string
+      password?: string
+      perfil: UserPerfil
+    },
+    avatarFile?: File | null,
+  ): Promise<AppUser> {
     const password = data.password || 'Skip@Pass'
-    const record = await pb.collection('users').create<AppUser>({
-      ...data,
-      password,
-      passwordConfirm: password,
-      ativo: true,
-      emailVisibility: false,
-    })
+    let record: AppUser
+
+    if (avatarFile) {
+      const formData = new FormData()
+      formData.append('tenant_id', data.tenant_id)
+      formData.append('name', data.name)
+      formData.append('email', data.email)
+      formData.append('password', password)
+      formData.append('passwordConfirm', password)
+      formData.append('perfil', data.perfil)
+      formData.append('ativo', 'true')
+      formData.append('emailVisibility', 'false')
+      formData.append('avatar', avatarFile)
+      record = await pb.collection('users').create<AppUser>(formData)
+    } else {
+      record = await pb.collection('users').create<AppUser>({
+        ...data,
+        password,
+        passwordConfirm: password,
+        ativo: true,
+        emailVisibility: false,
+      })
+    }
+
     return record
   },
 
@@ -200,6 +220,156 @@ export const colaboradorService = {
     }
   },
 
+  async getColaboradorByEmail(email: string, tenantId?: string): Promise<Colaborador | null> {
+    try {
+      const filter = tenantId
+        ? `email = "${email}" && tenant_id = "${tenantId}"`
+        : `email = "${email}"`
+      const record = await pb.collection('colaborador').getFirstListItem<Colaborador>(filter)
+      return record
+    } catch {
+      return null
+    }
+  },
+
+  /**
+   * Cria uma ficha de colaborador associada a um usuário do sistema ou cadastro avulso.
+   * Gera CPF formatado sequencial/único caso não informado para satisfazer o índice único do banco.
+   */
+  async createColaborador(data: {
+    tenant_id: string
+    user_id?: string | null
+    nome: string
+    nome_completo?: string
+    email?: string
+    cpf?: string
+    cargo?: string
+    departamento?: string
+    status?: 'ativo' | 'inativo'
+    data_admissao?: string
+    foto_url?: string
+  }): Promise<Colaborador> {
+    let cpfFinal = (data.cpf || '').trim()
+    if (!cpfFinal) {
+      // Gerar CPF identificador único caso não informado (ex: sync de users sem CPF)
+      const random9 = Math.floor(100000000 + Math.random() * 900000000).toString()
+      const d1 = Math.floor(Math.random() * 10)
+      const d2 = Math.floor(Math.random() * 10)
+      cpfFinal = `${random9.slice(0, 3)}.${random9.slice(3, 6)}.${random9.slice(6, 9)}-${d1}${d2}`
+    }
+
+    const payload: Record<string, unknown> = {
+      tenant_id: data.tenant_id,
+      nome: data.nome.trim(),
+      nome_completo: (data.nome_completo || data.nome).trim(),
+      cpf: cpfFinal,
+      cargo: data.cargo?.trim() || 'Colaborador',
+      departamento: data.departamento?.trim() || 'Geral',
+      status: data.status || 'ativo',
+      data_admissao: data.data_admissao || new Date().toISOString(),
+    }
+
+    if (data.user_id) payload.user_id = data.user_id
+    if (data.email) payload.email = data.email.trim().toLowerCase()
+    if (data.foto_url) payload.foto_url = data.foto_url
+
+    const record = await pb.collection('colaborador').create<Colaborador>(payload)
+    return record
+  },
+
+  /**
+   * Sincroniza usuários do tenant que ainda não possuem ficha na coleção colaborador.
+   * Cria a ficha automaticamente e associa user_id. Se já houver colaborador com mesmo e-mail,
+   * apenas vincula o user_id.
+   */
+  async sincronizarUsuariosSemFicha(tenantId: string): Promise<Colaborador[]> {
+    try {
+      // 1. Buscar todos os usuários do tenant
+      const users = await pb.collection('users').getFullList<AppUser>({
+        filter: `tenant_id = "${tenantId}"`,
+      })
+
+      // 2. Buscar todos os colaboradores do tenant
+      const colabs = await pb.collection('colaborador').getFullList<Colaborador>({
+        filter: `tenant_id = "${tenantId}"`,
+      })
+
+      const colabUserIdSet = new Set(colabs.map((c) => c.user_id).filter(Boolean))
+      const colabEmailMap = new Map<string, Colaborador>()
+      colabs.forEach((c) => {
+        if (c.email) colabEmailMap.set(c.email.trim().toLowerCase(), c)
+      })
+
+      const novosCriadosOuVinculados: Colaborador[] = []
+
+      // Mapeamento de cargo fallback pelo perfil do usuário
+      const perfilCargoMap: Record<UserPerfil, string> = {
+        admin: 'Administrador Geral',
+        admin_rh: 'Administrador de RH',
+        rh: 'Analista de RH',
+        gestor: 'Gestor',
+        colaborador: 'Colaborador',
+      }
+
+      for (const u of users) {
+        // Se já está vinculado por user_id, continua
+        if (colabUserIdSet.has(u.id)) continue
+
+        const userEmail = (u.email || '').trim().toLowerCase()
+        const colabExistentePorEmail = userEmail ? colabEmailMap.get(userEmail) : null
+
+        if (colabExistentePorEmail) {
+          // Já existe ficha com o mesmo e-mail, vincular user_id se estiver vazio
+          if (!colabExistentePorEmail.user_id) {
+            try {
+              const updated = await pb
+                .collection('colaborador')
+                .update<Colaborador>(colabExistentePorEmail.id, { user_id: u.id })
+              novosCriadosOuVinculados.push(updated)
+              colabUserIdSet.add(u.id)
+            } catch (err) {
+              console.warn(`Erro ao vincular user_id ${u.id} a colaborador existente:`, err)
+            }
+          }
+        } else {
+          // Não possui ficha: criar automaticamente
+          try {
+            const cargo = perfilCargoMap[u.perfil] || 'Colaborador'
+            const departamento =
+              u.perfil === 'admin'
+                ? 'Diretoria'
+                : u.perfil === 'admin_rh' || u.perfil === 'rh'
+                  ? 'Recursos Humanos'
+                  : 'Geral'
+
+            const novoColab = await this.createColaborador({
+              tenant_id: tenantId,
+              user_id: u.id,
+              nome: u.name || userEmail.split('@')[0] || 'Usuário',
+              nome_completo: u.name || userEmail.split('@')[0] || 'Usuário',
+              email: userEmail,
+              cargo,
+              departamento,
+              status: u.ativo !== false ? 'ativo' : 'inativo',
+              data_admissao: u.created || new Date().toISOString(),
+            })
+
+            novosCriadosOuVinculados.push(novoColab)
+            colabUserIdSet.add(u.id)
+            if (userEmail) colabEmailMap.set(userEmail, novoColab)
+          } catch (createErr) {
+            console.warn(`Erro ao criar ficha automática para usuário ${u.email}:`, createErr)
+          }
+        }
+      }
+
+      return novosCriadosOuVinculados
+    } catch (err) {
+      console.warn('Erro ao sincronizar usuários sem ficha:', err)
+      return []
+    }
+  },
+
   async getColaboradoresByDepartment(
     tenantId: string,
     departamento: string,
@@ -221,9 +391,10 @@ export const colaboradorService = {
   async uploadFotoArquivo(colaboradorId: string, file: File): Promise<Colaborador> {
     const formData = new FormData()
     formData.append('foto', file)
-    // Atualizar também foto_url com a URL pública servida pelo PocketBase
+    // 1. Enviar o arquivo físico para o campo `foto`
     const record = await pb.collection('colaborador').update<Colaborador>(colaboradorId, formData)
-    const fileUrl = pb.files.getURL(record, record.foto || '')
+    // 2. Gerar URL pública oficial via PocketBase SDK
+    const fileUrl = record.foto ? pb.files.getURL(record, record.foto) : ''
     if (fileUrl) {
       const updated = await pb.collection('colaborador').update<Colaborador>(colaboradorId, {
         foto_url: fileUrl,
@@ -231,6 +402,14 @@ export const colaboradorService = {
       return updated
     }
     return record
+  },
+
+  async removerFoto(colaboradorId: string): Promise<Colaborador> {
+    const updated = await pb.collection('colaborador').update<Colaborador>(colaboradorId, {
+      foto: null,
+      foto_url: '',
+    })
+    return updated
   },
 
   async updateColaborador(colaboradorId: string, data: Partial<Colaborador>): Promise<Colaborador> {

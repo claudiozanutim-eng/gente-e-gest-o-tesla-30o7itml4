@@ -108,6 +108,8 @@ export const ModalEditarPerfilColaborador: React.FC<ModalEditarPerfilColaborador
   // Preview de foto
   const [fotoPreview, setFotoPreview] = useState<string>('')
   const [fotoErro, setFotoErro] = useState<string>('')
+  const [fotoArquivo, setFotoArquivo] = useState<File | null>(null)
+  const [fotoRemovida, setFotoRemovida] = useState<boolean>(false)
   const fileInputRef = useRef<HTMLInputElement | null>(null)
 
   // ===============================
@@ -214,12 +216,22 @@ export const ModalEditarPerfilColaborador: React.FC<ModalEditarPerfilColaborador
   // Carregar dados iniciais ao abrir o modal
   useEffect(() => {
     if (!open || !colaborador) {
+      if (fotoPreview && fotoPreview.startsWith('blob:')) {
+        URL.revokeObjectURL(fotoPreview)
+      }
       setFotoPreview('')
+      setFotoArquivo(null)
+      setFotoRemovida(false)
       setErros({})
       setActiveTab('secao1')
       return
     }
 
+    if (fotoPreview && fotoPreview.startsWith('blob:')) {
+      URL.revokeObjectURL(fotoPreview)
+    }
+    setFotoArquivo(null)
+    setFotoRemovida(false)
     setErros({})
     setFotoErro('')
 
@@ -329,7 +341,7 @@ export const ModalEditarPerfilColaborador: React.FC<ModalEditarPerfilColaborador
     return null
   }
 
-  // Upload de Foto
+  // Upload de Foto nativo via File / URL.createObjectURL (sem converter para base64)
   const handleFotoChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0]
     setFotoErro('')
@@ -359,13 +371,14 @@ export const ModalEditarPerfilColaborador: React.FC<ModalEditarPerfilColaborador
       return
     }
 
-    const reader = new FileReader()
-    reader.onload = () => {
-      const result = reader.result as string
-      setFotoPreview(result)
-      setFotoUrl(result)
+    if (fotoPreview && fotoPreview.startsWith('blob:')) {
+      URL.revokeObjectURL(fotoPreview)
     }
-    reader.readAsDataURL(file)
+
+    const previewUrl = URL.createObjectURL(file)
+    setFotoPreview(previewUrl)
+    setFotoArquivo(file)
+    setFotoRemovida(false)
   }
 
   // Adicionar Dependente
@@ -555,7 +568,6 @@ export const ModalEditarPerfilColaborador: React.FC<ModalEditarPerfilColaborador
         deficiencia: possuiDeficiencia ? descricaoDeficiencia.trim() || 'Sim' : 'Nenhuma',
         nome_pai: nomePai.trim(),
         nome_mae: nomeMae.trim(),
-        foto_url: fotoUrl.trim() || undefined,
         endereco: partesEnd || colaborador.endereco,
         telefone: telefone.trim(),
         email: email.trim(),
@@ -565,6 +577,11 @@ export const ModalEditarPerfilColaborador: React.FC<ModalEditarPerfilColaborador
         departamento: departamento.trim(),
         jornada: jornada.trim(),
         local_trabalho: localTrabalho.trim(),
+      }
+
+      // Se a foto foi removida expressamente
+      if (fotoRemovida) {
+        dadosAtualizados.foto_url = ''
       }
 
       // CPF: só altera se tiver permissão de admin
@@ -600,11 +617,69 @@ export const ModalEditarPerfilColaborador: React.FC<ModalEditarPerfilColaborador
         }
       })
 
-      // 2. Salvar atualização na coleção colaborador
-      const colaboradorSalvo = await colaboradorService.updateColaborador(
+      // 2. Salvar atualização cadastral na coleção colaborador
+      let colaboradorSalvo = await colaboradorService.updateColaborador(
         colaborador.id,
         dadosAtualizados,
       )
+
+      // 2.1 Upload ou remoção nativa de foto via FormData
+      if (fotoArquivo) {
+        try {
+          colaboradorSalvo = await colaboradorService.uploadFotoArquivo(colaborador.id, fotoArquivo)
+
+          // Auditoria específica da alteração de foto
+          await logAuditoriaService.registrarLog({
+            tenant_id: user.tenant_id,
+            user_id: user.id,
+            acao: `Foto de perfil de ${colaborador.nome} atualizada por ${user.name}`,
+            entidade: 'colaborador',
+            entidade_id: colaborador.id,
+            dados_json: {
+              tipo_acao: 'upload_foto_colaborador',
+              origem: 'modal_editar_perfil',
+              nome_arquivo: fotoArquivo.name,
+              tamanho_bytes: fotoArquivo.size,
+              tipo_mime: fotoArquivo.type,
+              colaborador_id: colaborador.id,
+              colaborador_nome: colaborador.nome,
+              responsavel_id: user.id,
+              responsavel_nome: user.name,
+              data_upload: new Date().toISOString(),
+            },
+          })
+        } catch (fotoErr) {
+          console.warn('Erro ao enviar foto via FormData:', fotoErr)
+          toast({
+            title: 'Aviso sobre a foto',
+            description: 'Os dados cadastrais foram salvos, mas houve falha no upload da foto.',
+            variant: 'destructive',
+          })
+        }
+      } else if (fotoRemovida) {
+        try {
+          colaboradorSalvo = await colaboradorService.removerFoto(colaborador.id)
+
+          // Auditoria de remoção de foto
+          await logAuditoriaService.registrarLog({
+            tenant_id: user.tenant_id,
+            user_id: user.id,
+            acao: `Foto de perfil de ${colaborador.nome} removida por ${user.name}`,
+            entidade: 'colaborador',
+            entidade_id: colaborador.id,
+            dados_json: {
+              tipo_acao: 'remocao_foto_colaborador',
+              origem: 'modal_editar_perfil',
+              colaborador_id: colaborador.id,
+              responsavel_id: user.id,
+              responsavel_nome: user.name,
+              data_remocao: new Date().toISOString(),
+            },
+          })
+        } catch (remErr) {
+          console.warn('Erro ao remover foto:', remErr)
+        }
+      }
 
       // 3. Processar Dependentes (Criar, atualizar ou deletar)
       for (const dep of dependentesList) {
@@ -847,8 +922,8 @@ export const ModalEditarPerfilColaborador: React.FC<ModalEditarPerfilColaborador
                     Foto de Perfil do Colaborador
                   </Label>
                   <p className="text-[11px] text-[#757575]">
-                    Formatos aceitos: PNG ou JPEG. Limite de tamanho: 5 MB. A foto atualiza o campo{' '}
-                    <code>foto_url</code>.
+                    Formatos aceitos: PNG ou JPEG. Limite de tamanho: 5 MB. Upload nativo com
+                    armazenamento seguro.
                   </p>
                   {fotoErro && <p className="text-xs text-red-600 font-medium">{fotoErro}</p>}
                   <div className="flex flex-wrap gap-2 pt-1 justify-center sm:justify-start">
@@ -875,8 +950,12 @@ export const ModalEditarPerfilColaborador: React.FC<ModalEditarPerfilColaborador
                         variant="ghost"
                         size="sm"
                         onClick={() => {
+                          if (fotoPreview && fotoPreview.startsWith('blob:')) {
+                            URL.revokeObjectURL(fotoPreview)
+                          }
                           setFotoPreview('')
-                          setFotoUrl('')
+                          setFotoArquivo(null)
+                          setFotoRemovida(true)
                           if (fileInputRef.current) fileInputRef.current.value = ''
                         }}
                         className="h-8 text-xs text-rose-600 hover:bg-rose-50"
