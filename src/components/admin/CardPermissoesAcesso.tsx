@@ -132,13 +132,13 @@ export const CardPermissoesAcesso: React.FC<CardPermissoesAcessoProps> = ({
     }
   }
 
-  // Grupos do catálogo
+  // Grupos do catálogo organizados pelos 3 pilares + Administração
   const grupos: { id: string; label: string }[] = [
     { id: 'todos', label: 'Todos os Módulos' },
-    { id: 'rh', label: 'Recursos Humanos' },
-    { id: 'gestao_tempo', label: 'Gestão do Tempo' },
-    { id: 'talentos', label: 'Talentos & Gestão' },
-    { id: 'administracao', label: 'Administração & Governança' },
+    { id: 'talentos', label: 'Gestão de Talentos' },
+    { id: 'pessoas', label: 'Gestão de Pessoas' },
+    { id: 'tempo', label: 'Gestão do Tempo' },
+    { id: 'administracao', label: 'Administração' },
   ]
 
   // Contadores

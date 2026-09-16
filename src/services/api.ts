@@ -90,6 +90,41 @@ export const userService = {
     return record
   },
 
+  /**
+   * Exclusão permanente de usuário (apenas Admin Geral).
+   * Remove também registros correlacionados em permissao_usuario se existirem.
+   */
+  async deleteUser(userId: string): Promise<boolean> {
+    // 1. Remove permissões associadas se existirem
+    try {
+      const perms = await pb.collection('permissao_usuario').getList(1, 1, {
+        filter: `user_id = "${userId}"`,
+      })
+      if (perms.items.length > 0) {
+        await pb.collection('permissao_usuario').delete(perms.items[0].id)
+      }
+    } catch (e) {
+      console.warn('Aviso ao limpar permissões do usuário excluído:', e)
+    }
+
+    // 2. Se houver colaborador atrelado, desvincula user_id para manter histórico de RH
+    try {
+      const colab = await pb.collection('colaborador').getFirstListItem(`user_id = "${userId}"`)
+      if (colab?.id) {
+        await pb.collection('colaborador').update(colab.id, {
+          user_id: null,
+          status: 'inativo',
+        })
+      }
+    } catch {
+      // Nenhum colaborador atrelado ou já desvinculado
+    }
+
+    // 3. Deleta o registro de usuário
+    await pb.collection('users').delete(userId)
+    return true
+  },
+
   async resetUserPassword(userId: string, newPassword: string): Promise<AppUser> {
     const record = await pb.collection('users').update<AppUser>(userId, {
       password: newPassword,

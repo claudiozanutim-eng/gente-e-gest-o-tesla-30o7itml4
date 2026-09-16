@@ -8,11 +8,13 @@ import {
 } from '@/types'
 import { logAuditoriaService } from '@/services/api'
 
+export type GrupoPermissao = 'talentos' | 'pessoas' | 'tempo' | 'administracao'
+
 export interface ItemPermissaoConfig {
   key: PermissaoMenuKey
   label: string
   descricao: string
-  grupo: 'rh' | 'gestao_tempo' | 'administracao' | 'talentos'
+  grupo: GrupoPermissao
   rota: string
   /**
    * Perfis que, por padrão, já têm acesso a este item
@@ -26,171 +28,20 @@ export interface ItemPermissaoConfig {
 
 /**
  * Catálogo canônico dos itens e alçadas de permissão do sistema Gente e Gestão Tesla.
- * Mapeia as rotas e grupos do menu lateral corporativo.
+ * Organizado estritamente pelos 3 pilares corporativos + grupo de Administração da sidebar:
+ * 1. Gestão de Talentos
+ * 2. Gestão de Pessoas
+ * 3. Gestão do Tempo
+ * 4. Administração
  */
 export const ITENS_PERMISSAO_CATALOGO: ItemPermissaoConfig[] = [
-  // 1. Recursos Humanos & Gestão de Pessoas
-  {
-    key: 'dashboard_rh',
-    label: 'Dashboard / Painel RH',
-    descricao: 'Acesso ao painel principal do RH com indicadores gerais e atalhos rápidos',
-    grupo: 'rh',
-    rota: '/dashboard',
-    perfisPadrao: ['rh', 'admin_rh', 'admin'],
-  },
-  {
-    key: 'comunicados',
-    label: 'Comunicados Corporativos',
-    descricao: 'Criação, publicação, segmentação e gestão de comunicados internos',
-    grupo: 'rh',
-    rota: '/comunicados/gestao',
-    perfisPadrao: ['rh', 'admin_rh', 'admin'],
-  },
-  {
-    key: 'alteracoes_cadastrais',
-    label: 'Alterações Cadastrais (Aprovação)',
-    descricao:
-      'Análise, aprovação ou reprovação de solicitações cadastrais enviadas pelos colaboradores',
-    grupo: 'rh',
-    rota: '/alteracoes/pendentes',
-    perfisPadrao: ['rh', 'admin_rh', 'admin'],
-  },
-  {
-    key: 'colaboradores',
-    label: 'Base de Colaboradores',
-    descricao: 'Consulta e gestão completa das fichas cadastrais dos colaboradores',
-    grupo: 'rh',
-    rota: '/colaboradores',
-    perfisPadrao: ['rh', 'admin_rh', 'admin'],
-  },
-  {
-    key: 'documentos',
-    label: 'Gestão de Documentos',
-    descricao: 'Repositório corporativo, categorias e upload de documentos da empresa',
-    grupo: 'rh',
-    rota: '/documentos',
-    perfisPadrao: ['rh', 'admin_rh', 'admin'],
-  },
-  {
-    key: 'pendencias_docs',
-    label: 'Pendências Documentais',
-    descricao: 'Monitoramento de documentos obrigatórios pendentes de entrega ou ciência',
-    grupo: 'rh',
-    rota: '/pendencias-documentais',
-    perfisPadrao: ['rh', 'admin_rh', 'admin'],
-  },
-  {
-    key: 'beneficios',
-    label: 'Gestão de Benefícios',
-    descricao: 'Manutenção de pacotes, planos de saúde, vales e benefícios do time',
-    grupo: 'rh',
-    rota: '/beneficios/gestao',
-    perfisPadrao: ['rh', 'admin_rh', 'admin'],
-  },
-  {
-    key: 'atestados',
-    label: 'Validação de Atestados',
-    descricao: 'Validação médica, homologação e abono de faltas por atestados',
-    grupo: 'rh',
-    rota: '/atestados/validacao',
-    perfisPadrao: ['rh', 'admin_rh', 'admin'],
-  },
-  {
-    key: 'ferias_aprovacoes',
-    label: 'Aprovações de Férias',
-    descricao: 'Análise e homologação de pedidos de férias da equipe e colaboradores',
-    grupo: 'rh',
-    rota: '/ferias/aprovacoes',
-    perfisPadrao: ['gestor', 'rh', 'admin_rh', 'admin'],
-  },
-  {
-    key: 'ferias_coletivo',
-    label: 'Espelho de Férias Coletivo',
-    descricao: 'Visão panorâmica de cobertura anual e planejamento de férias por departamento',
-    grupo: 'rh',
-    rota: '/ferias/coletivo',
-    perfisPadrao: ['rh', 'admin_rh', 'admin'],
-  },
-  {
-    key: 'avaliacoes_admin',
-    label: 'Avaliação de Desempenho (Admin/Ciclos)',
-    descricao: 'Parametrização de ciclos de avaliação, competências e matrizes 9-box',
-    grupo: 'rh',
-    rota: '/avaliacoes/admin',
-    perfisPadrao: ['admin_rh', 'admin'],
-  },
-  {
-    key: 'folha',
-    label: 'Gestão da Folha de Pagamento',
-    descricao: 'Lançamentos periódicos, pontuais, horas extras e fechamento de folha',
-    grupo: 'rh',
-    rota: '/folha/gestao',
-    perfisPadrao: ['admin_rh', 'admin'],
-  },
-  {
-    key: 'pesquisa_clima',
-    label: 'Pesquisa de Clima Organizacional',
-    descricao: 'Criação e monitoramento de pesquisas e métricas de satisfação',
-    grupo: 'rh',
-    rota: '/pesquisa-clima',
-    perfisPadrao: ['rh', 'admin_rh', 'admin'],
-  },
-  {
-    key: 'relatorios',
-    label: 'Relatórios e Exportações',
-    descricao: 'Emissão e download de relatórios em Excel/PDF dos subsistemas de RH',
-    grupo: 'rh',
-    rota: '/relatorios',
-    perfisPadrao: ['rh', 'admin_rh', 'admin'],
-  },
-
-  // 2. Gestão do Tempo e Escalas
-  {
-    key: 'ponto_gestao',
-    label: 'Gestão de Ponto da Equipe',
-    descricao: 'Espelho de ponto, ajustes manuais e auditoria de batidas de ponto',
-    grupo: 'gestao_tempo',
-    rota: '/ponto/gestao',
-    perfisPadrao: ['gestor', 'rh', 'admin_rh', 'admin'],
-  },
-  {
-    key: 'escalas',
-    label: 'Gestão de Escalas de Trabalho',
-    descricao: 'Criação e alocação de escalas padrão e regimes especiais (ex.: 12x36)',
-    grupo: 'gestao_tempo',
-    rota: '/escalas',
-    perfisPadrao: ['admin_rh', 'admin'],
-  },
-  {
-    key: 'banco_horas_fechamento',
-    label: 'Fechamento de Banco de Horas',
-    descricao: 'Fechamento de competências mensais e apuração de saldos de banco de horas',
-    grupo: 'gestao_tempo',
-    rota: '/banco-horas/fechamento',
-    perfisPadrao: ['rh', 'admin_rh', 'admin'],
-  },
-
-  // 3. Gestão de Talentos & Liderança
-  {
-    key: 'portal_gestor',
-    label: 'Portal do Gestor',
-    descricao: 'Visão consolidada do líder: métricas da equipe, aprovações e onboarding',
-    grupo: 'talentos',
-    rota: '/portal-gestor',
-    perfisPadrao: ['gestor', 'rh', 'admin_rh', 'admin'],
-  },
-  {
-    key: 'minha_equipe',
-    label: 'Minha Equipe',
-    descricao: 'Painel de colaboradores subordinados para o gestor imediato',
-    grupo: 'talentos',
-    rota: '/minha-equipe',
-    perfisPadrao: ['gestor', 'rh', 'admin_rh', 'admin'],
-  },
+  // ==========================================
+  // PILAR 1: GESTÃO DE TALENTOS
+  // ==========================================
   {
     key: 'vagas',
-    label: 'Recrutamento & Vagas',
-    descricao: 'Abertura e acompanhamento de requisições de vagas',
+    label: 'Vagas & Recrutamento',
+    descricao: 'Abertura, acompanhamento e divulgação de vagas e requisições de pessoal',
     grupo: 'talentos',
     rota: '/vagas',
     perfisPadrao: ['rh', 'admin_rh', 'admin'],
@@ -198,60 +49,248 @@ export const ITENS_PERMISSAO_CATALOGO: ItemPermissaoConfig[] = [
   {
     key: 'candidatos',
     label: 'Banco de Candidatos',
-    descricao: 'Triagem de currículos e pipeline de seleção',
+    descricao: 'Triagem de currículos, etapas do processo seletivo e pipeline de talentos',
     grupo: 'talentos',
     rota: '/candidatos',
     perfisPadrao: ['rh', 'admin_rh', 'admin'],
   },
   {
+    key: 'portal_gestor',
+    label: 'Portal do Gestor',
+    descricao: 'Painel do líder com métricas da equipe direta, onboarding e aprovações rápidas',
+    grupo: 'talentos',
+    rota: '/portal-gestor',
+    perfisPadrao: ['gestor', 'rh', 'admin_rh', 'admin'],
+  },
+  {
+    key: 'minha_equipe',
+    label: 'Minha Equipe',
+    descricao: 'Visão dos liderados imediatos, fichas operacionais e avaliações de time',
+    grupo: 'talentos',
+    rota: '/minha-equipe',
+    perfisPadrao: ['gestor', 'rh', 'admin_rh', 'admin'],
+  },
+  {
     key: 'estrutura',
     label: 'Estrutura Organizacional',
-    descricao: 'Organograma e distribuição funcional dos setores',
+    descricao: 'Organograma empresarial, departamentos, cargos e hierarquia funcional',
     grupo: 'talentos',
     rota: '/estrutura',
     perfisPadrao: ['gestor', 'rh', 'admin_rh', 'admin'],
   },
 
-  // 4. Administração & Governança
+  // ==========================================
+  // PILAR 2: GESTÃO DE PESSOAS
+  // ==========================================
+  {
+    key: 'colaboradores',
+    label: 'Colaboradores (Base Geral)',
+    descricao: 'Ficha cadastral completa, dependentes, documentos e histórico funcional',
+    grupo: 'pessoas',
+    rota: '/colaboradores',
+    perfisPadrao: ['rh', 'admin_rh', 'admin'],
+  },
+  {
+    key: 'folha',
+    label: 'Gestão da Folha de Pagamento',
+    descricao: 'Lançamentos periódicos, pontuais, horas extras, adicionais e fechamento',
+    grupo: 'pessoas',
+    rota: '/folha/gestao',
+    perfisPadrao: ['admin_rh', 'admin'],
+  },
+  {
+    key: 'comunicados',
+    label: 'Comunicados Corporativos',
+    descricao: 'Publicação, segmentação por setor/função e gestão de comunicados internos',
+    grupo: 'pessoas',
+    rota: '/comunicados/gestao',
+    perfisPadrao: ['rh', 'admin_rh', 'admin'],
+  },
+  {
+    key: 'alteracoes_cadastrais',
+    label: 'Alterações Cadastrais (Aprovação)',
+    descricao: 'Aprovação ou reprovação de solicitações de alteração de dados dos colaboradores',
+    grupo: 'pessoas',
+    rota: '/alteracoes/pendentes',
+    perfisPadrao: ['rh', 'admin_rh', 'admin'],
+  },
+  {
+    key: 'avaliacoes_admin',
+    label: 'Avaliações Admin (Ciclos & Matriz)',
+    descricao: 'Configuração de ciclos de avaliação, competências, metas e matriz 9-box',
+    grupo: 'pessoas',
+    rota: '/avaliacoes/admin',
+    perfisPadrao: ['admin_rh', 'admin'],
+  },
+  {
+    key: 'pesquisa_clima',
+    label: 'Pesquisa de Clima Organizacional',
+    descricao: 'Criação, aplicação de questionários de clima, eNPS e relatórios de satisfação',
+    grupo: 'pessoas',
+    rota: '/pesquisa-clima',
+    perfisPadrao: ['rh', 'admin_rh', 'admin'],
+  },
+  {
+    key: 'pendencias_docs',
+    label: 'Pendências Documentais',
+    descricao: 'Acompanhamento de documentos obrigatórios pendentes de entrega ou assinatura',
+    grupo: 'pessoas',
+    rota: '/pendencias-documentais',
+    perfisPadrao: ['rh', 'admin_rh', 'admin'],
+  },
+  {
+    key: 'documentos',
+    label: 'Gestão de Documentos',
+    descricao: 'Repositório corporativo, categorias, políticas da empresa e upload de arquivos',
+    grupo: 'pessoas',
+    rota: '/documentos',
+    perfisPadrao: ['rh', 'admin_rh', 'admin'],
+  },
+  {
+    key: 'beneficios',
+    label: 'Gestão de Benefícios',
+    descricao: 'Controle de planos de saúde, vales alimentação/refeição, transporte e seguros',
+    grupo: 'pessoas',
+    rota: '/beneficios/gestao',
+    perfisPadrao: ['rh', 'admin_rh', 'admin'],
+  },
+  {
+    key: 'atestados',
+    label: 'Validação de Atestados',
+    descricao: 'Recepção, perícia do RH, homologação de atestados médicos e abono de faltas',
+    grupo: 'pessoas',
+    rota: '/atestados/validacao',
+    perfisPadrao: ['rh', 'admin_rh', 'admin'],
+  },
+  {
+    key: 'ferias_aprovacoes',
+    label: 'Aprovações de Férias',
+    descricao: 'Análise, aprovação e homologação das solicitações de férias dos colaboradores',
+    grupo: 'pessoas',
+    rota: '/ferias/aprovacoes',
+    perfisPadrao: ['gestor', 'rh', 'admin_rh', 'admin'],
+  },
+  {
+    key: 'ferias',
+    label: 'Férias (Solicitação / Saldo)',
+    descricao: 'Módulo de férias do colaborador, saldo de dias adquiridos e pedidos de gozo',
+    grupo: 'pessoas',
+    rota: '/ferias',
+    perfisPadrao: ['colaborador', 'gestor', 'rh', 'admin_rh', 'admin'],
+  },
+  {
+    key: 'ferias_coletivo',
+    label: 'Férias Coletivas / Espelho Calendário',
+    descricao: 'Planejamento panorâmico, metas de cobertura anual e calendário coletivo',
+    grupo: 'pessoas',
+    rota: '/ferias/coletivo',
+    perfisPadrao: ['rh', 'admin_rh', 'admin'],
+  },
+  {
+    key: 'relatorios',
+    label: 'Relatórios & Exportações',
+    descricao: 'Extração e download de relatórios em Excel e PDF de todos os subsistemas de RH',
+    grupo: 'pessoas',
+    rota: '/relatorios',
+    perfisPadrao: ['rh', 'admin_rh', 'admin'],
+  },
+
+  // ==========================================
+  // PILAR 3: GESTÃO DO TEMPO
+  // ==========================================
+  {
+    key: 'ponto_colaborador',
+    label: 'Meu Ponto (Registro & Espelho)',
+    descricao: 'Registro diário de ponto, batidas, justificativas e espelho individual',
+    grupo: 'tempo',
+    rota: '/ponto',
+    perfisPadrao: ['colaborador', 'gestor', 'rh', 'admin_rh', 'admin'],
+  },
+  {
+    key: 'banco_horas',
+    label: 'Banco de Horas (Extrato & Saldo)',
+    descricao: 'Extrato de créditos, débitos e solicitações de compensação do colaborador',
+    grupo: 'tempo',
+    rota: '/banco-horas',
+    perfisPadrao: ['colaborador', 'gestor', 'rh', 'admin_rh', 'admin'],
+  },
+  {
+    key: 'banco_horas_fechamento',
+    label: 'Fechamento de Banco de Horas',
+    descricao: 'Apuração mensal de saldos de banco de horas, quitação e fechamento contábil',
+    grupo: 'tempo',
+    rota: '/banco-horas/fechamento',
+    perfisPadrao: ['rh', 'admin_rh', 'admin'],
+  },
+  {
+    key: 'ponto_gestao',
+    label: 'Gestão de Ponto da Equipe',
+    descricao: 'Tratamento de exceções, espelho geral de ponto e auditoria de marcações',
+    grupo: 'tempo',
+    rota: '/ponto/gestao',
+    perfisPadrao: ['gestor', 'rh', 'admin_rh', 'admin'],
+  },
+  {
+    key: 'escalas',
+    label: 'Escalas de Trabalho',
+    descricao: 'Parametrização de jornadas padrão, turnos e regimes especiais (ex.: 12x36)',
+    grupo: 'tempo',
+    rota: '/escalas',
+    perfisPadrao: ['admin_rh', 'admin'],
+  },
+
+  // ==========================================
+  // GRUPO: ADMINISTRAÇÃO & GOVERNANÇA
+  // ==========================================
   {
     key: 'dashboard_financeiro',
     label: 'Dashboard Financeiro',
-    descricao: 'Visão consolidada de custos de folha, horas extras e orçamentos do tenant',
+    descricao: 'Visão consolidada de provisão de folha, custos de horas extras e orçamentos',
     grupo: 'administracao',
     rota: '/financeiro',
     perfisPadrao: ['admin_rh', 'admin'],
   },
   {
-    key: 'assistente_clt',
-    label: 'Assistente CLT & Legislação',
-    descricao: 'Consulta inteligente de artigos e conformidade da CLT',
-    grupo: 'administracao',
-    rota: '/dashboard', // Integrado no Dashboard RH
-    perfisPadrao: ['admin_rh', 'admin'],
-  },
-  {
-    key: 'logs_auditoria',
-    label: 'Logs de Auditoria',
-    descricao: 'Trilha completa de auditoria e conformidade de ações no tenant',
-    grupo: 'administracao',
-    rota: '/admin/logs',
-    perfisPadrao: ['admin_rh', 'admin'],
-  },
-  {
     key: 'configuracoes_empresa',
     label: 'Configurações da Empresa',
-    descricao: 'Dados cadastrais da pessoa jurídica, CNPJ, razão social e regimes',
+    descricao: 'Dados cadastrais da pessoa jurídica, CNPJ, razão social, logotipo e regimes',
     grupo: 'administracao',
     rota: '/admin/configuracoes',
     perfisPadrao: ['admin'],
     apenasAdminGeral: true,
   },
   {
+    key: 'configuracoes_email',
+    label: 'Configurações de E-mail (SMTP)',
+    descricao: 'Parâmetros do servidor SMTP para disparo de e-mails transacionais e notificações',
+    grupo: 'administracao',
+    rota: '/admin/email',
+    perfisPadrao: ['admin'],
+    apenasAdminGeral: true,
+  },
+  {
     key: 'usuarios_permissoes',
     label: 'Usuários e Permissões',
-    descricao: 'Controle de contas, senhas, perfis de acesso e alçadas de liberação',
+    descricao: 'Gestão de contas, redefinição de senhas, perfis e flags individuais de acesso',
     grupo: 'administracao',
     rota: '/admin/usuarios',
+    perfisPadrao: ['admin', 'admin_rh'],
+    apenasAdminGeral: false, // Admin RH pode gerenciar usuários, mas bandeiras marcadas com apenasAdminGeral ficam com cadeado
+  },
+  {
+    key: 'logs_auditoria',
+    label: 'Logs de Auditoria',
+    descricao: 'Trilha completa de auditoria, conformidade e registro de ações dos operadores',
+    grupo: 'administracao',
+    rota: '/admin/logs',
+    perfisPadrao: ['admin_rh', 'admin'],
+  },
+  {
+    key: 'gestao_tenant',
+    label: 'Gestão de Tenant (SaaS)',
+    descricao: 'Configuração avançada do tenant, planos e recursos do SaaS corporativo',
+    grupo: 'administracao',
+    rota: '/admin/tenant',
     perfisPadrao: ['admin'],
     apenasAdminGeral: true,
   },
@@ -282,32 +321,53 @@ export function avaliarPermissaoItem(
  * Mapeamento entre caminhos de rota e suas respectivas chaves de permissão
  */
 export const ROTA_PARA_CHAVE_MAP: Record<string, PermissaoMenuKey> = {
-  '/dashboard': 'dashboard_rh',
+  // Pilar 1: Gestão de Talentos
+  '/vagas': 'vagas',
+  '/candidatos': 'candidatos',
+  '/portal-gestor': 'portal_gestor',
+  '/minha-equipe': 'minha_equipe',
+  '/estrutura': 'estrutura',
+
+  // Pilar 2: Gestão de Pessoas
+  '/colaboradores': 'colaboradores',
+  '/folha/gestao': 'folha',
   '/comunicados/gestao': 'comunicados',
   '/alteracoes/pendentes': 'alteracoes_cadastrais',
-  '/colaboradores': 'colaboradores',
-  '/documentos': 'documentos',
+  '/avaliacoes/admin': 'avaliacoes_admin',
+  '/pesquisa-clima': 'pesquisa_clima',
   '/pendencias-documentais': 'pendencias_docs',
+  '/documentos': 'documentos',
   '/beneficios/gestao': 'beneficios',
   '/atestados/validacao': 'atestados',
   '/ferias/aprovacoes': 'ferias_aprovacoes',
+  '/ferias': 'ferias',
+  '/minhas-ferias': 'ferias',
   '/ferias/coletivo': 'ferias_coletivo',
-  '/avaliacoes/admin': 'avaliacoes_admin',
-  '/folha/gestao': 'folha',
-  '/pesquisa-clima': 'pesquisa_clima',
   '/relatorios': 'relatorios',
+
+  // Pilar 3: Gestão do Tempo
+  '/ponto': 'ponto_colaborador',
+  '/banco-horas': 'banco_horas',
+  '/banco-horas/fechamento': 'banco_horas_fechamento',
   '/ponto/gestao': 'ponto_gestao',
   '/escalas': 'escalas',
-  '/banco-horas/fechamento': 'banco_horas_fechamento',
-  '/portal-gestor': 'portal_gestor',
-  '/minha-equipe': 'minha_equipe',
-  '/vagas': 'vagas',
-  '/candidatos': 'candidatos',
-  '/estrutura': 'estrutura',
+
+  // Pilar 4: Administração
   '/financeiro': 'dashboard_financeiro',
-  '/admin/logs': 'logs_auditoria',
   '/admin/configuracoes': 'configuracoes_empresa',
+  '/admin': 'configuracoes_empresa',
+  '/admin/email': 'configuracoes_email',
   '/admin/usuarios': 'usuarios_permissoes',
+  '/admin/logs': 'logs_auditoria',
+  '/admin/tenant': 'gestao_tenant',
+
+  // Atalhos e Complementares
+  '/dashboard': 'dashboard_rh',
+  '/documentos-importantes': 'documentos_importantes',
+  '/demonstrativo': 'demonstrativo',
+  '/beneficios': 'beneficios_colaborador',
+  '/avaliacoes': 'minhas_avaliacoes',
+  '/atestados': 'atestados',
 }
 
 export const permissaoUsuarioService = {

@@ -15,6 +15,8 @@ import {
   ShieldAlert,
   Loader2,
   Mail,
+  Trash2,
+  AlertTriangle,
 } from 'lucide-react'
 import { useAuth } from '@/context/AuthContext'
 import { userService, logAuditoriaService } from '@/services/api'
@@ -51,6 +53,8 @@ export default function AdminUsuariosPage() {
   // Permissão do usuário logado: apenas 'admin_rh' e 'admin' enxergam/editam o card de permissões
   const isPodeGerenciarPermissoes =
     currentUser?.perfil === 'admin' || currentUser?.perfil === 'admin_rh'
+  const isAdminGeral = currentUser?.perfil === 'admin'
+  const isAdminRH = currentUser?.perfil === 'admin_rh'
 
   const [usuarios, setUsuarios] = useState<AppUser[]>([])
   const [loading, setLoading] = useState(true)
@@ -67,6 +71,14 @@ export default function AdminUsuariosPage() {
   const [modalNovoUsuarioOpen, setModalNovoUsuarioOpen] = useState(false)
   const [modalEditarOpen, setModalEditarOpen] = useState(false)
   const [usuarioEditando, setUsuarioEditando] = useState<AppUser | null>(null)
+
+  // Modal de Confirmação de Ação (Desativar / Reativar / Excluir definitivamente)
+  const [modalConfirmAcaoOpen, setModalConfirmAcaoOpen] = useState(false)
+  const [tipoAcaoConfirmar, setTipoAcaoConfirmar] = useState<'desativar' | 'reativar' | 'excluir'>(
+    'desativar',
+  )
+  const [usuarioAlvoAcao, setUsuarioAlvoAcao] = useState<AppUser | null>(null)
+  const [executandoAcao, setExecutandoAcao] = useState(false)
 
   // Form Novo Usuário
   const [novoNome, setNovoNome] = useState('')
@@ -236,53 +248,134 @@ export default function AdminUsuariosPage() {
     }
   }
 
-  // Soft-delete: Alternar Ativo/Desativado
-  const handleToggleAtivo = async (user: AppUser) => {
-    const isAtivo = user.ativo !== false
-    const novoAtivo = !isAtivo
-
+  // Abrir modal para confirmar ação (Desativar, Reativar ou Excluir Definitivamente)
+  const handleSolicitarAcao = (user: AppUser, acao: 'desativar' | 'reativar' | 'excluir') => {
     if (user.id === currentUser?.id) {
       toast({
         title: 'Ação não permitida',
-        description: 'Você não pode desativar o seu próprio usuário de administrador.',
+        description: 'Você não pode desativar ou excluir seu próprio usuário.',
         variant: 'destructive',
       })
       return
     }
 
-    try {
-      await userService.toggleUserAtivo(user.id, novoAtivo)
+    if (user.tenant_id !== tenantId) {
+      toast({
+        title: 'Ação não permitida',
+        description: 'Não é permitido modificar usuários de outra organização/tenant.',
+        variant: 'destructive',
+      })
+      return
+    }
 
-      // Auditoria
-      if (tenantId && currentUser?.id) {
+    if (acao === 'excluir' && !isAdminGeral) {
+      toast({
+        title: 'Permissão insuficiente',
+        description:
+          'Apenas o Administrador Geral pode excluir usuários em definitivo. O Administrador de RH pode desativar o acesso.',
+        variant: 'destructive',
+      })
+      return
+    }
+
+    setUsuarioAlvoAcao(user)
+    setTipoAcaoConfirmar(acao)
+    setModalConfirmAcaoOpen(true)
+  }
+
+  // Executar a ação confirmada no modal
+  const handleExecutarAcaoConfirmada = async () => {
+    if (!usuarioAlvoAcao || !tenantId || !currentUser?.id) return
+
+    try {
+      setExecutandoAcao(true)
+
+      if (tipoAcaoConfirmar === 'excluir') {
+        // Exclusão definitiva (apenas admin geral)
+        await userService.deleteUser(usuarioAlvoAcao.id)
+
+        // Registrar auditoria
+        await logAuditoriaService.registrarLog({
+          tenant_id: tenantId,
+          user_id: currentUser.id,
+          acao: 'exclusao_definitiva_usuario',
+          entidade: 'users',
+          entidade_id: usuarioAlvoAcao.id,
+          dados_json: {
+            descricao: `Usuário ${usuarioAlvoAcao.name || usuarioAlvoAcao.email} excluído definitivamente por ${currentUser.name || currentUser.email}`,
+            usuario_excluido_id: usuarioAlvoAcao.id,
+            usuario_excluido_nome: usuarioAlvoAcao.name,
+            usuario_excluido_email: usuarioAlvoAcao.email,
+            usuario_excluido_perfil: usuarioAlvoAcao.perfil,
+            responsavel_id: currentUser.id,
+            responsavel_nome: currentUser.name || currentUser.email,
+          },
+        })
+
+        // Se era o usuário selecionado no card de permissões, fecha o card
+        if (usuarioSelecionadoPermissoes?.id === usuarioAlvoAcao.id) {
+          setUsuarioSelecionadoPermissoes(null)
+        }
+
+        setUsuarios((prev) => prev.filter((u) => u.id !== usuarioAlvoAcao.id))
+
+        toast({
+          title: 'Usuário excluído definitivamente',
+          description: `O registro de ${usuarioAlvoAcao.name || usuarioAlvoAcao.email} foi removido com sucesso.`,
+        })
+      } else {
+        // Soft delete (desativar / reativar)
+        const novoAtivo = tipoAcaoConfirmar === 'reativar'
+        await userService.toggleUserAtivo(usuarioAlvoAcao.id, novoAtivo)
+
+        // Registrar auditoria com antes/depois
         await logAuditoriaService.registrarLog({
           tenant_id: tenantId,
           user_id: currentUser.id,
           acao: novoAtivo ? 'reativacao_usuario' : 'desativacao_usuario',
           entidade: 'users',
-          entidade_id: user.id,
+          entidade_id: usuarioAlvoAcao.id,
           dados_json: {
-            nome: user.name,
-            email: user.email,
-            status: novoAtivo ? 'ativo' : 'desativado',
+            descricao: `Usuário ${usuarioAlvoAcao.name || usuarioAlvoAcao.email} ${novoAtivo ? 'reativado' : 'desativado'} por ${currentUser.name || currentUser.email}`,
+            usuario_id: usuarioAlvoAcao.id,
+            nome: usuarioAlvoAcao.name,
+            email: usuarioAlvoAcao.email,
+            perfil: usuarioAlvoAcao.perfil,
+            status_anterior: usuarioAlvoAcao.ativo !== false ? 'ativo' : 'inativo',
+            status_novo: novoAtivo ? 'ativo' : 'inativo',
+            responsavel_id: currentUser.id,
+            responsavel_nome: currentUser.name || currentUser.email,
           },
+        })
+
+        setUsuarios((prev) =>
+          prev.map((u) => (u.id === usuarioAlvoAcao.id ? { ...u, ativo: novoAtivo } : u)),
+        )
+
+        // Atualiza referência no card de permissões se estiver aberto
+        if (usuarioSelecionadoPermissoes?.id === usuarioAlvoAcao.id) {
+          setUsuarioSelecionadoPermissoes((prev) => (prev ? { ...prev, ativo: novoAtivo } : null))
+        }
+
+        toast({
+          title: novoAtivo ? 'Usuário reativado!' : 'Usuário desativado com sucesso!',
+          description: novoAtivo
+            ? `O acesso de ${usuarioAlvoAcao.name || usuarioAlvoAcao.email} foi restabelecido.`
+            : `O login de ${usuarioAlvoAcao.name || usuarioAlvoAcao.email} foi desativado (soft delete). O histórico cadastral permanece preservado.`,
         })
       }
 
-      setUsuarios((prev) => prev.map((u) => (u.id === user.id ? { ...u, ativo: novoAtivo } : u)))
-
+      setModalConfirmAcaoOpen(false)
+      setUsuarioAlvoAcao(null)
+    } catch (err: any) {
+      console.error('Erro ao processar ação no usuário:', err)
       toast({
-        title: novoAtivo ? 'Usuário reativado' : 'Usuário desativado (soft delete)',
-        description: novoAtivo
-          ? `O acesso de ${user.name} foi restabelecido.`
-          : `O usuário ${user.name} foi inativado e não poderá mais efetuar login. O histórico permanece preservado.`,
-      })
-    } catch {
-      toast({
-        title: 'Erro ao alterar status',
-        description: 'Não foi possível modificar o estado do usuário.',
+        title: 'Erro ao processar ação',
+        description: err?.message || 'Não foi possível concluir a operação no banco de dados.',
         variant: 'destructive',
       })
+    } finally {
+      setExecutandoAcao(false)
     }
   }
 
@@ -594,28 +687,52 @@ export default function AdminUsuariosPage() {
                             </Button>
 
                             {!isSelf && (
-                              <Button
-                                variant="outline"
-                                size="sm"
-                                onClick={() => handleToggleAtivo(item)}
-                                className={`h-7 px-2 text-[11px] font-semibold border ${
-                                  isAtivo
-                                    ? 'border-rose-200 text-rose-700 hover:bg-rose-50'
-                                    : 'border-emerald-200 text-emerald-700 hover:bg-emerald-50'
-                                }`}
-                              >
-                                {isAtivo ? (
-                                  <>
-                                    <UserX className="h-3 w-3 mr-1" />
-                                    Desativar
-                                  </>
-                                ) : (
-                                  <>
-                                    <UserCheck className="h-3 w-3 mr-1" />
-                                    Reativar
-                                  </>
+                              <>
+                                {/* Botão Desativar / Reativar (Soft-delete) - Acessível para Admin RH e Admin Geral */}
+                                <Button
+                                  variant="outline"
+                                  size="sm"
+                                  onClick={() =>
+                                    handleSolicitarAcao(item, isAtivo ? 'desativar' : 'reativar')
+                                  }
+                                  className={`h-7 px-2 text-[11px] font-semibold border ${
+                                    isAtivo
+                                      ? 'border-amber-200 text-amber-700 hover:bg-amber-50'
+                                      : 'border-emerald-200 text-emerald-700 hover:bg-emerald-50'
+                                  }`}
+                                  title={
+                                    isAtivo
+                                      ? 'Desativar usuário (soft delete): bloqueia o acesso sem apagar dados'
+                                      : 'Reativar usuário: libera o acesso ao login novamente'
+                                  }
+                                >
+                                  {isAtivo ? (
+                                    <>
+                                      <UserX className="h-3 w-3 mr-1" />
+                                      Desativar
+                                    </>
+                                  ) : (
+                                    <>
+                                      <UserCheck className="h-3 w-3 mr-1" />
+                                      Reativar
+                                    </>
+                                  )}
+                                </Button>
+
+                                {/* Botão Excluir Definitivamente - APENAS Admin Geral */}
+                                {isAdminGeral && (
+                                  <Button
+                                    variant="outline"
+                                    size="sm"
+                                    onClick={() => handleSolicitarAcao(item, 'excluir')}
+                                    className="h-7 px-2 text-[11px] font-semibold border border-rose-300 text-rose-700 hover:bg-rose-50"
+                                    title="Excluir usuário permanentemente da base"
+                                  >
+                                    <Trash2 className="h-3 w-3 mr-1" />
+                                    Excluir
+                                  </Button>
                                 )}
-                              </Button>
+                              </>
                             )}
                           </div>
                         </td>
@@ -738,6 +855,136 @@ export default function AdminUsuariosPage() {
               </Button>
             </DialogFooter>
           </form>
+        </DialogContent>
+      </Dialog>
+
+      {/* Modal de Confirmação de Ação (Desativar / Reativar / Excluir) */}
+      <Dialog open={modalConfirmAcaoOpen} onOpenChange={setModalConfirmAcaoOpen}>
+        <DialogContent className="max-w-md bg-white border border-[#E0E0E0]">
+          <DialogHeader className="text-left space-y-1">
+            <div className="flex items-center gap-2">
+              <div
+                className={`h-9 w-9 rounded-lg flex items-center justify-center shrink-0 ${
+                  tipoAcaoConfirmar === 'excluir'
+                    ? 'bg-rose-100 text-rose-700'
+                    : tipoAcaoConfirmar === 'desativar'
+                      ? 'bg-amber-100 text-amber-700'
+                      : 'bg-emerald-100 text-emerald-700'
+                }`}
+              >
+                {tipoAcaoConfirmar === 'excluir' ? (
+                  <Trash2 className="h-5 w-5" />
+                ) : tipoAcaoConfirmar === 'desativar' ? (
+                  <UserX className="h-5 w-5" />
+                ) : (
+                  <UserCheck className="h-5 w-5" />
+                )}
+              </div>
+              <div>
+                <DialogTitle className="text-base font-bold text-[#212121]">
+                  {tipoAcaoConfirmar === 'excluir'
+                    ? 'Excluir Usuário Definitivamente?'
+                    : tipoAcaoConfirmar === 'desativar'
+                      ? 'Desativar Acesso do Usuário?'
+                      : 'Reativar Acesso do Usuário?'}
+                </DialogTitle>
+                <DialogDescription className="text-xs text-[#757575]">
+                  Confirme a operação para o usuário selecionado.
+                </DialogDescription>
+              </div>
+            </div>
+          </DialogHeader>
+
+          <div className="py-3 text-xs text-[#424242] space-y-2">
+            <div className="p-3 rounded-lg bg-[#FAFAFA] border border-[#E0E0E0] space-y-1">
+              <p>
+                <strong>Nome:</strong> {usuarioAlvoAcao?.name || 'Sem nome'}
+              </p>
+              <p>
+                <strong>E-mail:</strong> {usuarioAlvoAcao?.email}
+              </p>
+              <p>
+                <strong>Perfil atual:</strong> {usuarioAlvoAcao?.perfil}
+              </p>
+            </div>
+
+            {tipoAcaoConfirmar === 'excluir' ? (
+              <div className="p-3 rounded-lg bg-rose-50 border border-rose-200 text-rose-800 space-y-1">
+                <p className="font-bold flex items-center gap-1.5">
+                  <AlertTriangle className="h-4 w-4 shrink-0 text-rose-600" />
+                  Atenção: Ação irreversível!
+                </p>
+                <p className="text-[11px] leading-relaxed">
+                  Esta ação excluirá permanentemente o registro de acesso do usuário. As permissões
+                  individuais serão removidas e qualquer ficha de colaborador vinculada terá seu
+                  vínculo de usuário liberado para preservar os dados cadastrais da empresa.
+                </p>
+              </div>
+            ) : tipoAcaoConfirmar === 'desativar' ? (
+              <div className="p-3 rounded-lg bg-amber-50 border border-amber-200 text-amber-800 space-y-1">
+                <p className="font-semibold flex items-center gap-1.5">
+                  <AlertCircle className="h-4 w-4 shrink-0 text-amber-600" />
+                  Desativação com preservação de histórico (Soft Delete)
+                </p>
+                <p className="text-[11px] leading-relaxed">
+                  O colaborador não conseguirá mais efetuar login no sistema. O cadastro permanece
+                  salvo e poderá ser reativado a qualquer momento por um Administrador de RH ou
+                  Admin Geral.
+                </p>
+              </div>
+            ) : (
+              <div className="p-3 rounded-lg bg-emerald-50 border border-emerald-200 text-emerald-800 space-y-1">
+                <p className="font-semibold flex items-center gap-1.5">
+                  <CheckCircle2 className="h-4 w-4 shrink-0 text-emerald-600" />
+                  Restabelecimento de Acesso
+                </p>
+                <p className="text-[11px] leading-relaxed">
+                  O usuário voltará ao estado <strong>Ativo</strong> e poderá efetuar login
+                  normalmente com as credenciais já cadastradas.
+                </p>
+              </div>
+            )}
+          </div>
+
+          <DialogFooter className="pt-3 border-t border-[#F0F0F0] flex items-center justify-end gap-2">
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => {
+                setModalConfirmAcaoOpen(false)
+                setUsuarioAlvoAcao(null)
+              }}
+              disabled={executandoAcao}
+              className="border-[#E0E0E0] text-xs h-8"
+            >
+              Cancelar
+            </Button>
+            <Button
+              type="button"
+              onClick={handleExecutarAcaoConfirmada}
+              disabled={executandoAcao}
+              className={`text-white text-xs font-semibold h-8 gap-1.5 ${
+                tipoAcaoConfirmar === 'excluir'
+                  ? 'bg-rose-600 hover:bg-rose-700'
+                  : tipoAcaoConfirmar === 'desativar'
+                    ? 'bg-amber-600 hover:bg-amber-700'
+                    : 'bg-emerald-600 hover:bg-emerald-700'
+              }`}
+            >
+              {executandoAcao ? (
+                <>
+                  <Loader2 className="h-3.5 w-3.5 animate-spin mr-1" />
+                  Processando...
+                </>
+              ) : tipoAcaoConfirmar === 'excluir' ? (
+                'Sim, Excluir Definitivamente'
+              ) : tipoAcaoConfirmar === 'desativar' ? (
+                'Sim, Desativar Usuário'
+              ) : (
+                'Sim, Reativar Usuário'
+              )}
+            </Button>
+          </DialogFooter>
         </DialogContent>
       </Dialog>
 

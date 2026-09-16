@@ -127,22 +127,40 @@ export const Sidebar: React.FC<SidebarProps> = ({
               },
             ]
           : []),
-        {
-          title: 'Docs Importantes',
-          path: '/documentos-importantes',
-          icon: ShieldCheck,
-        },
-        {
-          title: 'Demonstrativo',
-          path: '/demonstrativo',
-          icon: FileText,
-        },
-        {
-          title: 'Benefícios',
-          path: '/beneficios',
-          icon: Gift,
-        },
-        ...(podeSolicitarFerias
+        ...(deveExibirItem(
+          { title: 'Docs Importantes', path: '/documentos-importantes', icon: ShieldCheck },
+          true,
+        )
+          ? [
+              {
+                title: 'Docs Importantes',
+                path: '/documentos-importantes',
+                icon: ShieldCheck,
+              },
+            ]
+          : []),
+        ...(deveExibirItem({ title: 'Demonstrativo', path: '/demonstrativo', icon: FileText }, true)
+          ? [
+              {
+                title: 'Demonstrativo',
+                path: '/demonstrativo',
+                icon: FileText,
+              },
+            ]
+          : []),
+        ...(deveExibirItem({ title: 'Benefícios', path: '/beneficios', icon: Gift }, true)
+          ? [
+              {
+                title: 'Benefícios',
+                path: '/beneficios',
+                icon: Gift,
+              },
+            ]
+          : []),
+        ...(deveExibirItem(
+          { title: 'Férias', path: '/ferias', icon: Palmtree },
+          podeSolicitarFerias,
+        )
           ? [
               {
                 title: 'Férias',
@@ -152,7 +170,10 @@ export const Sidebar: React.FC<SidebarProps> = ({
             ]
           : []),
         // Entrada "Minhas Avaliações" para colaboradores
-        ...(isColaborador
+        ...(deveExibirItem(
+          { title: 'Minhas Avaliações', path: '/avaliacoes', icon: Award },
+          isColaborador,
+        )
           ? [
               {
                 title: 'Minhas Avaliações',
@@ -175,6 +196,24 @@ export const Sidebar: React.FC<SidebarProps> = ({
           isRHOrAbove,
         )
           ? [{ title: 'Candidatos', path: '/candidatos', icon: UserCheck }]
+          : []),
+        ...(deveExibirItem(
+          { title: 'Portal do Gestor', path: '/portal-gestor', icon: LayoutDashboard },
+          isGestor || isRHOrAbove,
+        )
+          ? [{ title: 'Portal do Gestor', path: '/portal-gestor', icon: LayoutDashboard }]
+          : []),
+        ...(deveExibirItem(
+          { title: 'Minha Equipe', path: '/minha-equipe', icon: Users },
+          isGestor || isRHOrAbove,
+        )
+          ? [{ title: 'Minha Equipe', path: '/minha-equipe', icon: Users }]
+          : []),
+        ...(deveExibirItem(
+          { title: 'Estrutura', path: '/estrutura', icon: Network },
+          isRHOrAbove || isGestor,
+        )
+          ? [{ title: 'Estrutura', path: '/estrutura', icon: Network }]
           : []),
       ],
     },
@@ -248,17 +287,9 @@ export const Sidebar: React.FC<SidebarProps> = ({
         )
           ? [{ title: 'Aprovações de Férias', path: '/ferias/aprovacoes', icon: CalendarCheck }]
           : []),
-        ...(deveExibirItem(
-          { title: 'Relatórios', path: '/relatorios', icon: BarChart3 },
-          isRHOrAbove,
-        )
-          ? [{ title: 'Relatórios', path: '/relatorios', icon: BarChart3 }]
+        ...(deveExibirItem({ title: 'Férias (Solicitação)', path: '/ferias', icon: Palmtree }, true)
+          ? [{ title: 'Férias', path: '/ferias', icon: Palmtree }]
           : []),
-        ...(deveExibirItem({ title: 'Minha Equipe', path: '/minha-equipe', icon: Users }, isGestor)
-          ? [{ title: 'Minha Equipe', path: '/minha-equipe', icon: Users }]
-          : []),
-        { title: 'Atestados / Licenças', path: '/atestados', icon: FileText },
-        { title: 'Férias', path: '/ferias', icon: Palmtree },
         ...(deveExibirItem(
           { title: 'Férias Coletivas', path: '/ferias/coletivo', icon: Palmtree },
           isRHOrAbove,
@@ -266,10 +297,16 @@ export const Sidebar: React.FC<SidebarProps> = ({
           ? [{ title: 'Férias Coletivas', path: '/ferias/coletivo', icon: Palmtree }]
           : []),
         ...(deveExibirItem(
-          { title: 'Estrutura', path: '/estrutura', icon: Network },
-          isRHOrAbove || isGestor,
+          { title: 'Relatórios', path: '/relatorios', icon: BarChart3 },
+          isRHOrAbove,
         )
-          ? [{ title: 'Estrutura', path: '/estrutura', icon: Network }]
+          ? [{ title: 'Relatórios', path: '/relatorios', icon: BarChart3 }]
+          : []),
+        ...(deveExibirItem(
+          { title: 'Atestados / Licenças', path: '/atestados', icon: FileText },
+          true,
+        )
+          ? [{ title: 'Atestados / Licenças', path: '/atestados', icon: FileText }]
           : []),
       ],
     },
@@ -277,8 +314,12 @@ export const Sidebar: React.FC<SidebarProps> = ({
       title: 'Gestão do Tempo',
       allowedProfiles: ['colaborador', 'gestor', 'rh', 'admin_rh', 'admin'],
       items: [
-        { title: 'Meu Ponto', path: '/ponto', icon: Clock },
-        { title: 'Banco de Horas', path: '/banco-horas', icon: Clock },
+        ...(deveExibirItem({ title: 'Meu Ponto', path: '/ponto', icon: Clock }, true)
+          ? [{ title: 'Meu Ponto', path: '/ponto', icon: Clock }]
+          : []),
+        ...(deveExibirItem({ title: 'Banco de Horas', path: '/banco-horas', icon: Clock }, true)
+          ? [{ title: 'Banco de Horas', path: '/banco-horas', icon: Clock }]
+          : []),
         ...(deveExibirItem(
           {
             title: 'Fechamento Banco Horas',
@@ -325,7 +366,10 @@ export const Sidebar: React.FC<SidebarProps> = ({
         )
           ? [{ title: 'Configurações da Empresa', path: '/admin/configuracoes', icon: Building }]
           : []),
-        ...(isAdminGeral
+        ...(deveExibirItem(
+          { title: 'Configurações de E-mail', path: '/admin/email', icon: Mail },
+          isAdminGeral,
+        )
           ? [{ title: 'Configurações de E-mail', path: '/admin/email', icon: Mail }]
           : []),
         // Usuários e Permissões: visível para Admin e Administrador de RH (ou se flag liberada)
@@ -341,7 +385,10 @@ export const Sidebar: React.FC<SidebarProps> = ({
         )
           ? [{ title: 'Logs de Auditoria', path: '/admin/logs', icon: ShieldCheck }]
           : []),
-        ...(podeGerenciarTenant
+        ...(deveExibirItem(
+          { title: 'Gestão de Tenant (SaaS)', path: '/admin/tenant', icon: Building2 },
+          podeGerenciarTenant,
+        )
           ? [{ title: 'Gestão de Tenant (SaaS)', path: '/admin/tenant', icon: Building2 }]
           : []),
       ],
@@ -453,7 +500,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
             <p className="text-[11px] text-[#757575] leading-snug font-medium">Tesla Mecatrônica</p>
           </div>
           <p className="text-[10px] font-medium text-[#0D47A1]" title="Versão do Sistema">
-            Tesla RH v0.0.38
+            Tesla RH v0.0.39
           </p>
         </div>
       )}
