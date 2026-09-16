@@ -95,11 +95,15 @@ export default function AdminPage({ initialTab = 'tenant' }: AdminPageProps) {
       try {
         setLoadingTenant(true)
         const t = await tenantService.getTenant(user.tenant_id)
-        setTenant(t)
-        setSelectedPlano(t.plano)
-        setSelectedStatus(t.status)
+        if (t) {
+          setTenant(t)
+          setSelectedPlano(t.plano)
+          setSelectedStatus(t.status)
+        } else {
+          setTenant(null)
+        }
       } catch (err) {
-        console.error(err)
+        console.warn('Aviso ao carregar dados do tenant no painel admin:', err)
       } finally {
         setLoadingTenant(false)
       }
@@ -370,7 +374,13 @@ export default function AdminPage({ initialTab = 'tenant' }: AdminPageProps) {
                     </div>
                   </>
                 ) : (
-                  <p className="text-sm text-[#C62828]">Erro ao carregar dados do tenant.</p>
+                  <div className="rounded-md border border-amber-200 bg-amber-50 p-3 text-xs text-amber-800">
+                    <p className="font-semibold">Organização não encontrada</p>
+                    <p className="mt-0.5 text-[11px] text-amber-700">
+                      O registro do tenant deste usuário não foi localizado ou ainda não foi
+                      configurado.
+                    </p>
+                  </div>
                 )}
               </CardContent>
             </Card>

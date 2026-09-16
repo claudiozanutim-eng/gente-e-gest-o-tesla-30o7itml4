@@ -3,24 +3,22 @@ import {
   Building2,
   Save,
   RefreshCw,
-  CheckCircle2,
-  Shield,
   FileText,
   Phone,
   MapPin,
-  Landmark,
-  BadgePercent,
   AlertCircle,
   Loader2,
+  PlusCircle,
 } from 'lucide-react'
 import { useAuth } from '@/context/AuthContext'
-import { tenantService, logAuditoriaService } from '@/services/api'
+import { tenantService, logAuditoriaService, userService } from '@/services/api'
 import { Tenant, TenantRegimeTributario } from '@/types'
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Badge } from '@/components/ui/badge'
+import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
 import {
   Select,
   SelectContent,
@@ -32,13 +30,14 @@ import { useToast } from '@/hooks/use-toast'
 import { TESLA_LOGO_URL } from '@/lib/logoAsset'
 
 export default function AdminConfiguracoesPage() {
-  const { user } = useAuth()
+  const { user, refreshProfile } = useAuth()
   const tenantId = user?.tenant_id
   const { toast } = useToast()
 
   const [tenant, setTenant] = useState<Tenant | null>(null)
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
+  const [tenantNaoEncontrado, setTenantNaoEncontrado] = useState(false)
 
   // Campos do formulário
   const [razaoSocial, setRazaoSocial] = useState('')
@@ -48,21 +47,34 @@ export default function AdminConfiguracoesPage() {
   const [regimeTributario, setRegimeTributario] = useState<TenantRegimeTributario>('Lucro Real')
 
   const carregarTenant = async () => {
-    if (!tenantId) return
+    if (!tenantId) {
+      setTenant(null)
+      setTenantNaoEncontrado(true)
+      setLoading(false)
+      return
+    }
+
     try {
       setLoading(true)
+      setTenantNaoEncontrado(false)
       const data = await tenantService.getTenant(tenantId)
+      if (!data) {
+        setTenant(null)
+        setTenantNaoEncontrado(true)
+        return
+      }
       setTenant(data)
+      setTenantNaoEncontrado(false)
       setRazaoSocial(data.razao_social || '')
       setCnpj(data.cnpj || '')
       setEndereco(data.endereco || '')
       setTelefone(data.telefone || '')
       setRegimeTributario(data.regime_tributario || 'Lucro Real')
     } catch (err) {
-      console.error('Erro ao buscar dados do tenant:', err)
+      console.warn('Erro ao buscar dados do tenant:', err)
       toast({
-        title: 'Erro',
-        description: 'Não foi possível carregar os dados cadastrais da empresa.',
+        title: 'Aviso',
+        description: 'Não foi possível carregar os dados cadastrais da empresa no momento.',
         variant: 'destructive',
       })
     } finally {
@@ -76,7 +88,7 @@ export default function AdminConfiguracoesPage() {
 
   const handleSalvar = async (e: React.FormEvent) => {
     e.preventDefault()
-    if (!tenantId || !user?.id) return
+    if (!user?.id) return
 
     if (!razaoSocial.trim() || !cnpj.trim()) {
       toast({
@@ -89,42 +101,73 @@ export default function AdminConfiguracoesPage() {
 
     try {
       setSaving(true)
-      const updated = await tenantService.updateTenant(tenantId, {
-        razao_social: razaoSocial.trim(),
-        cnpj: cnpj.trim(),
-        endereco: endereco.trim(),
-        telefone: telefone.trim(),
-        regime_tributario: regimeTributario,
-      })
 
-      setTenant(updated)
+      let savedTenant: Tenant
 
-      // Registrar auditoria
-      await logAuditoriaService.registrarLog({
-        tenant_id: tenantId,
-        user_id: user.id,
-        acao: 'atualizacao_configuracoes_empresa',
-        entidade: 'tenant',
-        entidade_id: tenantId,
-        dados_json: {
-          razao_social: razaoSocial,
-          cnpj,
-          endereco,
-          telefone,
+      if (tenant && tenantId) {
+        // Atualização normal do tenant existente
+        savedTenant = await tenantService.updateTenant(tenantId, {
+          razao_social: razaoSocial.trim(),
+          cnpj: cnpj.trim(),
+          endereco: endereco.trim(),
+          telefone: telefone.trim(),
           regime_tributario: regimeTributario,
-          usuario_admin: user.name,
-        },
-      })
+        })
+      } else {
+        // Criação/recriação do tenant caso não exista
+        savedTenant = await tenantService.createTenant({
+          razao_social: razaoSocial.trim(),
+          cnpj: cnpj.trim(),
+          endereco: endereco.trim(),
+          telefone: telefone.trim(),
+          regime_tributario: regimeTributario,
+          plano: 'pro',
+          status: 'ativo',
+        })
+
+        // Se o usuário atual não possuía tenant_id ou apontava para ID inexistente, vincular ao novo
+        if (savedTenant.id) {
+          try {
+            await userService.updateUserData(user.id, { tenant_id: savedTenant.id })
+            await refreshProfile()
+          } catch (eUser) {
+            console.warn('Aviso ao associar tenant recém-criado ao usuário:', eUser)
+          }
+        }
+      }
+
+      setTenant(savedTenant)
+      setTenantNaoEncontrado(false)
+
+      // Registrar auditoria defensivamente
+      if (savedTenant.id) {
+        await logAuditoriaService.registrarLog({
+          tenant_id: savedTenant.id,
+          user_id: user.id,
+          acao: tenant ? 'atualizacao_configuracoes_empresa' : 'criacao_configuracoes_empresa',
+          entidade: 'tenant',
+          entidade_id: savedTenant.id,
+          dados_json: {
+            razao_social: razaoSocial,
+            cnpj,
+            endereco,
+            telefone,
+            regime_tributario: regimeTributario,
+            usuario_admin: user.name,
+          },
+        })
+      }
 
       toast({
-        title: 'Configurações salvas!',
-        description: 'Os dados cadastrais e fiscais da empresa foram atualizados com sucesso.',
+        title: tenant ? 'Configurações salvas!' : 'Organização criada com sucesso!',
+        description: 'Os dados cadastrais e fiscais da empresa foram salvos com sucesso.',
       })
     } catch (err) {
-      console.error('Erro ao atualizar configurações:', err)
+      console.error('Erro ao salvar configurações do tenant:', err)
       toast({
         title: 'Erro ao salvar',
-        description: 'Não foi possível salvar as configurações. Tente novamente.',
+        description:
+          'Não foi possível salvar as configurações. Verifique os dados e tente novamente.',
         variant: 'destructive',
       })
     } finally {
@@ -174,6 +217,20 @@ export default function AdminConfiguracoesPage() {
           Recarregar
         </Button>
       </div>
+
+      {/* Alerta de Tenant Não Encontrado */}
+      {tenantNaoEncontrado && !loading && (
+        <Alert className="border-amber-300 bg-amber-50 text-amber-900">
+          <AlertCircle className="h-4 w-4 text-amber-600" />
+          <AlertTitle className="text-sm font-semibold">Organização não localizada</AlertTitle>
+          <AlertDescription className="text-xs text-amber-800 mt-1">
+            Nenhum registro corporativo ativo foi encontrado para o identificador vinculado a este
+            usuário
+            {tenantId ? ` (${tenantId})` : ''}. Preencha os campos abaixo e clique em &quot;Criar /
+            Salvar Configurações&quot; para estabelecer a organização no sistema.
+          </AlertDescription>
+        </Alert>
+      )}
 
       {/* Formulário Principal */}
       <form onSubmit={handleSalvar} className="space-y-6">
@@ -317,12 +374,17 @@ export default function AdminConfiguracoesPage() {
             {saving ? (
               <>
                 <Loader2 className="h-4 w-4 animate-spin" />
-                Salvando...
+                {tenant ? 'Salvando...' : 'Criando...'}
               </>
-            ) : (
+            ) : tenant ? (
               <>
                 <Save className="h-4 w-4" />
                 Salvar Alterações
+              </>
+            ) : (
+              <>
+                <PlusCircle className="h-4 w-4" />
+                Criar / Salvar Organização
               </>
             )}
           </Button>

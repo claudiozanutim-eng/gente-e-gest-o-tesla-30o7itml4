@@ -21,9 +21,20 @@ import {
 import { notificacaoService } from '@/services/notificacaoService'
 
 export const tenantService = {
-  async getTenant(tenantId: string): Promise<Tenant> {
-    const record = await pb.collection('tenant').getOne<Tenant>(tenantId)
-    return record
+  async getTenant(tenantId: string): Promise<Tenant | null> {
+    if (!tenantId) return null
+    try {
+      const record = await pb.collection('tenant').getOne<Tenant>(tenantId)
+      return record
+    } catch (err: unknown) {
+      // Trata 404 de forma graciosa sem disparar unhandled rejection
+      const status = (err as { status?: number })?.status
+      if (status === 404) {
+        console.warn(`[tenantService] Tenant "${tenantId}" não encontrado (404).`)
+        return null
+      }
+      throw err
+    }
   },
 
   async updateTenant(
@@ -36,6 +47,24 @@ export const tenantService = {
     >,
   ): Promise<Tenant> {
     const record = await pb.collection('tenant').update<Tenant>(tenantId, data)
+    return record
+  },
+
+  async createTenant(data: {
+    razao_social: string
+    cnpj: string
+    plano?: import('@/types').TenantPlano
+    status?: import('@/types').TenantStatus
+    endereco?: string
+    telefone?: string
+    regime_tributario?: import('@/types').TenantRegimeTributario
+  }): Promise<Tenant> {
+    const record = await pb.collection('tenant').create<Tenant>({
+      plano: 'pro',
+      status: 'ativo',
+      regime_tributario: 'Lucro Real',
+      ...data,
+    })
     return record
   },
 }
