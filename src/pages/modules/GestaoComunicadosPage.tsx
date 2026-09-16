@@ -19,6 +19,7 @@ import {
   AlertCircle,
   Trash2,
   AlertTriangle,
+  Pencil,
 } from 'lucide-react'
 import { useAuth } from '@/context/AuthContext'
 import { usePermission } from '@/hooks/usePermission'
@@ -79,8 +80,9 @@ export default function GestaoComunicadosPage() {
   const [filtroStatus, setFiltroStatus] = useState<'todos' | 'ativo' | 'arquivado'>('todos')
   const [filtroCategoria, setFiltroCategoria] = useState<string>('todos')
 
-  // Modal Nova Publicação
-  const [modalNovaPubOpen, setModalNovaPubOpen] = useState(false)
+  // Modal Criação / Edição de Publicação
+  const [modalPubOpen, setModalPubOpen] = useState(false)
+  const [comunicadoEmEdicao, setComunicadoEmEdicao] = useState<Comunicado | null>(null)
   const [submitting, setSubmitting] = useState(false)
 
   // Formulário do comunicado
@@ -185,8 +187,30 @@ export default function GestaoComunicadosPage() {
     }
   }
 
-  // Submissão de Nova Publicação
-  const handleCriarPublicacao = async (e: React.FormEvent) => {
+  // Abrir modal em modo criação
+  const handleAbrirCriacao = () => {
+    setComunicadoEmEdicao(null)
+    setFormTitulo('')
+    setFormConteudo('')
+    setFormCategoria('RH')
+    setFormSegmentacaoTipo('todos')
+    setFormSegmentacaoValor('')
+    setModalPubOpen(true)
+  }
+
+  // Abrir modal em modo edição já preenchido
+  const handleAbrirEdicao = (item: Comunicado) => {
+    setComunicadoEmEdicao(item)
+    setFormTitulo(item.titulo || '')
+    setFormConteudo(item.conteudo || '')
+    setFormCategoria(item.categoria || 'RH')
+    setFormSegmentacaoTipo(item.segmentacao_tipo || 'todos')
+    setFormSegmentacaoValor(item.segmentacao_valor || '')
+    setModalPubOpen(true)
+  }
+
+  // Submissão do Formulário (Criar ou Editar)
+  const handleSalvarPublicacao = async (e: React.FormEvent) => {
     e.preventDefault()
     if (!formTitulo.trim() || !formConteudo.trim()) {
       toast({
@@ -211,57 +235,122 @@ export default function GestaoComunicadosPage() {
 
     if (!tenantId || !user?.id) return
 
+    const valorSegmentacao =
+      formSegmentacaoTipo === 'setor' || formSegmentacaoTipo === 'funcao'
+        ? formSegmentacaoValor.trim()
+        : ''
+
     try {
       setSubmitting(true)
-      const novo = await comunicadoService.createComunicado({
-        tenant_id: tenantId,
-        categoria: formCategoria,
-        titulo: formTitulo.trim(),
-        conteudo: formConteudo.trim(),
-        segmentacao_tipo: formSegmentacaoTipo,
-        segmentacao_valor:
-          formSegmentacaoTipo === 'setor' || formSegmentacaoTipo === 'funcao'
-            ? formSegmentacaoValor.trim()
-            : '',
-        status: 'ativo',
-        data_publicacao: new Date().toISOString(),
-      })
 
-      // Registrar auditoria
-      await logAuditoriaService.registrarLog({
-        tenant_id: tenantId,
-        user_id: user.id,
-        acao: 'publicacao_comunicado',
-        entidade: 'comunicado',
-        entidade_id: novo.id,
-        dados_json: {
-          titulo: novo.titulo,
-          categoria: novo.categoria,
-          segmentacao: novo.segmentacao_tipo,
-          segmentacao_valor: novo.segmentacao_valor,
-          autor_nome: user.name,
-        },
-      })
+      if (comunicadoEmEdicao) {
+        // Validação de segurança de tenant
+        if (comunicadoEmEdicao.tenant_id && comunicadoEmEdicao.tenant_id !== tenantId) {
+          throw new Error('Acesso negado: comunicado não pertence ao tenant do usuário.')
+        }
 
-      setComunicados((prev) => [novo, ...prev])
-      setModalNovaPubOpen(false)
+        const dadosAntes = {
+          titulo: comunicadoEmEdicao.titulo,
+          categoria: comunicadoEmEdicao.categoria,
+          segmentacao_tipo: comunicadoEmEdicao.segmentacao_tipo,
+          segmentacao_valor: comunicadoEmEdicao.segmentacao_valor,
+          conteudo: comunicadoEmEdicao.conteudo,
+          status: comunicadoEmEdicao.status,
+        }
 
-      // Limpa form
-      setFormTitulo('')
-      setFormConteudo('')
-      setFormCategoria('RH')
-      setFormSegmentacaoTipo('todos')
-      setFormSegmentacaoValor('')
+        const atualizado = await comunicadoService.updateComunicado(comunicadoEmEdicao.id, {
+          titulo: formTitulo.trim(),
+          conteudo: formConteudo.trim(),
+          categoria: formCategoria,
+          segmentacao_tipo: formSegmentacaoTipo,
+          segmentacao_valor: valorSegmentacao,
+        })
 
-      toast({
-        title: 'Comunicado publicado com sucesso!',
-        description: 'O comunicado já está disponível no mural para os colaboradores segmentados.',
-      })
+        const dadosDepois = {
+          titulo: atualizado.titulo,
+          categoria: atualizado.categoria,
+          segmentacao_tipo: atualizado.segmentacao_tipo,
+          segmentacao_valor: atualizado.segmentacao_valor,
+          conteudo: atualizado.conteudo,
+          status: atualizado.status,
+        }
+
+        // Registrar log de auditoria com antes/depois
+        await logAuditoriaService.registrarLog({
+          tenant_id: tenantId,
+          user_id: user.id,
+          acao: 'edicao_comunicado',
+          entidade: 'comunicado',
+          entidade_id: atualizado.id,
+          dados_json: {
+            antes: dadosAntes,
+            depois: dadosDepois,
+            usuario_executor: user.name || user.email,
+          },
+        })
+
+        setComunicados((prev) =>
+          prev.map((c) => (c.id === atualizado.id ? { ...c, ...atualizado } : c)),
+        )
+        setModalPubOpen(false)
+        setComunicadoEmEdicao(null)
+
+        toast({
+          title: 'Comunicado atualizado com sucesso!',
+          description: 'As alterações foram salvas e já estão atualizadas na listagem e no mural.',
+        })
+      } else {
+        // Modo Criação
+        const novo = await comunicadoService.createComunicado({
+          tenant_id: tenantId,
+          categoria: formCategoria,
+          titulo: formTitulo.trim(),
+          conteudo: formConteudo.trim(),
+          segmentacao_tipo: formSegmentacaoTipo,
+          segmentacao_valor: valorSegmentacao,
+          status: 'ativo',
+          data_publicacao: new Date().toISOString(),
+        })
+
+        // Registrar auditoria
+        await logAuditoriaService.registrarLog({
+          tenant_id: tenantId,
+          user_id: user.id,
+          acao: 'publicacao_comunicado',
+          entidade: 'comunicado',
+          entidade_id: novo.id,
+          dados_json: {
+            titulo: novo.titulo,
+            categoria: novo.categoria,
+            segmentacao: novo.segmentacao_tipo,
+            segmentacao_valor: novo.segmentacao_valor,
+            autor_nome: user.name,
+          },
+        })
+
+        setComunicados((prev) => [novo, ...prev])
+        setModalPubOpen(false)
+
+        // Limpa form
+        setFormTitulo('')
+        setFormConteudo('')
+        setFormCategoria('RH')
+        setFormSegmentacaoTipo('todos')
+        setFormSegmentacaoValor('')
+
+        toast({
+          title: 'Comunicado publicado com sucesso!',
+          description:
+            'O comunicado já está disponível no mural para os colaboradores segmentados.',
+        })
+      }
     } catch (err) {
-      console.error(err)
+      console.error('Erro ao salvar comunicado:', err)
       toast({
-        title: 'Erro ao publicar',
-        description: 'Não foi possível salvar o novo comunicado. Tente novamente.',
+        title: comunicadoEmEdicao ? 'Erro ao atualizar comunicado' : 'Erro ao publicar comunicado',
+        description: comunicadoEmEdicao
+          ? 'Não foi possível salvar as alterações do comunicado. Verifique suas permissões e tente novamente.'
+          : 'Não foi possível salvar o novo comunicado. Tente novamente.',
         variant: 'destructive',
       })
     } finally {
@@ -365,7 +454,7 @@ export default function GestaoComunicadosPage() {
           </Button>
 
           <Button
-            onClick={() => setModalNovaPubOpen(true)}
+            onClick={handleAbrirCriacao}
             className="bg-[#0D47A1] hover:bg-[#0A3A82] text-white text-xs font-semibold h-9 gap-1.5 shadow-sm"
           >
             <Plus className="h-4 w-4" />
@@ -548,6 +637,19 @@ export default function GestaoComunicadosPage() {
                               Ver
                             </Button>
 
+                            {podeExcluir && (
+                              <Button
+                                variant="outline"
+                                size="sm"
+                                onClick={() => handleAbrirEdicao(item)}
+                                className="h-7 px-2 text-[11px] font-semibold border border-blue-200 text-[#0D47A1] hover:bg-blue-50"
+                                title="Editar comunicado"
+                              >
+                                <Pencil className="h-3 w-3 mr-1" />
+                                Editar
+                              </Button>
+                            )}
+
                             <Button
                               variant="outline"
                               size="sm"
@@ -586,8 +688,18 @@ export default function GestaoComunicadosPage() {
         </CardContent>
       </Card>
 
-      {/* Modal Nova Publicação com Preview ao Vivo */}
-      <Dialog open={modalNovaPubOpen} onOpenChange={setModalNovaPubOpen}>
+      {/* Modal Nova Publicação / Edição com Preview ao Vivo */}
+      <Dialog
+        open={modalPubOpen}
+        onOpenChange={(open) => {
+          if (!open && !submitting) {
+            setModalPubOpen(false)
+            setComunicadoEmEdicao(null)
+          } else if (open) {
+            setModalPubOpen(true)
+          }
+        }}
+      >
         <DialogContent className="max-w-3xl p-0 overflow-hidden bg-white border border-[#E0E0E0]">
           <div className="h-2 w-full bg-[#0D47A1]" />
 
@@ -595,21 +707,26 @@ export default function GestaoComunicadosPage() {
             <DialogHeader className="text-left space-y-1">
               <div className="flex items-center gap-2">
                 <div className="h-8 w-8 rounded-lg bg-[#E8EEF7] text-[#0D47A1] flex items-center justify-center">
-                  <Megaphone className="h-4 w-4" />
+                  {comunicadoEmEdicao ? (
+                    <Pencil className="h-4 w-4" />
+                  ) : (
+                    <Megaphone className="h-4 w-4" />
+                  )}
                 </div>
                 <div>
                   <DialogTitle className="text-lg font-bold text-[#212121]">
-                    Criar Nova Publicação
+                    {comunicadoEmEdicao ? 'Editar Comunicado' : 'Criar Nova Publicação'}
                   </DialogTitle>
                   <DialogDescription className="text-xs text-[#757575]">
-                    Preencha os dados e veja o preview em tempo real de como o comunicado aparecerá
-                    no mural do colaborador.
+                    {comunicadoEmEdicao
+                      ? 'Edite as informações do comunicado e confira o preview em tempo real antes de salvar.'
+                      : 'Preencha os dados e veja o preview em tempo real de como o comunicado aparecerá no mural do colaborador.'}
                   </DialogDescription>
                 </div>
               </div>
             </DialogHeader>
 
-            <form onSubmit={handleCriarPublicacao} className="space-y-6">
+            <form onSubmit={handleSalvarPublicacao} className="space-y-6">
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                 {/* Coluna 1: Campos do Formulário */}
                 <div className="space-y-4">
@@ -782,7 +899,18 @@ export default function GestaoComunicadosPage() {
                   <div className="p-3 rounded-lg bg-[#F8F9FA] border border-[#E0E0E0] text-[11px] text-[#616161] space-y-1">
                     <p className="font-semibold text-[#212121]">Regras de visibilidade:</p>
                     <p>
-                      • A publicação entra no mural com status <strong>Ativo</strong> imediatamente.
+                      •{' '}
+                      {comunicadoEmEdicao ? (
+                        <>
+                          Ao salvar, o comunicado é atualizado imediatamente para os colaboradores
+                          alvo.
+                        </>
+                      ) : (
+                        <>
+                          A publicação entra no mural com status <strong>Ativo</strong>{' '}
+                          imediatamente.
+                        </>
+                      )}
                     </p>
                     <p>
                       • Você pode <strong>Arquivar</strong> a qualquer momento para ocultar sem
@@ -796,7 +924,11 @@ export default function GestaoComunicadosPage() {
                 <Button
                   type="button"
                   variant="outline"
-                  onClick={() => setModalNovaPubOpen(false)}
+                  onClick={() => {
+                    setModalPubOpen(false)
+                    setComunicadoEmEdicao(null)
+                  }}
+                  disabled={submitting}
                   className="border-[#E0E0E0] text-xs h-9"
                 >
                   Cancelar
@@ -809,7 +941,12 @@ export default function GestaoComunicadosPage() {
                   {submitting ? (
                     <>
                       <Loader2 className="h-4 w-4 animate-spin" />
-                      Publicando...
+                      {comunicadoEmEdicao ? 'Salvando...' : 'Publicando...'}
+                    </>
+                  ) : comunicadoEmEdicao ? (
+                    <>
+                      <Check className="h-4 w-4" />
+                      Salvar Alterações
                     </>
                   ) : (
                     <>
