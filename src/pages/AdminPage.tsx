@@ -56,6 +56,7 @@ import {
 } from '@/components/ui/dialog'
 import { Skeleton } from '@/components/ui/skeleton'
 import { useToast } from '@/hooks/use-toast'
+import { TESLA_LOGO_URL } from '@/lib/logoAsset'
 
 interface AdminPageProps {
   initialTab?: 'tenant' | 'usuarios'
@@ -215,17 +216,26 @@ export default function AdminPage({ initialTab = 'tenant' }: AdminPageProps) {
     <div className="space-y-6">
       {/* Top Header */}
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-        <div>
-          <h2 className="text-2xl font-bold tracking-tight text-[#212121]">
-            Administração do Tenant
-          </h2>
-          <p className="text-sm text-[#757575]">
-            Gerenciamento de dados corporativos, assinatura e controle de permissões de usuários.
-          </p>
+        <div className="flex items-start gap-3.5">
+          <div className="h-12 w-12 rounded-full border-2 border-[#0D47A1]/20 shadow-xs p-0.5 bg-white shrink-0 ring-2 ring-[#0D47A1]/10 flex items-center justify-center">
+            <img
+              src={TESLA_LOGO_URL}
+              alt="Logo Tesla Mecatrônica"
+              className="h-full w-full rounded-full object-cover"
+            />
+          </div>
+          <div>
+            <h2 className="text-2xl font-bold tracking-tight text-[#212121]">
+              Administração do Tenant
+            </h2>
+            <p className="text-sm text-[#757575]">
+              Gerenciamento de dados corporativos, assinatura e controle de permissões de usuários.
+            </p>
+          </div>
         </div>
         <Badge
           variant="outline"
-          className="bg-[#FFEBEE] text-[#C62828] border-[#C62828]/30 px-3 py-1 text-xs font-semibold w-fit"
+          className="bg-[#FFEBEE] text-[#C62828] border-[#C62828]/30 px-3 py-1 text-xs font-semibold w-fit self-start md:self-auto"
         >
           Painel Administrativo
         </Badge>
@@ -302,13 +312,23 @@ export default function AdminPage({ initialTab = 'tenant' }: AdminPageProps) {
             {/* Read-only Tenant Card */}
             <Card className="border border-[#E0E0E0] bg-white shadow-sm">
               <CardHeader className="border-b border-[#F5F5F5] pb-4">
-                <CardTitle className="text-base font-bold text-[#212121] flex items-center gap-2">
-                  <Building2 className="h-5 w-5 text-[#0D47A1]" />
-                  Informações da Organização
-                </CardTitle>
-                <CardDescription className="text-xs text-[#757575]">
-                  Identificação fiscal e cadastro do tenant ativo
-                </CardDescription>
+                <div className="flex items-center gap-3">
+                  <div className="h-10 w-10 rounded-full border border-[#0D47A1]/20 shadow-2xs p-0.5 bg-white shrink-0 ring-1 ring-[#0D47A1]/10 flex items-center justify-center">
+                    <img
+                      src={TESLA_LOGO_URL}
+                      alt="Logo Tesla Mecatrônica"
+                      className="h-full w-full rounded-full object-cover"
+                    />
+                  </div>
+                  <div>
+                    <CardTitle className="text-base font-bold text-[#212121] flex items-center gap-2">
+                      Informações da Organização
+                    </CardTitle>
+                    <CardDescription className="text-xs text-[#757575]">
+                      Identificação fiscal e cadastro do tenant ativo
+                    </CardDescription>
+                  </div>
+                </div>
               </CardHeader>
               <CardContent className="pt-6 space-y-4 text-sm">
                 {loadingTenant ? (
@@ -358,13 +378,23 @@ export default function AdminPage({ initialTab = 'tenant' }: AdminPageProps) {
             {/* Editable Settings Card */}
             <Card className="border border-[#E0E0E0] bg-white shadow-sm">
               <CardHeader className="border-b border-[#F5F5F5] pb-4">
-                <CardTitle className="text-base font-bold text-[#212121] flex items-center gap-2">
-                  <Save className="h-5 w-5 text-[#0D47A1]" />
-                  Configurar Plano & Status
-                </CardTitle>
-                <CardDescription className="text-xs text-[#757575]">
-                  Atualize os parâmetros contratuais da assinatura deste tenant
-                </CardDescription>
+                <div className="flex items-center gap-3">
+                  <div className="h-10 w-10 rounded-full border border-[#0D47A1]/20 shadow-2xs p-0.5 bg-white shrink-0 ring-1 ring-[#0D47A1]/10 flex items-center justify-center">
+                    <img
+                      src={TESLA_LOGO_URL}
+                      alt="Logo Tesla Mecatrônica"
+                      className="h-full w-full rounded-full object-cover"
+                    />
+                  </div>
+                  <div>
+                    <CardTitle className="text-base font-bold text-[#212121] flex items-center gap-2">
+                      Configurar Plano & Status
+                    </CardTitle>
+                    <CardDescription className="text-xs text-[#757575]">
+                      Atualize os parâmetros contratuais da assinatura deste tenant
+                    </CardDescription>
+                  </div>
+                </div>
               </CardHeader>
               <CardContent className="pt-6">
                 <form onSubmit={handleSaveTenant} className="space-y-4">

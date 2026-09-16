@@ -67,6 +67,7 @@ import {
 } from '@/components/ui/alert-dialog'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { useToast } from '@/hooks/use-toast'
+import { TESLA_LOGO_URL } from '@/lib/logoAsset'
 
 export default function GestaoBeneficiosPage() {
   const navigate = useNavigate()
@@ -507,19 +508,28 @@ export default function GestaoBeneficiosPage() {
     <div className="space-y-8 pb-16">
       {/* 1. Header do Painel RH */}
       <div className="relative overflow-hidden rounded-2xl border border-[#0D47A1]/20 bg-gradient-to-r from-[#0D47A1] via-[#1565C0] to-[#1E88E5] p-6 md:p-8 text-white shadow-sm">
-        <div className="relative z-10 flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
-          <div className="space-y-2">
-            <div className="inline-flex items-center gap-2 rounded-full bg-white/15 px-3 py-1 text-xs font-medium text-white backdrop-blur-sm">
-              <Briefcase className="h-3.5 w-3.5 text-blue-200" />
-              <span>Gestão de Pessoas & Benefícios • RH</span>
+        <div className="relative z-10 flex flex-col md:flex-row items-start md:items-center justify-between gap-6">
+          <div className="flex items-start gap-4">
+            <div className="h-16 w-16 md:h-20 md:w-20 rounded-full border-2 border-white/40 shadow-md p-1 bg-white shrink-0 ring-4 ring-white/20 flex items-center justify-center">
+              <img
+                src={TESLA_LOGO_URL}
+                alt="Logo Tesla Mecatrônica"
+                className="h-full w-full rounded-full object-cover"
+              />
             </div>
-            <h1 className="text-2xl md:text-3xl font-extrabold tracking-tight">
-              Gestão de Benefícios
-            </h1>
-            <p className="text-sm md:text-base text-white/90 max-w-2xl leading-relaxed">
-              Gerencie os benefícios ativos da organização, vincule colaboradores, configure valores
-              e detalhes de operadoras de saúde, odontologia e seguro de vida corporativo.
-            </p>
+            <div className="space-y-2">
+              <div className="inline-flex items-center gap-2 rounded-full bg-white/15 px-3 py-1 text-xs font-medium text-white backdrop-blur-sm">
+                <Briefcase className="h-3.5 w-3.5 text-blue-200" />
+                <span>Gestão de Pessoas & Benefícios • RH</span>
+              </div>
+              <h1 className="text-2xl md:text-3xl font-extrabold tracking-tight">
+                Gestão de Benefícios
+              </h1>
+              <p className="text-sm md:text-base text-white/90 max-w-2xl leading-relaxed">
+                Gerencie os benefícios ativos da organização, vincule colaboradores, configure
+                valores e detalhes de operadoras de saúde, odontologia e seguro de vida corporativo.
+              </p>
+            </div>
           </div>
 
           <div className="flex flex-wrap items-center gap-3">

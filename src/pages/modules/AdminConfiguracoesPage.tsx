@@ -29,6 +29,7 @@ import {
   SelectValue,
 } from '@/components/ui/select'
 import { useToast } from '@/hooks/use-toast'
+import { TESLA_LOGO_URL } from '@/lib/logoAsset'
 
 export default function AdminConfiguracoesPage() {
   const { user } = useAuth()
@@ -135,22 +136,31 @@ export default function AdminConfiguracoesPage() {
     <div className="space-y-6 pb-12 max-w-4xl mx-auto">
       {/* Cabeçalho */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-        <div>
-          <div className="flex items-center gap-2">
-            <h1 className="text-2xl font-bold tracking-tight text-[#212121]">
-              Configurações da Empresa
-            </h1>
-            <Badge
-              variant="outline"
-              className="bg-[#E8EEF7] text-[#0D47A1] border-[#0D47A1]/30 text-xs font-semibold"
-            >
-              Administração Geral
-            </Badge>
+        <div className="flex items-start gap-3.5">
+          <div className="h-12 w-12 rounded-full border-2 border-[#0D47A1]/20 shadow-xs p-0.5 bg-white shrink-0 ring-2 ring-[#0D47A1]/10 flex items-center justify-center">
+            <img
+              src={TESLA_LOGO_URL}
+              alt="Logo Tesla Mecatrônica"
+              className="h-full w-full rounded-full object-cover"
+            />
           </div>
-          <p className="text-sm text-[#757575] mt-1">
-            Gerencie os dados cadastrais, fiscais e de contato da sua organização no Gente e Gestão
-            Tesla.
-          </p>
+          <div>
+            <div className="flex items-center gap-2 flex-wrap">
+              <h1 className="text-2xl font-bold tracking-tight text-[#212121]">
+                Configurações da Empresa
+              </h1>
+              <Badge
+                variant="outline"
+                className="bg-[#E8EEF7] text-[#0D47A1] border-[#0D47A1]/30 text-xs font-semibold"
+              >
+                Administração Geral
+              </Badge>
+            </div>
+            <p className="text-sm text-[#757575] mt-1">
+              Gerencie os dados cadastrais, fiscais e de contato da sua organização no Gente e
+              Gestão Tesla.
+            </p>
+          </div>
         </div>
 
         <Button

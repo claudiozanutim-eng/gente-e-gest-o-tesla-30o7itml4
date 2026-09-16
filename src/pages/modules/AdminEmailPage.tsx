@@ -25,6 +25,7 @@ import { Switch } from '@/components/ui/switch'
 import { Badge } from '@/components/ui/badge'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Skeleton } from '@/components/ui/skeleton'
+import { TESLA_LOGO_URL } from '@/lib/logoAsset'
 
 export default function AdminEmailPage() {
   const { user } = useAuth()
@@ -176,20 +177,30 @@ export default function AdminEmailPage() {
     <div className="space-y-6 pb-12">
       {/* Header */}
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 border-b border-[#E0E0E0] pb-5">
-        <div>
-          <div className="flex items-center gap-2">
-            <div className="h-9 w-9 rounded-lg bg-[#E8EEF7] flex items-center justify-center text-[#0D47A1]">
-              <Mail className="h-5 w-5" />
-            </div>
-            <div>
+        <div className="flex items-start gap-3.5">
+          <div className="h-12 w-12 rounded-full border-2 border-[#0D47A1]/20 shadow-xs p-0.5 bg-white shrink-0 ring-2 ring-[#0D47A1]/10 flex items-center justify-center">
+            <img
+              src={TESLA_LOGO_URL}
+              alt="Logo Tesla Mecatrônica"
+              className="h-full w-full rounded-full object-cover"
+            />
+          </div>
+          <div>
+            <div className="flex items-center gap-2 flex-wrap">
               <h1 className="text-2xl font-bold tracking-tight text-[#212121]">
                 Configurações de E-mail (SMTP)
               </h1>
-              <p className="text-xs text-[#757575] mt-0.5">
-                Defina o servidor de correio do seu tenant para entrega real de e-mails de
-                notificações corporativas.
-              </p>
+              <Badge
+                variant="outline"
+                className="bg-[#E8EEF7] text-[#0D47A1] border-[#0D47A1]/30 text-xs font-semibold"
+              >
+                Comunicação & Disparos
+              </Badge>
             </div>
+            <p className="text-xs text-[#757575] mt-0.5">
+              Defina o servidor de correio do seu tenant para entrega real de e-mails de
+              notificações corporativas.
+            </p>
           </div>
         </div>
 

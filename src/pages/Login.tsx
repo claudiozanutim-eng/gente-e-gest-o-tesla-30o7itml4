@@ -52,12 +52,6 @@ export default function LoginPage() {
     }
   }
 
-  const handleFillDemo = (demoEmail: string) => {
-    setEmail(demoEmail)
-    setPassword('Skip@Pass')
-    setErrorMessage(null)
-  }
-
   return (
     <div className="flex min-h-screen flex-col justify-between bg-[#F5F5F5] selection:bg-[#E8EEF7] selection:text-[#0D47A1]">
       <div className="flex flex-1 items-center justify-center p-4 sm:p-6 md:p-8">
@@ -176,51 +170,6 @@ export default function LoginPage() {
                 </Button>
               </form>
             </CardContent>
-
-            <CardFooter className="flex flex-col border-t border-[#E0E0E0] pt-4 bg-[#FAFAFA] rounded-b-xl space-y-2">
-              <p className="text-xs font-semibold text-[#757575] text-center w-full">
-                Acesso rápido para testes (senha:{' '}
-                <code className="text-[#0D47A1] font-mono">Skip@Pass</code>):
-              </p>
-              <div className="grid grid-cols-2 gap-2 w-full text-xs">
-                <Button
-                  type="button"
-                  variant="outline"
-                  size="sm"
-                  onClick={() => handleFillDemo('claudio.zanutim@iceduc.com.br')}
-                  className="text-xs font-normal border-[#E0E0E0] hover:bg-[#E8EEF7] hover:text-[#0D47A1] truncate"
-                >
-                  Admin: Cláudio
-                </Button>
-                <Button
-                  type="button"
-                  variant="outline"
-                  size="sm"
-                  onClick={() => handleFillDemo('mariana.silva@teslarh.com.br')}
-                  className="text-xs font-normal border-[#E0E0E0] hover:bg-[#E0F2F1] hover:text-[#00695C] truncate"
-                >
-                  RH: Mariana
-                </Button>
-                <Button
-                  type="button"
-                  variant="outline"
-                  size="sm"
-                  onClick={() => handleFillDemo('roberto.almeida@teslarh.com.br')}
-                  className="text-xs font-normal border-[#E0E0E0] hover:bg-[#F3E5F5] hover:text-[#6A1B9A] truncate"
-                >
-                  Gestor: Roberto
-                </Button>
-                <Button
-                  type="button"
-                  variant="outline"
-                  size="sm"
-                  onClick={() => handleFillDemo('lucas.ferreira@teslarh.com.br')}
-                  className="text-xs font-normal border-[#E0E0E0] hover:bg-[#E8EEF7] hover:text-[#1565C0] truncate"
-                >
-                  Colab: Lucas
-                </Button>
-              </div>
-            </CardFooter>
           </Card>
         </div>
       </div>

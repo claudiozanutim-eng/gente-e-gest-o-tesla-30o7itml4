@@ -67,6 +67,7 @@ import {
 } from '@/components/ui/select'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 import { useToast } from '@/hooks/use-toast'
+import { TESLA_LOGO_URL } from '@/lib/logoAsset'
 
 // Helper para calcular tempo de empresa em anos e meses
 function calcularTempoEmpresa(dataAdmissaoStr?: string): string {
@@ -435,6 +436,20 @@ export default function MeuPerfilPage() {
       {/* 1. Header do Perfil com Avatar circular, Iniciais se sem foto, Cargo, Matrícula e Badges */}
       <div className="relative overflow-hidden rounded-2xl border border-[#0D47A1]/20 bg-gradient-to-r from-[#0D47A1] via-[#1565C0] to-[#1E88E5] p-6 md:p-8 text-white shadow-sm">
         <div className="relative z-10 flex flex-col md:flex-row items-center md:items-start gap-6">
+          {/* Logo institucional circular da Tesla com borda sutil */}
+          <div className="hidden lg:flex flex-col items-center justify-center shrink-0 mr-1 self-center">
+            <div className="h-20 w-20 rounded-full border-2 border-white/40 shadow-md p-1 bg-white ring-4 ring-white/20 flex items-center justify-center">
+              <img
+                src={TESLA_LOGO_URL}
+                alt="Logo Tesla Mecatrônica"
+                className="h-full w-full rounded-full object-cover"
+              />
+            </div>
+            <span className="text-[10px] uppercase font-bold tracking-wider text-white/80 mt-1.5">
+              Tesla HR
+            </span>
+          </div>
+
           {/* Avatar circular com botão de alteração de foto */}
           <div className="relative group">
             {/* Input de arquivo invisível */}

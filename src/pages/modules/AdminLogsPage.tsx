@@ -30,6 +30,7 @@ import {
 } from '@/components/ui/select'
 import { Skeleton } from '@/components/ui/skeleton'
 import { useToast } from '@/hooks/use-toast'
+import { TESLA_LOGO_URL } from '@/lib/logoAsset'
 
 export default function AdminLogsPage() {
   const { user } = useAuth()
@@ -178,20 +179,31 @@ export default function AdminLogsPage() {
     <div className="space-y-6 pb-12">
       {/* Cabeçalho */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-        <div>
-          <div className="flex items-center gap-2">
-            <h1 className="text-2xl font-bold tracking-tight text-[#212121]">Logs de Auditoria</h1>
-            <Badge
-              variant="outline"
-              className="bg-[#E8EEF7] text-[#0D47A1] border-[#0D47A1]/30 text-xs font-semibold"
-            >
-              Trilha de Conformidade
-            </Badge>
+        <div className="flex items-start gap-3.5">
+          <div className="h-12 w-12 rounded-full border-2 border-[#0D47A1]/20 shadow-xs p-0.5 bg-white shrink-0 ring-2 ring-[#0D47A1]/10 flex items-center justify-center">
+            <img
+              src={TESLA_LOGO_URL}
+              alt="Logo Tesla Mecatrônica"
+              className="h-full w-full rounded-full object-cover"
+            />
           </div>
-          <p className="text-sm text-[#757575] mt-1">
-            Rastreamento completo e imutável de todas as ações sensíveis realizadas no tenant
-            (aprovações, exclusões, edições de salários e acessos).
-          </p>
+          <div>
+            <div className="flex items-center gap-2 flex-wrap">
+              <h1 className="text-2xl font-bold tracking-tight text-[#212121]">
+                Logs de Auditoria
+              </h1>
+              <Badge
+                variant="outline"
+                className="bg-[#E8EEF7] text-[#0D47A1] border-[#0D47A1]/30 text-xs font-semibold"
+              >
+                Trilha de Conformidade
+              </Badge>
+            </div>
+            <p className="text-sm text-[#757575] mt-1">
+              Rastreamento completo e imutável de todas as ações sensíveis realizadas no tenant
+              (aprovações, exclusões, edições de salários e acessos).
+            </p>
+          </div>
         </div>
 
         <div className="flex items-center gap-2.5">

@@ -76,7 +76,7 @@ import {
   SelectValue,
 } from '@/components/ui/select'
 import { toast } from '@/hooks/use-toast'
-import { getTeslaLogoBase64 } from '@/lib/logoAsset'
+import { getTeslaLogoBase64, TESLA_LOGO_URL } from '@/lib/logoAsset'
 import { formatMoedaPtBr } from '@/lib/exportReports'
 
 export const DashboardFinanceiroPage: React.FC = () => {
@@ -917,12 +917,16 @@ export const DashboardFinanceiroPage: React.FC = () => {
     <div className="space-y-6 max-w-7xl mx-auto p-4 sm:p-6 lg:p-8">
       {/* Cabeçalho da Tela */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-4 border-b border-slate-200">
-        <div className="flex items-center gap-3">
-          <div className="p-2.5 bg-blue-100/70 text-[#0D47A1] rounded-xl shadow-xs">
-            <DollarSign className="h-6 w-6" />
+        <div className="flex items-start sm:items-center gap-3.5">
+          <div className="h-12 w-12 rounded-full border-2 border-[#0D47A1]/20 shadow-xs p-0.5 bg-white shrink-0 ring-2 ring-[#0D47A1]/10 flex items-center justify-center">
+            <img
+              src={TESLA_LOGO_URL}
+              alt="Logo Tesla Mecatrônica"
+              className="h-full w-full rounded-full object-cover"
+            />
           </div>
           <div>
-            <div className="flex items-center gap-2">
+            <div className="flex items-center gap-2 flex-wrap">
               <h1 className="text-2xl font-bold tracking-tight text-slate-900">
                 Dashboard Financeiro Consolidado
               </h1>
