@@ -16,6 +16,7 @@ import {
 import { useAuth } from '@/context/AuthContext'
 import { useToast } from '@/hooks/use-toast'
 import { emailTransacionalService } from '@/services/emailService'
+import { logAuditoriaService } from '@/services/api'
 import { SmtpConfig, EmailLog } from '@/types'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
@@ -46,6 +47,7 @@ export default function AdminEmailPage() {
   const [remetenteEmail, setRemetenteEmail] = useState('noreply@teslarh.com.br')
   const [ativo, setAtivo] = useState(false)
   const [tls, setTls] = useState(true)
+  const [emailDestinoTeste, setEmailDestinoTeste] = useState('')
 
   const [logs, setLogs] = useState<EmailLog[]>([])
 
@@ -63,7 +65,7 @@ export default function AdminEmailPage() {
         setSenha('')
         setRemetenteNome(config.remetente_nome || 'Gente e Gestão Tesla')
         setRemetenteEmail(config.remetente_email || 'noreply@teslarh.com.br')
-        setAtivo(Boolean(config.ativo))
+        setAtivo(Boolean(config.ativo && config.host))
         setTls(config.tls !== false)
       }
     } catch (err) {
@@ -94,7 +96,10 @@ export default function AdminEmailPage() {
   useEffect(() => {
     carregarConfig()
     carregarLogs()
-  }, [carregarConfig, carregarLogs])
+    if (user?.email && !emailDestinoTeste) {
+      setEmailDestinoTeste(user.email)
+    }
+  }, [carregarConfig, carregarLogs, user?.email])
 
   const handleSalvarConfig = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -125,8 +130,30 @@ export default function AdminEmailPage() {
 
       setConfigId(salvo.id)
       setSenha('')
+
+      // Log de Auditoria ao salvar configuração (sem registrar a senha!)
+      if (user?.id) {
+        await logAuditoriaService.registrarLog({
+          tenant_id: tenantId,
+          user_id: user.id,
+          acao: configId ? 'edicao_config_smtp' : 'criacao_config_smtp',
+          entidade: 'smtp_config',
+          entidade_id: salvo.id,
+          dados_json: {
+            host: salvo.host,
+            porta: salvo.porta,
+            usuario: salvo.usuario,
+            remetente_nome: salvo.remetente_nome,
+            remetente_email: salvo.remetente_email,
+            ativo: salvo.ativo,
+            tls: salvo.tls,
+            senha_alterada: Boolean(senha.trim()),
+          },
+        })
+      }
+
       toast({
-        title: 'Configurações salvas',
+        title: 'Configurações salvas com sucesso',
         description: 'Os parâmetros SMTP foram gravados com sucesso para o tenant.',
       })
     } catch (err: unknown) {
@@ -143,9 +170,29 @@ export default function AdminEmailPage() {
   }
 
   const handleTestarEnvio = async () => {
+    if (!host.trim()) {
+      toast({
+        title: 'SMTP não configurado',
+        description:
+          'Informe e salve as configurações de host, porta e credenciais antes de testar.',
+        variant: 'destructive',
+      })
+      return
+    }
+
+    const destinatario = emailDestinoTeste.trim() || user?.email
+    if (!destinatario) {
+      toast({
+        title: 'E-mail obrigatório',
+        description: 'Informe um e-mail de destino válido para receber a mensagem de teste.',
+        variant: 'destructive',
+      })
+      return
+    }
+
     try {
       setTestando(true)
-      const res = await emailTransacionalService.testarEnvioSmtp()
+      const res = await emailTransacionalService.testarEnvioSmtp(destinatario)
       if (res.success) {
         toast({
           title: 'E-mail de teste enviado!',
@@ -205,28 +252,48 @@ export default function AdminEmailPage() {
         </div>
 
         <div className="flex items-center gap-2">
-          <Badge
-            variant="outline"
-            className={
-              ativo
-                ? 'bg-emerald-50 text-emerald-700 border-emerald-300 gap-1'
-                : 'bg-amber-50 text-amber-700 border-amber-300 gap-1'
-            }
-          >
-            {ativo ? (
-              <>
-                <CheckCircle2 className="h-3.5 w-3.5 text-emerald-600" />
-                SMTP Ativo
-              </>
-            ) : (
-              <>
-                <AlertCircle className="h-3.5 w-3.5 text-amber-600" />
-                SMTP Inativo (Notificações Pendentes de Envio)
-              </>
-            )}
-          </Badge>
+          {!host.trim() ? (
+            <Badge
+              variant="outline"
+              className="bg-slate-100 text-slate-700 border-slate-300 gap-1.5 py-1 px-3 text-xs"
+            >
+              <AlertCircle className="h-3.5 w-3.5 text-slate-500" />
+              SMTP não configurado
+            </Badge>
+          ) : ativo ? (
+            <Badge
+              variant="outline"
+              className="bg-emerald-50 text-emerald-700 border-emerald-300 gap-1.5 py-1 px-3 text-xs"
+            >
+              <CheckCircle2 className="h-3.5 w-3.5 text-emerald-600" />
+              SMTP Ativo
+            </Badge>
+          ) : (
+            <Badge
+              variant="outline"
+              className="bg-amber-50 text-amber-700 border-amber-300 gap-1.5 py-1 px-3 text-xs"
+            >
+              <AlertCircle className="h-3.5 w-3.5 text-amber-600" />
+              SMTP Inativo (Notificações Pendentes)
+            </Badge>
+          )}
         </div>
       </div>
+
+      {/* Alerta de aviso se SMTP não configurado */}
+      {!host.trim() && !loadingConfig && (
+        <div className="p-4 rounded-xl border border-amber-200 bg-amber-50/70 flex items-start gap-3 text-xs text-amber-900">
+          <AlertCircle className="h-5 w-5 text-amber-600 shrink-0 mt-0.5" />
+          <div className="space-y-0.5">
+            <p className="font-bold text-amber-950">Provedor SMTP não configurado</p>
+            <p className="text-amber-800">
+              Para habilitar o envio automático de notificações por e-mail para colaboradores e
+              gestores, cadastre o host, porta e credenciais do seu provedor abaixo e ative o
+              serviço.
+            </p>
+          </div>
+        </div>
+      )}
 
       <Tabs defaultValue="config" className="space-y-4">
         <TabsList className="bg-white border border-[#E0E0E0] p-1">
@@ -377,46 +444,88 @@ export default function AdminEmailPage() {
                       <div className="pt-2 pb-2 grid grid-cols-1 sm:grid-cols-2 gap-4 border-t border-b border-[#F0F0F0]">
                         <div className="flex items-center justify-between p-3 rounded-lg bg-[#FAFAFA] border border-[#E0E0E0]">
                           <div className="space-y-0.5">
-                            <Label className="text-xs font-semibold text-[#212121]">
+                            <Label
+                              htmlFor="switch-ativo-smtp"
+                              className="text-xs font-semibold text-[#212121]"
+                            >
                               Serviço Ativo
                             </Label>
                             <p className="text-[11px] text-[#757575]">
                               Disparar e-mails para notificações reais
                             </p>
                           </div>
-                          <Switch checked={ativo} onCheckedChange={setAtivo} />
+                          <Switch
+                            id="switch-ativo-smtp"
+                            checked={ativo}
+                            onCheckedChange={setAtivo}
+                          />
                         </div>
 
                         <div className="flex items-center justify-between p-3 rounded-lg bg-[#FAFAFA] border border-[#E0E0E0]">
                           <div className="space-y-0.5">
-                            <Label className="text-xs font-semibold text-[#212121]">
-                              Usar Criptografia TLS / STARTTLS
+                            <Label
+                              htmlFor="switch-tls-smtp"
+                              className="text-xs font-semibold text-[#212121]"
+                            >
+                              Criptografia TLS / SSL (STARTTLS)
                             </Label>
                             <p className="text-[11px] text-[#757575]">
                               Recomendado para porta 587 ou 465
                             </p>
                           </div>
-                          <Switch checked={tls} onCheckedChange={setTls} />
+                          <Switch id="switch-tls-smtp" checked={tls} onCheckedChange={setTls} />
                         </div>
                       </div>
 
-                      {/* Botões */}
-                      <div className="pt-2 flex items-center justify-between gap-3 flex-wrap">
-                        <Button
-                          type="button"
-                          variant="outline"
-                          onClick={handleTestarEnvio}
-                          disabled={salvando || testando || !ativo}
-                          className="h-9 text-xs border-[#0D47A1]/30 text-[#0D47A1] hover:bg-[#E8EEF7] gap-1.5"
-                        >
-                          <Send className={`h-3.5 w-3.5 ${testando ? 'animate-pulse' : ''}`} />
-                          {testando ? 'Enviando teste...' : 'Testar Envio (Meu E-mail)'}
-                        </Button>
+                      {/* Seção Teste de Envio */}
+                      <div className="p-4 rounded-xl bg-slate-50 border border-[#E0E0E0] space-y-3">
+                        <div className="flex items-center justify-between">
+                          <Label
+                            htmlFor="emailDestinoTeste"
+                            className="text-xs font-bold text-[#212121] flex items-center gap-1.5"
+                          >
+                            <Send className="h-3.5 w-3.5 text-[#0D47A1]" />
+                            Enviar E-mail de Teste
+                          </Label>
+                          <span className="text-[10px] text-[#757575]">
+                            Valida a autenticação e entrega imediata
+                          </span>
+                        </div>
 
+                        <div className="flex flex-col sm:flex-row gap-2">
+                          <Input
+                            id="emailDestinoTeste"
+                            type="email"
+                            placeholder="Informe o e-mail que receberá o teste..."
+                            value={emailDestinoTeste}
+                            onChange={(e) => setEmailDestinoTeste(e.target.value)}
+                            className="text-xs h-9 bg-white border-[#E0E0E0] flex-1"
+                          />
+                          <Button
+                            type="button"
+                            variant="outline"
+                            onClick={handleTestarEnvio}
+                            disabled={salvando || testando || !ativo || !host.trim()}
+                            className="h-9 text-xs border-[#0D47A1]/40 text-[#0D47A1] hover:bg-[#E8EEF7] gap-1.5 shrink-0 font-semibold"
+                          >
+                            <Send className={`h-3.5 w-3.5 ${testando ? 'animate-spin' : ''}`} />
+                            {testando ? 'Enviando...' : 'Enviar e-mail de teste'}
+                          </Button>
+                        </div>
+                        {(!ativo || !host.trim()) && (
+                          <p className="text-[10px] text-amber-700">
+                            * Para testar, preencha os dados de host/porta, ative o switch "Serviço
+                            Ativo" e salve a configuração.
+                          </p>
+                        )}
+                      </div>
+
+                      {/* Botões */}
+                      <div className="pt-2 flex items-center justify-end gap-3 flex-wrap">
                         <Button
                           type="submit"
                           disabled={salvando || testando}
-                          className="h-9 text-xs font-semibold bg-[#0D47A1] hover:bg-[#0A3A82] text-white gap-1.5"
+                          className="h-9 px-5 text-xs font-semibold bg-[#0D47A1] hover:bg-[#0A3A82] text-white gap-1.5 shadow-xs"
                         >
                           <Save className="h-3.5 w-3.5" />
                           {salvando ? 'Salvando...' : 'Salvar Configuração'}

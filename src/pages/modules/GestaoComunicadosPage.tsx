@@ -20,17 +20,21 @@ import {
   Trash2,
   AlertTriangle,
   Pencil,
+  Pin,
 } from 'lucide-react'
 import { useAuth } from '@/context/AuthContext'
 import { usePermission } from '@/hooks/usePermission'
-import { comunicadoService, logAuditoriaService } from '@/services/api'
+import { colaboradorService, comunicadoService, logAuditoriaService } from '@/services/api'
 import {
+  Colaborador,
   Comunicado,
   ComunicadoCategoria,
+  ComunicadoLeitura,
   ComunicadoSegmentacaoTipo,
   ComunicadoStatus,
   COMUNICADO_CATEGORIAS,
 } from '@/types'
+import { Switch } from '@/components/ui/switch'
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
@@ -91,6 +95,15 @@ export default function GestaoComunicadosPage() {
   const [formCategoria, setFormCategoria] = useState<ComunicadoCategoria>('RH')
   const [formSegmentacaoTipo, setFormSegmentacaoTipo] = useState<ComunicadoSegmentacaoTipo>('todos')
   const [formSegmentacaoValor, setFormSegmentacaoValor] = useState('')
+  const [formFixado, setFormFixado] = useState(false)
+  const [formExigeConfirmacao, setFormExigeConfirmacao] = useState(false)
+
+  // Controle de Leituras
+  const [leiturasTenant, setLeiturasTenant] = useState<ComunicadoLeitura[]>([])
+  const [colaboradoresTenant, setColaboradoresTenant] = useState<Colaborador[]>([])
+  const [modalAcompanhamento, setModalAcompanhamento] = useState<Comunicado | null>(null)
+  const [loadingAcompanhamento, setLoadingAcompanhamento] = useState(false)
+  const [leiturasDoComunicado, setLeiturasDoComunicado] = useState<ComunicadoLeitura[]>([])
 
   // Modal Leitura/Detalhes
   const [modalVisualizar, setModalVisualizar] = useState<Comunicado | null>(null)
@@ -103,8 +116,14 @@ export default function GestaoComunicadosPage() {
     if (!tenantId) return
     try {
       setLoading(true)
-      const list = await comunicadoService.getComunicados(tenantId)
+      const [list, leituras, colabs] = await Promise.all([
+        comunicadoService.getComunicados(tenantId),
+        comunicadoService.getTodasLeiturasTenant(tenantId),
+        colaboradorService.getColaboradores(tenantId),
+      ])
       setComunicados(list)
+      setLeiturasTenant(leituras)
+      setColaboradoresTenant(colabs)
     } catch (err) {
       console.error('Erro ao carregar comunicados:', err)
       toast({
@@ -187,6 +206,67 @@ export default function GestaoComunicadosPage() {
     }
   }
 
+  // Alternar fixar/desafixar diretamente pela tabela
+  const handleToggleFixado = async (item: Comunicado) => {
+    if (!tenantId || !user?.id) return
+    const novoFixado = !item.fixado
+
+    try {
+      await comunicadoService.alternarFixado(item.id, novoFixado)
+
+      setComunicados((prev) =>
+        prev.map((c) => (c.id === item.id ? { ...c, fixado: novoFixado } : c)),
+      )
+
+      await logAuditoriaService.registrarLog({
+        tenant_id: tenantId,
+        user_id: user.id,
+        acao: novoFixado ? 'fixar_comunicado' : 'desafixar_comunicado',
+        entidade: 'comunicado',
+        entidade_id: item.id,
+        dados_json: {
+          titulo: item.titulo,
+          fixado: novoFixado,
+          usuario_executor: user.name || user.email,
+        },
+      })
+
+      toast({
+        title: novoFixado ? 'Comunicado fixado no topo' : 'Comunicado desafixado',
+        description: novoFixado
+          ? 'O comunicado agora aparece em destaque no topo do portal do colaborador.'
+          : 'O comunicado retornou para a ordenação padrão por data de publicação.',
+      })
+    } catch (err) {
+      console.error('Erro ao alternar fixado:', err)
+      toast({
+        title: 'Erro ao alterar destaque',
+        description: 'Não foi possível alterar a fixação do comunicado.',
+        variant: 'destructive',
+      })
+    }
+  }
+
+  // Abrir modal de acompanhamento de leituras
+  const handleAbrirAcompanhamento = async (item: Comunicado) => {
+    if (!tenantId) return
+    setModalAcompanhamento(item)
+    try {
+      setLoadingAcompanhamento(true)
+      const leituras = await comunicadoService.getLeiturasPorComunicado(tenantId, item.id)
+      setLeiturasDoComunicado(leituras)
+    } catch (err) {
+      console.error('Erro ao carregar confirmações:', err)
+      toast({
+        title: 'Erro ao carregar confirmações',
+        description: 'Não foi possível obter os detalhes de leitura.',
+        variant: 'destructive',
+      })
+    } finally {
+      setLoadingAcompanhamento(false)
+    }
+  }
+
   // Abrir modal em modo criação
   const handleAbrirCriacao = () => {
     setComunicadoEmEdicao(null)
@@ -195,6 +275,8 @@ export default function GestaoComunicadosPage() {
     setFormCategoria('RH')
     setFormSegmentacaoTipo('todos')
     setFormSegmentacaoValor('')
+    setFormFixado(false)
+    setFormExigeConfirmacao(false)
     setModalPubOpen(true)
   }
 
@@ -206,6 +288,8 @@ export default function GestaoComunicadosPage() {
     setFormCategoria(item.categoria || 'RH')
     setFormSegmentacaoTipo(item.segmentacao_tipo || 'todos')
     setFormSegmentacaoValor(item.segmentacao_valor || '')
+    setFormFixado(Boolean(item.fixado))
+    setFormExigeConfirmacao(Boolean(item.exige_confirmacao))
     setModalPubOpen(true)
   }
 
@@ -256,6 +340,8 @@ export default function GestaoComunicadosPage() {
           segmentacao_valor: comunicadoEmEdicao.segmentacao_valor,
           conteudo: comunicadoEmEdicao.conteudo,
           status: comunicadoEmEdicao.status,
+          fixado: comunicadoEmEdicao.fixado,
+          exige_confirmacao: comunicadoEmEdicao.exige_confirmacao,
         }
 
         const atualizado = await comunicadoService.updateComunicado(comunicadoEmEdicao.id, {
@@ -264,6 +350,8 @@ export default function GestaoComunicadosPage() {
           categoria: formCategoria,
           segmentacao_tipo: formSegmentacaoTipo,
           segmentacao_valor: valorSegmentacao,
+          fixado: formFixado,
+          exige_confirmacao: formExigeConfirmacao,
         })
 
         const dadosDepois = {
@@ -273,6 +361,8 @@ export default function GestaoComunicadosPage() {
           segmentacao_valor: atualizado.segmentacao_valor,
           conteudo: atualizado.conteudo,
           status: atualizado.status,
+          fixado: atualizado.fixado,
+          exige_confirmacao: atualizado.exige_confirmacao,
         }
 
         // Registrar log de auditoria com antes/depois
@@ -308,6 +398,8 @@ export default function GestaoComunicadosPage() {
           conteudo: formConteudo.trim(),
           segmentacao_tipo: formSegmentacaoTipo,
           segmentacao_valor: valorSegmentacao,
+          fixado: formFixado,
+          exige_confirmacao: formExigeConfirmacao,
           status: 'ativo',
           data_publicacao: new Date().toISOString(),
         })
@@ -324,6 +416,8 @@ export default function GestaoComunicadosPage() {
             categoria: novo.categoria,
             segmentacao: novo.segmentacao_tipo,
             segmentacao_valor: novo.segmentacao_valor,
+            fixado: novo.fixado,
+            exige_confirmacao: novo.exige_confirmacao,
             autor_nome: user.name,
           },
         })
@@ -415,6 +509,43 @@ export default function GestaoComunicadosPage() {
       })
     } finally {
       setExcluindo(false)
+    }
+  }
+
+  // Helper para calcular métricas de confirmação de leitura por comunicado
+  const getMetricasLeitura = (comunicado: Comunicado) => {
+    // 1. Filtrar colaboradores segmentados para este comunicado
+    const colabsAlvo = colaboradoresTenant.filter((colab) => {
+      if (comunicado.segmentacao_tipo === 'todos') return true
+      if (comunicado.segmentacao_tipo === 'gestores') {
+        // perfil de gestor ou rh ou admin
+        return true
+      }
+      if (comunicado.segmentacao_tipo === 'setor') {
+        return (
+          colab.departamento?.trim().toLowerCase() ===
+          (comunicado.segmentacao_valor || '').trim().toLowerCase()
+        )
+      }
+      if (comunicado.segmentacao_tipo === 'funcao') {
+        return (
+          colab.cargo?.trim().toLowerCase() ===
+          (comunicado.segmentacao_valor || '').trim().toLowerCase()
+        )
+      }
+      return true
+    })
+
+    const totalAlvo = Math.max(colabsAlvo.length, 1)
+
+    // Contar quantas confirmações existem para este comunicado
+    const confirmacoes = leiturasTenant.filter((l) => l.comunicado_id === comunicado.id)
+    const totalConfirmadas = confirmacoes.length
+
+    return {
+      totalConfirmadas,
+      totalAlvo,
+      percentual: Math.min(Math.round((totalConfirmadas / totalAlvo) * 100), 100),
     }
   }
 
@@ -547,6 +678,7 @@ export default function GestaoComunicadosPage() {
                     <th className="py-3 px-4">Comunicado</th>
                     <th className="py-3 px-4">Categoria</th>
                     <th className="py-3 px-4">Segmentação</th>
+                    <th className="py-3 px-4">Confirmação</th>
                     <th className="py-3 px-4">Data Publicação</th>
                     <th className="py-3 px-4">Status</th>
                     <th className="py-3 px-4 text-right">Ações</th>
@@ -562,11 +694,22 @@ export default function GestaoComunicadosPage() {
                       <tr
                         key={item.id}
                         className={`hover:bg-[#F9FAFB] transition-colors ${
-                          !isAtivo ? 'opacity-65 bg-[#FAFAFA]' : ''
-                        }`}
+                          item.fixado ? 'bg-blue-50/40 border-l-4 border-l-[#0D47A1]' : ''
+                        } ${!isAtivo ? 'opacity-65 bg-[#FAFAFA]' : ''}`}
                       >
                         <td className="py-3 px-4 max-w-sm">
-                          <p className="font-bold text-[#212121] line-clamp-1">{item.titulo}</p>
+                          <div className="flex items-center gap-1.5 flex-wrap">
+                            {item.fixado && (
+                              <Badge
+                                variant="outline"
+                                className="bg-[#0D47A1] text-white border-[#0D47A1] text-[9px] font-bold px-1.5 py-0 h-4 gap-1"
+                              >
+                                <Pin className="h-2.5 w-2.5 fill-current" />
+                                Fixado
+                              </Badge>
+                            )}
+                            <p className="font-bold text-[#212121] line-clamp-1">{item.titulo}</p>
+                          </div>
                           <p className="text-[11px] text-[#757575] line-clamp-1 mt-0.5">
                             {item.conteudo}
                           </p>
@@ -600,6 +743,35 @@ export default function GestaoComunicadosPage() {
                           )}
                         </td>
 
+                        <td className="py-3 px-4 whitespace-nowrap">
+                          {item.exige_confirmacao ? (
+                            (() => {
+                              const m = getMetricasLeitura(item)
+                              return (
+                                <button
+                                  type="button"
+                                  onClick={() => handleAbrirAcompanhamento(item)}
+                                  className="group flex flex-col items-start text-left cursor-pointer hover:opacity-85 transition-opacity"
+                                  title="Ver lista de quem confirmou a leitura"
+                                >
+                                  <Badge
+                                    variant="outline"
+                                    className="bg-indigo-50 text-indigo-700 border-indigo-300 text-[10px] font-semibold gap-1 hover:bg-indigo-100"
+                                  >
+                                    <CheckCircle2 className="h-3 w-3 text-indigo-600" />
+                                    {m.totalConfirmadas}/{m.totalAlvo} ({m.percentual}%)
+                                  </Badge>
+                                  <span className="text-[9px] text-[#757575] underline group-hover:text-[#0D47A1] mt-0.5">
+                                    Ver confirmações
+                                  </span>
+                                </button>
+                              )
+                            })()
+                          ) : (
+                            <span className="text-[11px] text-slate-400">Opcional</span>
+                          )}
+                        </td>
+
                         <td className="py-3 px-4 whitespace-nowrap text-[11px] text-[#757575]">
                           <div className="flex items-center gap-1">
                             <Calendar className="h-3 w-3" />
@@ -627,6 +799,29 @@ export default function GestaoComunicadosPage() {
 
                         <td className="py-3 px-4 whitespace-nowrap text-right">
                           <div className="flex items-center justify-end gap-1.5">
+                            {podeExcluir && (
+                              <Button
+                                variant="outline"
+                                size="sm"
+                                onClick={() => handleToggleFixado(item)}
+                                className={`h-7 px-2 text-[11px] font-semibold border ${
+                                  item.fixado
+                                    ? 'bg-[#0D47A1] text-white border-[#0D47A1] hover:bg-[#0A3A82]'
+                                    : 'border-[#E0E0E0] text-[#616161] hover:text-[#0D47A1] hover:bg-blue-50'
+                                }`}
+                                title={
+                                  item.fixado
+                                    ? 'Desafixar do topo do portal'
+                                    : 'Fixar comunicado no topo do portal'
+                                }
+                              >
+                                <Pin
+                                  className={`h-3 w-3 mr-1 ${item.fixado ? 'fill-current' : ''}`}
+                                />
+                                {item.fixado ? 'Fixado' : 'Fixar'}
+                              </Button>
+                            )}
+
                             <Button
                               variant="ghost"
                               size="sm"
@@ -830,13 +1025,56 @@ export default function GestaoComunicadosPage() {
                       value={formConteudo}
                       onChange={(e) => setFormConteudo(e.target.value)}
                       placeholder="Escreva a mensagem oficial com detalhes, datas e instruções para os colaboradores..."
-                      rows={5}
+                      rows={4}
                       className="border-[#E0E0E0] text-xs leading-relaxed"
                       required
                     />
                   </div>
-                </div>
 
+                  {/* Switches: Fixar no Topo e Exigir Confirmação de Leitura */}
+                  <div className="p-3 bg-[#FAFAFA] rounded-lg border border-[#E0E0E0] space-y-3">
+                    <div className="flex items-center justify-between">
+                      <div className="space-y-0.5">
+                        <Label
+                          htmlFor="switch-fixar"
+                          className="text-xs font-semibold text-[#212121] flex items-center gap-1.5"
+                        >
+                          <Pin className="h-3.5 w-3.5 text-[#0D47A1]" />
+                          Fixar no topo do portal
+                        </Label>
+                        <p className="text-[10px] text-[#757575]">
+                          Exibe em destaque visual antes de todos os outros avisos
+                        </p>
+                      </div>
+                      <Switch
+                        id="switch-fixar"
+                        checked={formFixado}
+                        onCheckedChange={setFormFixado}
+                      />
+                    </div>
+
+                    <div className="border-t border-[#EAEAEA] pt-2.5 flex items-center justify-between">
+                      <div className="space-y-0.5">
+                        <Label
+                          htmlFor="switch-confirmacao"
+                          className="text-xs font-semibold text-[#212121] flex items-center gap-1.5"
+                        >
+                          <CheckCircle2 className="h-3.5 w-3.5 text-emerald-600" />
+                          Exigir confirmação de leitura
+                        </Label>
+                        <p className="text-[10px] text-[#757575]">
+                          Colaborador precisará clicar em "Confirmar leitura" com registro de
+                          data/hora
+                        </p>
+                      </div>
+                      <Switch
+                        id="switch-confirmacao"
+                        checked={formExigeConfirmacao}
+                        onCheckedChange={setFormExigeConfirmacao}
+                      />
+                    </div>
+                  </div>
+                </div>
                 {/* Coluna 2: Card de Preview em Tempo Real */}
                 <div className="space-y-2">
                   <div className="flex items-center justify-between">
@@ -849,17 +1087,40 @@ export default function GestaoComunicadosPage() {
 
                   {/* Card que simula exatamente o card do Mural do PortalColaborador */}
                   <div
-                    className="rounded-xl border border-[#E0E0E0] bg-white shadow-xs overflow-hidden"
-                    style={{ borderTop: `4px solid ${previewConfig.color}` }}
+                    className={`rounded-xl border bg-white shadow-xs overflow-hidden transition-all ${
+                      formFixado ? 'border-2 border-[#0D47A1] bg-blue-50/20' : 'border-[#E0E0E0]'
+                    }`}
+                    style={{
+                      borderTop: `4px solid ${formFixado ? '#0D47A1' : previewConfig.color}`,
+                    }}
                   >
                     <div className="p-4 space-y-2.5">
                       <div className="flex items-center justify-between gap-2">
-                        <span
-                          className="inline-flex items-center px-2 py-0.5 rounded text-[10px] font-bold text-white shadow-2xs"
-                          style={{ backgroundColor: previewConfig.color }}
-                        >
-                          {formCategoria}
-                        </span>
+                        <div className="flex items-center gap-1.5 flex-wrap">
+                          <span
+                            className="inline-flex items-center px-2 py-0.5 rounded text-[10px] font-bold text-white shadow-2xs"
+                            style={{ backgroundColor: previewConfig.color }}
+                          >
+                            {formCategoria}
+                          </span>
+                          {formFixado && (
+                            <Badge
+                              variant="outline"
+                              className="bg-[#0D47A1] text-white border-[#0D47A1] text-[9px] font-bold px-1.5 py-0 h-4 gap-1"
+                            >
+                              <Pin className="h-2.5 w-2.5 fill-current" />
+                              Fixado
+                            </Badge>
+                          )}
+                          {formExigeConfirmacao && (
+                            <Badge
+                              variant="outline"
+                              className="bg-amber-50 text-amber-800 border-amber-300 text-[9px] font-semibold px-1.5 py-0 h-4"
+                            >
+                              Confirmação obrigatória
+                            </Badge>
+                          )}
+                        </div>
                         <div className="flex items-center gap-1 text-[10px] text-[#757575]">
                           <Calendar className="h-3 w-3" />
                           <span>Hoje</span>
@@ -895,7 +1156,6 @@ export default function GestaoComunicadosPage() {
                       </div>
                     </div>
                   </div>
-
                   <div className="p-3 rounded-lg bg-[#F8F9FA] border border-[#E0E0E0] text-[11px] text-[#616161] space-y-1">
                     <p className="font-semibold text-[#212121]">Regras de visibilidade:</p>
                     <p>
@@ -1030,6 +1290,135 @@ export default function GestaoComunicadosPage() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      {/* Modal Acompanhamento de Confirmações de Leitura */}
+      <Dialog
+        open={Boolean(modalAcompanhamento)}
+        onOpenChange={(open) => !open && setModalAcompanhamento(null)}
+      >
+        {modalAcompanhamento && (
+          <DialogContent className="max-w-2xl p-0 overflow-hidden bg-white border border-[#E0E0E0]">
+            <div className="h-2.5 w-full bg-[#0D47A1]" />
+
+            <div className="p-6 space-y-4 max-h-[85vh] overflow-y-auto">
+              <DialogHeader className="text-left space-y-1">
+                <div className="flex items-center justify-between gap-2 flex-wrap">
+                  <Badge
+                    variant="outline"
+                    className="bg-indigo-50 text-indigo-700 border-indigo-300 text-xs font-bold"
+                  >
+                    Acompanhamento de Leitura
+                  </Badge>
+                  <span className="text-xs text-[#757575]">
+                    Publicado em {formatarData(modalAcompanhamento.data_publicacao)}
+                  </span>
+                </div>
+                <DialogTitle className="text-lg font-bold text-[#212121]">
+                  {modalAcompanhamento.titulo}
+                </DialogTitle>
+                <DialogDescription className="text-xs text-[#757575]">
+                  Lista completa dos colaboradores que já confirmaram a leitura e quem ainda está
+                  pendente.
+                </DialogDescription>
+              </DialogHeader>
+
+              {/* Barra de Progresso / Resumo */}
+              {(() => {
+                const metricas = getMetricasLeitura(modalAcompanhamento)
+                return (
+                  <div className="p-4 rounded-xl bg-slate-50 border border-[#E0E0E0] space-y-2">
+                    <div className="flex items-center justify-between text-xs font-semibold">
+                      <span className="text-[#212121]">Taxa de confirmação:</span>
+                      <span className="text-[#0D47A1]">
+                        {metricas.totalConfirmadas} de {metricas.totalAlvo} colaboradores (
+                        {metricas.percentual}%)
+                      </span>
+                    </div>
+                    <div className="w-full bg-[#E0E0E0] h-2.5 rounded-full overflow-hidden">
+                      <div
+                        className="bg-[#0D47A1] h-full transition-all duration-300"
+                        style={{ width: `${metricas.percentual}%` }}
+                      />
+                    </div>
+                  </div>
+                )
+              })()}
+
+              {/* Listagem das Confirmações */}
+              <div className="space-y-3">
+                <h4 className="text-xs font-bold uppercase tracking-wider text-[#757575]">
+                  Status por Colaborador
+                </h4>
+
+                {loadingAcompanhamento ? (
+                  <div className="space-y-2 py-4">
+                    <Skeleton className="h-10 w-full" />
+                    <Skeleton className="h-10 w-full" />
+                    <Skeleton className="h-10 w-full" />
+                  </div>
+                ) : (
+                  <div className="divide-y divide-[#F0F0F0] border rounded-lg border-[#E0E0E0] overflow-hidden max-h-64 overflow-y-auto">
+                    {colaboradoresTenant.map((colab) => {
+                      const leitura = leiturasDoComunicado.find(
+                        (l) => l.usuario_id === colab.user_id,
+                      )
+                      const jaConfirmou = Boolean(leitura)
+
+                      return (
+                        <div
+                          key={colab.id}
+                          className="p-3 flex items-center justify-between text-xs hover:bg-[#FAFAFA] transition-colors"
+                        >
+                          <div>
+                            <p className="font-semibold text-[#212121]">{colab.nome}</p>
+                            <p className="text-[11px] text-[#757575]">
+                              {colab.cargo || 'Colaborador'}{' '}
+                              {colab.departamento ? `• ${colab.departamento}` : ''}
+                            </p>
+                          </div>
+
+                          <div>
+                            {jaConfirmou ? (
+                              <Badge
+                                variant="outline"
+                                className="bg-emerald-50 text-emerald-800 border-emerald-300 text-[10px] gap-1 font-semibold"
+                              >
+                                <CheckCircle2 className="h-3 w-3 text-emerald-600" />
+                                Confirmado em{' '}
+                                {leitura?.lido_em
+                                  ? new Date(leitura.lido_em).toLocaleString('pt-BR')
+                                  : '—'}
+                              </Badge>
+                            ) : (
+                              <Badge
+                                variant="outline"
+                                className="bg-amber-50 text-amber-800 border-amber-300 text-[10px] gap-1 font-semibold"
+                              >
+                                <Clock className="h-3 w-3 text-amber-600" />
+                                Pendente
+                              </Badge>
+                            )}
+                          </div>
+                        </div>
+                      )
+                    })}
+                  </div>
+                )}
+              </div>
+
+              <div className="pt-2 flex justify-end">
+                <Button
+                  variant="outline"
+                  onClick={() => setModalAcompanhamento(null)}
+                  className="text-xs h-9 border-[#E0E0E0]"
+                >
+                  Fechar
+                </Button>
+              </div>
+            </div>
+          </DialogContent>
+        )}
+      </Dialog>
 
       {/* Modal Leitura Completa de Comunicado */}
       <Dialog open={!!modalVisualizar} onOpenChange={(open) => !open && setModalVisualizar(null)}>

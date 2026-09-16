@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-09-16T14:52:25.925Z",
+  "generatedAt": "2026-09-16T15:57:18.829Z",
   "collections": [
     {
       "name": "users",
@@ -429,6 +429,18 @@
           "required": false,
           "system": false,
           "selectValues": ["ativo", "arquivado"]
+        },
+        {
+          "name": "fixado",
+          "type": "bool",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "exige_confirmacao",
+          "type": "bool",
+          "required": false,
+          "system": false
         }
       ],
       "indexes": [
@@ -2897,6 +2909,66 @@
       "indexes": [
         "CREATE UNIQUE INDEX idx_perm_user_tenant ON permissao_usuario (tenant_id, user_id)",
         "CREATE INDEX idx_perm_user_user ON permissao_usuario (user_id)"
+      ]
+    },
+    {
+      "name": "comunicado_leitura",
+      "type": "base",
+      "apiRules": {
+        "list": "@request.auth.id != '' && tenant_id = @request.auth.tenant_id",
+        "view": "@request.auth.id != '' && tenant_id = @request.auth.tenant_id",
+        "create": "@request.auth.id != '' && tenant_id = @request.auth.tenant_id && usuario_id = @request.auth.id",
+        "update": null,
+        "delete": "@request.auth.id != '' && tenant_id = @request.auth.tenant_id && (@request.auth.perfil = 'admin' || @request.auth.perfil = 'admin_rh' || @request.auth.perfil = 'rh' || usuario_id = @request.auth.id)"
+      },
+      "fields": [
+        {
+          "name": "tenant_id",
+          "type": "relation",
+          "required": true,
+          "system": false,
+          "collectionRef": "tenant"
+        },
+        {
+          "name": "comunicado_id",
+          "type": "relation",
+          "required": true,
+          "system": false,
+          "collectionRef": "comunicado"
+        },
+        {
+          "name": "usuario_id",
+          "type": "relation",
+          "required": true,
+          "system": false,
+          "collectionRef": "users"
+        },
+        {
+          "name": "lido_em",
+          "type": "date",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "created",
+          "type": "autodate",
+          "required": false,
+          "system": false,
+          "autodateTriggers": ["onCreate"]
+        },
+        {
+          "name": "updated",
+          "type": "autodate",
+          "required": false,
+          "system": false,
+          "autodateTriggers": ["onCreate", "onUpdate"]
+        }
+      ],
+      "indexes": [
+        "CREATE INDEX idx_comun_leit_tenant ON comunicado_leitura (tenant_id)",
+        "CREATE INDEX idx_comun_leit_comunicado ON comunicado_leitura (comunicado_id)",
+        "CREATE INDEX idx_comun_leit_usuario ON comunicado_leitura (usuario_id)",
+        "CREATE UNIQUE INDEX idx_comun_leit_unique ON comunicado_leitura (comunicado_id, usuario_id)"
       ]
     }
   ]

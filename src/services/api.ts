@@ -826,7 +826,7 @@ export const comunicadoService = {
     }
     const records = await pb.collection('comunicado').getFullList<import('@/types').Comunicado>({
       filter,
-      sort: '-data_publicacao,-created',
+      sort: '-fixado,-data_publicacao,-created',
     })
     return records
   },
@@ -840,9 +840,13 @@ export const comunicadoService = {
     segmentacao_valor?: string
     data_publicacao?: string
     status?: import('@/types').ComunicadoStatus
+    fixado?: boolean
+    exige_confirmacao?: boolean
   }): Promise<import('@/types').Comunicado> {
     const record = await pb.collection('comunicado').create<import('@/types').Comunicado>({
       ...data,
+      fixado: Boolean(data.fixado),
+      exige_confirmacao: Boolean(data.exige_confirmacao),
       status: data.status || 'ativo',
       data_publicacao: data.data_publicacao || new Date().toISOString(),
     })
@@ -915,6 +919,84 @@ export const comunicadoService = {
       status: 'ativo',
     })
     return record
+  },
+
+  async alternarFixado(id: string, fixado: boolean): Promise<import('@/types').Comunicado> {
+    const record = await pb.collection('comunicado').update<import('@/types').Comunicado>(id, {
+      fixado,
+    })
+    return record
+  },
+
+  /**
+   * Confirmação de leitura de comunicados
+   */
+  async confirmarLeitura(data: {
+    tenant_id: string
+    comunicado_id: string
+    usuario_id: string
+  }): Promise<import('@/types').ComunicadoLeitura> {
+    const payload = {
+      tenant_id: data.tenant_id,
+      comunicado_id: data.comunicado_id,
+      usuario_id: data.usuario_id,
+      lido_em: new Date().toISOString(),
+    }
+    const record = await pb
+      .collection('comunicado_leitura')
+      .create<import('@/types').ComunicadoLeitura>(payload)
+    return record
+  },
+
+  async getLeiturasPorUsuario(
+    tenantId: string,
+    usuarioId: string,
+  ): Promise<import('@/types').ComunicadoLeitura[]> {
+    try {
+      const records = await pb
+        .collection('comunicado_leitura')
+        .getFullList<import('@/types').ComunicadoLeitura>({
+          filter: `tenant_id = "${tenantId}" && usuario_id = "${usuarioId}"`,
+        })
+      return records
+    } catch (err) {
+      console.warn('Erro ao carregar leituras do usuário:', err)
+      return []
+    }
+  },
+
+  async getLeiturasPorComunicado(
+    tenantId: string,
+    comunicadoId: string,
+  ): Promise<import('@/types').ComunicadoLeitura[]> {
+    try {
+      const records = await pb
+        .collection('comunicado_leitura')
+        .getFullList<import('@/types').ComunicadoLeitura>({
+          filter: `tenant_id = "${tenantId}" && comunicado_id = "${comunicadoId}"`,
+          sort: '-created',
+          expand: 'usuario_id',
+        })
+      return records
+    } catch (err) {
+      console.warn('Erro ao carregar leituras do comunicado:', err)
+      return []
+    }
+  },
+
+  async getTodasLeiturasTenant(tenantId: string): Promise<import('@/types').ComunicadoLeitura[]> {
+    try {
+      const records = await pb
+        .collection('comunicado_leitura')
+        .getFullList<import('@/types').ComunicadoLeitura>({
+          filter: `tenant_id = "${tenantId}"`,
+          sort: '-created',
+        })
+      return records
+    } catch (err) {
+      console.warn('Erro ao carregar todas as leituras do tenant:', err)
+      return []
+    }
   },
 
   async deleteComunicado(id: string, tenantId?: string): Promise<boolean> {

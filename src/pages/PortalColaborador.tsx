@@ -18,12 +18,16 @@ import {
   Info,
   Shield,
   Eye,
+  Pin,
+  Check,
+  CheckCheck,
 } from 'lucide-react'
 import { useAuth } from '@/context/AuthContext'
-import { comunicadoService } from '@/services/api'
+import { comunicadoService, logAuditoriaService } from '@/services/api'
 import {
   Comunicado,
   ComunicadoCategoria,
+  ComunicadoLeitura,
   COMUNICADO_CATEGORIAS,
   PROFILE_LABELS,
   PROFILE_BADGE_COLORS,
@@ -53,6 +57,8 @@ export default function PortalColaborador() {
   const [loading, setLoading] = useState(true)
   const [selectedCategoria, setSelectedCategoria] = useState<string>('todos')
   const [modalComunicado, setModalComunicado] = useState<Comunicado | null>(null)
+  const [leiturasUsuario, setLeiturasUsuario] = useState<ComunicadoLeitura[]>([])
+  const [confirmandoLeituraId, setConfirmandoLeituraId] = useState<string | null>(null)
 
   // Perfil e regras de permissão
   const perfil = user?.perfil || 'colaborador'
@@ -67,17 +73,23 @@ export default function PortalColaborador() {
 
   const nomeCompleto = colaborador?.nome || user?.name || 'Colaborador'
 
-  // Carrega comunicados do tenant do usuário
+  // Carrega comunicados do tenant do usuário e leituras feitas por ele
   useEffect(() => {
     async function loadData() {
       if (!user?.tenant_id) return
       try {
         setLoading(true)
         // No mural do colaborador, apenas comunicados ativos são exibidos
-        const allComunicados = await comunicadoService.getComunicados(user.tenant_id, true)
+        const [allComunicados, leituras] = await Promise.all([
+          comunicadoService.getComunicados(user.tenant_id, true),
+          user.id
+            ? comunicadoService.getLeiturasPorUsuario(user.tenant_id, user.id)
+            : Promise.resolve([]),
+        ])
         // Aplica RLS e regras de segmentação locais por perfil/setor/cargo
         const visiveis = comunicadoService.filtrarPorPerfil(allComunicados, perfil, colaborador)
         setComunicados(visiveis)
+        setLeiturasUsuario(leituras)
       } catch (err) {
         console.error('Erro ao carregar comunicados:', err)
         toast({
@@ -91,7 +103,58 @@ export default function PortalColaborador() {
     }
 
     loadData()
-  }, [user?.tenant_id, perfil, colaborador, toast])
+  }, [user?.tenant_id, user?.id, perfil, colaborador, toast])
+
+  // Ação de confirmar leitura
+  const handleConfirmarLeitura = async (comunicadoId: string, e?: React.MouseEvent) => {
+    if (e) e.stopPropagation()
+    if (!user?.tenant_id || !user?.id) return
+
+    try {
+      setConfirmandoLeituraId(comunicadoId)
+      const novaLeitura = await comunicadoService.confirmarLeitura({
+        tenant_id: user.tenant_id,
+        comunicado_id: comunicadoId,
+        usuario_id: user.id,
+      })
+
+      setLeiturasUsuario((prev) => [...prev, novaLeitura])
+
+      // Auditoria
+      await logAuditoriaService.registrarLog({
+        tenant_id: user.tenant_id,
+        user_id: user.id,
+        acao: 'confirmacao_leitura_comunicado',
+        entidade: 'comunicado',
+        entidade_id: comunicadoId,
+        dados_json: {
+          comunicado_id: comunicadoId,
+          usuario_id: user.id,
+          usuario_nome: user.name || user.email,
+          data_hora: new Date().toISOString(),
+        },
+      })
+
+      toast({
+        title: 'Leitura confirmada com sucesso!',
+        description: 'Sua confirmação de leitura foi registrada para o RH.',
+      })
+    } catch (err) {
+      console.error('Erro ao confirmar leitura:', err)
+      toast({
+        title: 'Falha ao confirmar leitura',
+        description: 'Não foi possível registrar a confirmação. Tente novamente.',
+        variant: 'destructive',
+      })
+    } finally {
+      setConfirmandoLeituraId(null)
+    }
+  }
+
+  // Verifica se o comunicado já foi lido pelo usuário logado
+  const isLidoPeloUsuario = (comunicadoId: string) => {
+    return leiturasUsuario.some((l) => l.comunicado_id === comunicadoId)
+  }
 
   // Lista de categorias filtradas
   const categoriasList: ComunicadoCategoria[] = [
@@ -102,12 +165,22 @@ export default function PortalColaborador() {
     'Benefícios',
   ]
 
-  // Comunicados filtrados pela categoria selecionada na barra de tags
+  // Comunicados filtrados pela categoria selecionada na barra de tags, com fixados no topo
   const comunicadosFiltrados = useMemo(() => {
-    if (selectedCategoria === 'todos') {
-      return comunicados
+    let filtrados = comunicados
+    if (selectedCategoria !== 'todos') {
+      filtrados = comunicados.filter((c) => c.categoria === selectedCategoria)
     }
-    return comunicados.filter((c) => c.categoria === selectedCategoria)
+    // Ordenar: primeiro fixados (true antes de false), depois por data de publicação desc
+    return [...filtrados].sort((a, b) => {
+      const fixA = a.fixado ? 1 : 0
+      const fixB = b.fixado ? 1 : 0
+      if (fixA !== fixB) return fixB - fixA
+
+      const dataA = new Date(a.data_publicacao || a.created || 0).getTime()
+      const dataB = new Date(b.data_publicacao || b.created || 0).getTime()
+      return dataB - dataA
+    })
   }, [comunicados, selectedCategoria])
 
   // Contagem por categoria para as tags
@@ -448,25 +521,61 @@ export default function PortalColaborador() {
             {comunicadosFiltrados.map((item) => {
               const catConfig =
                 COMUNICADO_CATEGORIAS[item.categoria] || COMUNICADO_CATEGORIAS.Empresa
+              const lido = isLidoPeloUsuario(item.id)
+              const emConfirmacao = confirmandoLeituraId === item.id
 
               return (
                 <Card
                   key={item.id}
                   onClick={() => setModalComunicado(item)}
-                  className="group relative flex flex-col justify-between overflow-hidden border border-[#E0E0E0] bg-white shadow-xs hover:shadow-md transition-all duration-200 cursor-pointer hover:border-[#0D47A1]/40"
+                  className={`group relative flex flex-col justify-between overflow-hidden transition-all duration-200 cursor-pointer ${
+                    item.fixado
+                      ? 'border-2 border-[#0D47A1] bg-gradient-to-b from-blue-50/50 to-white shadow-md ring-2 ring-[#0D47A1]/10'
+                      : 'border border-[#E0E0E0] bg-white shadow-xs hover:shadow-md hover:border-[#0D47A1]/40'
+                  }`}
                   style={{
-                    borderTop: `4px solid ${catConfig.color}`,
+                    borderTop: `4px solid ${item.fixado ? '#0D47A1' : catConfig.color}`,
                   }}
                 >
                   <CardHeader className="p-5 pb-3 space-y-2.5">
-                    {/* Header do Card: Categoria com cor e Data formatada */}
-                    <div className="flex items-center justify-between gap-2">
-                      <span
-                        className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-md text-[11px] font-bold text-white shadow-2xs"
-                        style={{ backgroundColor: catConfig.color }}
-                      >
-                        {item.categoria}
-                      </span>
+                    {/* Header do Card: Categoria, Selo Fixado e Data formatada */}
+                    <div className="flex items-center justify-between gap-2 flex-wrap">
+                      <div className="flex items-center gap-1.5 flex-wrap">
+                        <span
+                          className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-md text-[11px] font-bold text-white shadow-2xs"
+                          style={{ backgroundColor: catConfig.color }}
+                        >
+                          {item.categoria}
+                        </span>
+
+                        {item.fixado && (
+                          <Badge
+                            variant="outline"
+                            className="bg-[#0D47A1] text-white border-[#0D47A1] text-[10px] font-bold px-2 py-0.5 gap-1 shadow-xs"
+                          >
+                            <Pin className="h-3 w-3 fill-current" />
+                            Fixado
+                          </Badge>
+                        )}
+
+                        {item.exige_confirmacao &&
+                          (lido ? (
+                            <Badge
+                              variant="outline"
+                              className="bg-emerald-50 text-emerald-800 border-emerald-300 text-[10px] font-semibold px-2 py-0.5 gap-1"
+                            >
+                              <CheckCheck className="h-3 w-3 text-emerald-600" />
+                              Leitura confirmada
+                            </Badge>
+                          ) : (
+                            <Badge
+                              variant="outline"
+                              className="bg-amber-50 text-amber-800 border-amber-300 text-[10px] font-semibold px-2 py-0.5"
+                            >
+                              Confirmação pendente
+                            </Badge>
+                          ))}
+                      </div>
 
                       <div className="flex items-center gap-1 text-[11px] text-[#757575]">
                         <Calendar className="h-3 w-3" />
@@ -486,7 +595,22 @@ export default function PortalColaborador() {
                       {item.conteudo}
                     </p>
 
-                    {/* Rodapé do Card: Tag de Segmentação (se aplicável para RH/Admin/Gestores) e Ação de ler */}
+                    {/* Botão de Confirmação no Card se exigir confirmação e ainda não foi confirmado */}
+                    {item.exige_confirmacao && !lido && (
+                      <div className="pt-1">
+                        <Button
+                          size="sm"
+                          onClick={(e) => handleConfirmarLeitura(item.id, e)}
+                          disabled={emConfirmacao}
+                          className="w-full h-8 text-xs font-semibold bg-[#0D47A1] hover:bg-[#0A3A82] text-white gap-1.5 shadow-xs"
+                        >
+                          <Check className="h-3.5 w-3.5" />
+                          {emConfirmacao ? 'Confirmando...' : 'Confirmar leitura'}
+                        </Button>
+                      </div>
+                    )}
+
+                    {/* Rodapé do Card: Tag de Segmentação e Ação de ler */}
                     <div className="flex items-center justify-between pt-3 border-t border-[#F5F5F5] text-xs">
                       {item.segmentacao_tipo !== 'todos' ? (
                         <span className="inline-flex items-center gap-1 text-[10px] font-medium text-[#757575] bg-[#F5F5F5] px-2 py-0.5 rounded">
@@ -559,6 +683,44 @@ export default function PortalColaborador() {
               <div className="py-2 text-sm text-[#424242] leading-relaxed whitespace-pre-wrap border-y border-[#F5F5F5] min-h-[120px]">
                 {modalComunicado.conteudo}
               </div>
+
+              {/* Seção de Confirmação de Leitura dentro do Modal */}
+              {modalComunicado.exige_confirmacao && (
+                <div className="p-3.5 rounded-xl bg-slate-50 border border-[#E0E0E0] flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
+                  <div>
+                    <p className="text-xs font-bold text-[#212121] flex items-center gap-1.5">
+                      <CheckCircle2 className="h-4 w-4 text-[#0D47A1]" />
+                      Confirmação de Leitura Obrigatória
+                    </p>
+                    <p className="text-[11px] text-[#757575] mt-0.5">
+                      Este comunicado requer confirmação individual para fins de registro e
+                      conformidade do RH.
+                    </p>
+                  </div>
+
+                  {isLidoPeloUsuario(modalComunicado.id) ? (
+                    <Badge
+                      variant="outline"
+                      className="bg-emerald-50 text-emerald-800 border-emerald-300 text-xs font-semibold py-1 px-3 gap-1 shrink-0"
+                    >
+                      <CheckCheck className="h-3.5 w-3.5 text-emerald-600" />
+                      Leitura confirmada
+                    </Badge>
+                  ) : (
+                    <Button
+                      size="sm"
+                      onClick={() => handleConfirmarLeitura(modalComunicado.id)}
+                      disabled={confirmandoLeituraId === modalComunicado.id}
+                      className="h-8 text-xs font-semibold bg-[#0D47A1] hover:bg-[#0A3A82] text-white shrink-0 gap-1.5 shadow-xs"
+                    >
+                      <Check className="h-3.5 w-3.5" />
+                      {confirmandoLeituraId === modalComunicado.id
+                        ? 'Confirmando...'
+                        : 'Confirmar leitura'}
+                    </Button>
+                  )}
+                </div>
+              )}
 
               {/* Informações adicionais do comunicado */}
               <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2 pt-1 text-xs text-[#757575]">

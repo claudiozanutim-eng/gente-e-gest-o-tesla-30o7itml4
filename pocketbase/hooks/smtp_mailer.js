@@ -159,10 +159,16 @@ routerAdd('POST', '/backend/v1/tesla/test-smtp', (c) => {
   }
 
   const tenantId = auth.getString('tenant_id')
-  const userEmail = auth.getString('email')
+  let destinatarioTeste = auth.getString('email')
+  try {
+    const body = c.requestInfo().body
+    if (body && body.destinatario && String(body.destinatario).trim().length > 0) {
+      destinatarioTeste = String(body.destinatario).trim()
+    }
+  } catch (_) {}
 
-  if (!userEmail) {
-    return c.json(400, { message: 'O usuário não possui e-mail cadastrado.' })
+  if (!destinatarioTeste) {
+    return c.json(400, { message: 'Informe um e-mail de destino para o teste.' })
   }
 
   const emailLogCol = c.app.findCollectionByNameOrId('email_log')
@@ -187,7 +193,7 @@ routerAdd('POST', '/backend/v1/tesla/test-smtp', (c) => {
   if (!smtpRecord || !smtpRecord.getBool('ativo')) {
     const logRec = new Record(emailLogCol)
     logRec.set('tenant_id', tenantId)
-    logRec.set('destinatario', userEmail)
+    logRec.set('destinatario', destinatarioTeste)
     logRec.set('assunto', 'Teste de Conexão SMTP — Gente e Gestão Tesla')
     logRec.set('status', 'pendente_envio')
     logRec.set(
@@ -200,7 +206,8 @@ routerAdd('POST', '/backend/v1/tesla/test-smtp', (c) => {
 
     return c.json(400, {
       success: false,
-      message: 'SMTP não ativo ou não configurado para este tenant.',
+      message:
+        'SMTP não configurado ou inativo para este tenant. Configure os parâmetros e ative o serviço antes de testar.',
     })
   }
 
@@ -248,7 +255,7 @@ routerAdd('POST', '/backend/v1/tesla/test-smtp', (c) => {
       },
       to: [
         {
-          address: userEmail,
+          address: destinatarioTeste,
         },
       ],
       subject: titulo,
@@ -261,7 +268,7 @@ routerAdd('POST', '/backend/v1/tesla/test-smtp', (c) => {
     // Log de sucesso
     const logRec = new Record(emailLogCol)
     logRec.set('tenant_id', tenantId)
-    logRec.set('destinatario', userEmail)
+    logRec.set('destinatario', destinatarioTeste)
     logRec.set('assunto', titulo)
     logRec.set('status', 'enviado')
     logRec.set('erro', '')
@@ -269,16 +276,16 @@ routerAdd('POST', '/backend/v1/tesla/test-smtp', (c) => {
 
     return c.json(200, {
       success: true,
-      message: 'E-mail de teste enviado com sucesso para ' + userEmail,
+      message: 'E-mail de teste enviado com sucesso para ' + destinatarioTeste,
     })
   } catch (errEnvio) {
     const erroMsg = errEnvio && errEnvio.message ? errEnvio.message : String(errEnvio)
-    console.log('Falha no teste SMTP para ' + userEmail + ':', erroMsg)
+    console.log('Falha no teste SMTP para ' + destinatarioTeste + ':', erroMsg)
 
     try {
       const logRec = new Record(emailLogCol)
       logRec.set('tenant_id', tenantId)
-      logRec.set('destinatario', userEmail)
+      logRec.set('destinatario', destinatarioTeste)
       logRec.set('assunto', titulo)
       logRec.set('status', 'falha')
       logRec.set('erro', erroMsg)

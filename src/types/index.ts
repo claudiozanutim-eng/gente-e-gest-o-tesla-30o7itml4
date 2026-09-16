@@ -136,8 +136,24 @@ export interface Comunicado {
   segmentacao_valor?: string
   data_publicacao?: string
   status?: ComunicadoStatus
+  fixado?: boolean
+  exige_confirmacao?: boolean
   created: string
   updated: string
+}
+
+export interface ComunicadoLeitura {
+  id: string
+  tenant_id: string
+  comunicado_id: string
+  usuario_id: string
+  lido_em?: string
+  created: string
+  updated: string
+  expand?: {
+    comunicado_id?: Comunicado
+    usuario_id?: AppUser
+  }
 }
 
 export interface CategoriaConfig {

@@ -119,13 +119,14 @@ export const emailTransacionalService = {
   },
 
   /**
-   * Dispara teste de envio SMTP para o e-mail do admin logado
+   * Dispara teste de envio SMTP para o e-mail informado (ou do admin logado)
    */
-  async testarEnvioSmtp(): Promise<{ success: boolean; message: string }> {
+  async testarEnvioSmtp(destinatario?: string): Promise<{ success: boolean; message: string }> {
     const res = await pb.send<{ success: boolean; message: string }>(
       '/backend/v1/tesla/test-smtp',
       {
         method: 'POST',
+        body: destinatario ? { destinatario } : {},
       },
     )
     return res
