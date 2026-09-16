@@ -287,13 +287,18 @@ export const ModalImportarHoleritePDF: React.FC<ModalImportarHoleritePDFProps> =
 
   // 8. Confirmar e Efetivar Gravação
   const handleConfirmarImportacao = async () => {
-    // Apenas arquivos aptos (com colaborador vinculado e não escaneados com erro bloqueante)
-    const aptos = arquivosProcessados.filter((a) => a.colaboradorId && a.status !== 'escaneado')
+    // Arquivos aptos: aqueles prontos para gravação
+    const aptos = arquivosProcessados.filter(
+      (a) =>
+        a.colaboradorId &&
+        (a.status === 'pronto' || (a.status === 'revisar' && a.conferenciaMatematicaOk)),
+    )
 
     if (aptos.length === 0) {
       toast({
         title: 'Nenhum holerite apto para gravação',
-        description: 'Vincule os colaboradores e confira os campos antes de confirmar.',
+        description:
+          'Vincule os colaboradores e verifique se a conferência matemática está batida antes de confirmar.',
         variant: 'destructive',
       })
       return
@@ -324,7 +329,12 @@ export const ModalImportarHoleritePDF: React.FC<ModalImportarHoleritePDFProps> =
 
   const totalProntos = arquivosProcessados.filter((a) => a.status === 'pronto').length
   const totalRevisar = arquivosProcessados.filter(
-    (a) => a.status === 'revisar' || a.status === 'escaneado',
+    (a) => a.status === 'revisar' || a.status === 'escaneado' || a.status === 'erro',
+  ).length
+  const totalAptosConfirmar = arquivosProcessados.filter(
+    (a) =>
+      a.colaboradorId &&
+      (a.status === 'pronto' || (a.status === 'revisar' && a.conferenciaMatematicaOk)),
   ).length
 
   return (
@@ -583,6 +593,8 @@ export const ModalImportarHoleritePDF: React.FC<ModalImportarHoleritePDFProps> =
                         <CheckCircle2 className="h-3.5 w-3.5 text-emerald-600" />
                       ) : item.status === 'escaneado' ? (
                         <AlertTriangle className="h-3.5 w-3.5 text-rose-600" />
+                      ) : item.status === 'erro' ? (
+                        <AlertCircle className="h-3.5 w-3.5 text-amber-600" />
                       ) : (
                         <AlertCircle className="h-3.5 w-3.5 text-amber-600" />
                       )}
@@ -594,7 +606,7 @@ export const ModalImportarHoleritePDF: React.FC<ModalImportarHoleritePDFProps> =
               {/* DETALHES DO ARQUIVO ATIVO */}
               {arquivoAtivo && (
                 <div className="space-y-4">
-                  {/* SE O PDF FOR ESCANEADO (PLANO B) */}
+                  {/* ALERTA VISÍVEL DO MOTIVO REAL DE FALHA */}
                   {arquivoAtivo.status === 'escaneado' ? (
                     <div className="p-4 rounded-xl bg-rose-50 border border-rose-200 text-xs text-rose-900 space-y-2">
                       <div className="flex items-center gap-2 font-bold text-rose-800">
@@ -603,11 +615,44 @@ export const ModalImportarHoleritePDF: React.FC<ModalImportarHoleritePDFProps> =
                       </div>
                       <p className="leading-relaxed">
                         O arquivo <strong>&quot;{arquivoAtivo.nomeArquivo}&quot;</strong> foi
-                        identificado como uma imagem escaneada. O sistema não utiliza IA generativa
-                        para adivinhar pixels. Para garantir segurança contábil, faça o download do
-                        PDF digital oficial no software de folha ou realize o lançamento manual
-                        preenchendo os campos abaixo.
+                        analisado por ambas as camadas de extração (servidor e leitor do navegador)
+                        e não possui caracteres legíveis. O PDF aparenta ser uma imagem
+                        digitalizada. Para garantir segurança contábil sem adivinhação de pixels por
+                        IA, faça o download do PDF digital oficial no software de folha ou realize o
+                        lançamento manual preenchendo os campos abaixo.
                       </p>
+                    </div>
+                  ) : arquivoAtivo.status === 'erro' ? (
+                    <div className="p-4 rounded-xl bg-amber-50 border border-amber-200 text-xs text-amber-900 space-y-2">
+                      <div className="flex items-center gap-2 font-bold text-amber-800">
+                        <AlertCircle className="h-5 w-5 text-amber-600" />
+                        <span>
+                          Diagnóstico da Leitura:{' '}
+                          {arquivoAtivo.motivoDiagnostico || 'Falha ao processar o arquivo'}
+                        </span>
+                      </div>
+                      <p className="leading-relaxed">
+                        O arquivo <strong>&quot;{arquivoAtivo.nomeArquivo}&quot;</strong> não pôde
+                        ter seus dados extraídos automaticamente:{' '}
+                        <em>{arquivoAtivo.mensagemErro}</em>. Você pode conferir o arquivo ou
+                        preencher os campos abaixo manualmente.
+                      </p>
+                    </div>
+                  ) : arquivoAtivo.camadaExtracao === 'navegador' ? (
+                    <div className="p-2.5 rounded-lg bg-blue-50/70 border border-blue-200 text-xs text-blue-900 flex items-center justify-between">
+                      <div className="flex items-center gap-2">
+                        <Layers className="h-4 w-4 text-[#0D47A1]" />
+                        <span>
+                          Extração executada via{' '}
+                          <strong>Camada 2 (Leitor de PDF no Navegador)</strong> com sucesso.
+                        </span>
+                      </div>
+                      <Badge
+                        variant="outline"
+                        className="text-[10px] bg-blue-100/60 text-[#0D47A1] border-blue-300"
+                      >
+                        Fallback Ativo
+                      </Badge>
                     </div>
                   ) : null}
 
@@ -1016,15 +1061,15 @@ export const ModalImportarHoleritePDF: React.FC<ModalImportarHoleritePDFProps> =
                   importando ||
                   processando ||
                   arquivosProcessados.length === 0 ||
-                  totalProntos === 0
+                  totalAptosConfirmar === 0
                 }
                 className="bg-[#0D47A1] hover:bg-[#0B3D91] text-white text-xs font-semibold gap-1.5 shadow-sm"
               >
                 <FileCheck className="h-4 w-4" />
                 {importando
                   ? 'Gravando Holerites...'
-                  : `Confirmar e Gravar ${totalProntos} Holerite(s)`}
-              </Button>
+                  : `Confirmar e Gravar ${totalAptosConfirmar} Holerite(s)`}
+              </Button>{' '}
             </div>
           )}
         </DialogFooter>

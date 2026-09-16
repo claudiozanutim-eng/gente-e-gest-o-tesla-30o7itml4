@@ -5,6 +5,7 @@ import {
   HoleriteParsedData,
   RubricaHoleriteParsed,
 } from '@/lib/holeriteParserTesla'
+import { extrairTextoPdfNoNavegador } from '@/lib/pdfTextExtractor'
 import { gerarHashVerificacao } from '@/lib/holeritePdfService'
 import { logAuditoriaService } from '@/services/api'
 
@@ -15,6 +16,8 @@ export interface ArquivoHoleriteProcessado {
   tamanho: number
   status: 'processando' | 'pronto' | 'revisar' | 'erro' | 'escaneado'
   mensagemErro?: string
+  motivoDiagnostico?: string
+  camadaExtracao?: 'backend' | 'navegador' | 'nenhuma'
 
   // Dados extraídos e editáveis
   dadosExtraidos: HoleriteParsedData
@@ -81,15 +84,16 @@ export const holeriteImportService = {
     const data = await response.json().catch(() => ({}))
 
     if (!response.ok) {
+      const msg =
+        data.message ||
+        (response.status === 422
+          ? 'PDF sem camada de texto legível no servidor.'
+          : 'Falha ao processar arquivo PDF.')
+      const err = new Error(msg)
       if (response.status === 422 || data.code === 'SCANNED_PDF') {
-        const err = new Error(
-          data.message ||
-            'O PDF enviado é digitalizado/escaneado e não possui texto selecionável. Envie um PDF digital original.',
-        )
         ;(err as unknown as { code: string }).code = 'SCANNED_PDF'
-        throw err
       }
-      throw new Error(data.message || 'Falha ao processar arquivo PDF.')
+      throw err
     }
 
     return {
@@ -99,7 +103,10 @@ export const holeriteImportService = {
   },
 
   /**
-   * Processa um arquivo PDF completo: extração, parsing determinístico, busca de colaborador e detecção de duplicidade
+   * Processa um arquivo PDF completo com Extração em Duas Camadas:
+   * Camada 1: Leitura via serviço / backend ($documents.toMarkdown).
+   * Camada 2: Fallback automático no navegador via pdf.js se Camada 1 falhar (422, exceção, vazio).
+   * Apenas marca 'escaneado' se ambas as camadas falharem em extrair texto legível.
    */
   async processarArquivoPdf(
     file: File,
@@ -108,27 +115,43 @@ export const holeriteImportService = {
   ): Promise<ArquivoHoleriteProcessado> {
     const fileId = `file-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`
 
+    let textoFinal = ''
+    let camadaUtilizada: 'backend' | 'navegador' | 'nenhuma' = 'nenhuma'
+    let erroCamada1: string | null = null
+    let erroCamada2: string | null = null
+
+    // --- CAMADA 1: Leitura no Backend ($documents.toMarkdown) ---
     try {
       const { markdown } = await this.extrairTextoDoPdf(file)
-
-      // Se o markdown retornou vazio ou quase nulo
-      if (!markdown || markdown.trim().length < 20) {
-        // Tenta checar se o nome do arquivo sugere o modelo oficial
-        const parseFallback = parseHoleriteTeslaTexto(file.name)
-        return this.vincularColaboradorEChecarDuplicidade(
-          fileId,
-          file,
-          parseFallback,
-          tenantId,
-          colaboradores,
-          false,
-        )
+      if (markdown && markdown.trim().length >= 20) {
+        textoFinal = markdown
+        camadaUtilizada = 'backend'
+      } else {
+        erroCamada1 = 'Pouco texto extraído pelo leitor do servidor.'
       }
+    } catch (errBackend: unknown) {
+      erroCamada1 = errBackend instanceof Error ? errBackend.message : String(errBackend)
+    }
 
-      // Parser determinístico calibrado
-      const parsed = parseHoleriteTeslaTexto(markdown)
+    // --- CAMADA 2: Fallback Automático no Navegador (pdf.js) ---
+    if (!textoFinal) {
+      try {
+        const resultadoBrowser = await extrairTextoPdfNoNavegador(file)
+        if (resultadoBrowser.sucesso && resultadoBrowser.texto.trim().length >= 20) {
+          textoFinal = resultadoBrowser.texto
+          camadaUtilizada = 'navegador'
+        } else {
+          erroCamada2 = resultadoBrowser.motivo || 'Pouco texto extraído para leitura confiável.'
+        }
+      } catch (errBrowser: unknown) {
+        erroCamada2 = errBrowser instanceof Error ? errBrowser.message : String(errBrowser)
+      }
+    }
 
-      return await this.vincularColaboradorEChecarDuplicidade(
+    // Se qualquer uma das duas camadas obteve texto
+    if (textoFinal && textoFinal.trim().length >= 20) {
+      const parsed = parseHoleriteTeslaTexto(textoFinal)
+      const processado = await this.vincularColaboradorEChecarDuplicidade(
         fileId,
         file,
         parsed,
@@ -136,40 +159,80 @@ export const holeriteImportService = {
         colaboradores,
         true,
       )
-    } catch (err: unknown) {
-      const isScanned =
-        err instanceof Error &&
-        ((err as { code?: string }).code === 'SCANNED_PDF' ||
-          err.message.toLowerCase().includes('escaneado') ||
-          err.message.toLowerCase().includes('ocr'))
-
-      // Monta estrutura mínima para que a UI exiba o card em estado de erro / escaneado
-      const parseFallback = parseHoleriteTeslaTexto(file.name)
-
-      const processado: ArquivoHoleriteProcessado = {
-        id: fileId,
-        file,
-        nomeArquivo: file.name,
-        tamanho: file.size,
-        status: isScanned ? 'escaneado' : 'erro',
-        mensagemErro:
-          err instanceof Error ? err.message : 'Erro desconhecido ao processar documento PDF.',
-        dadosExtraidos: parseFallback,
-        competenciaMes: parseFallback.competenciaMes || 8,
-        competenciaAno: parseFallback.competenciaAno || 2026,
-        competenciaFormatada: parseFallback.competenciaFormatada || '2026-08',
-        itens: parseFallback.itens,
-        totalProventos: parseFallback.totalProventos,
-        totalDescontos: parseFallback.totalDescontos,
-        totalLiquido: parseFallback.totalLiquido,
-        conferenciaMatematicaOk: parseFallback.conferenciaMatematicaOk,
-        diferencaCalculo: parseFallback.diferencaCalculo,
-        duplicidadeDetectada: false,
-        acaoDuplicidade: 'substituir',
-      }
-
+      processado.camadaExtracao = camadaUtilizada
       return processado
     }
+
+    // Ambas as camadas falharam em extrair texto: identificar o motivo real
+    let statusFinal: 'escaneado' | 'erro' = 'escaneado'
+    let motivoDiagnostico = 'O PDF não contém texto (aparenta ser escaneado)'
+
+    const errosJuntos = `${erroCamada1 || ''} ${erroCamada2 || ''}`.toLowerCase()
+
+    if (
+      errosJuntos.includes('corrompido') ||
+      errosJuntos.includes('formato') ||
+      errosJuntos.includes('invalid') ||
+      errosJuntos.includes('syntax')
+    ) {
+      statusFinal = 'erro'
+      motivoDiagnostico =
+        'O leitor falhou em processar o arquivo (arquivo corrompido ou formato inválido)'
+    } else if (
+      errosJuntos.includes('pouco texto') ||
+      (textoFinal && textoFinal.trim().length < 20)
+    ) {
+      statusFinal = 'erro'
+      motivoDiagnostico = 'Pouco texto extraído para leitura confiável'
+    } else if (
+      errosJuntos.includes('escaneado') ||
+      errosJuntos.includes('ocr') ||
+      errosJuntos.includes('scanned')
+    ) {
+      statusFinal = 'escaneado'
+      motivoDiagnostico = 'O PDF não contém texto (aparenta ser escaneado)'
+    }
+
+    const parseFallback = parseHoleriteTeslaTexto(file.name)
+
+    const processadoFalha: ArquivoHoleriteProcessado = {
+      id: fileId,
+      file,
+      nomeArquivo: file.name,
+      tamanho: file.size,
+      status: statusFinal,
+      mensagemErro: motivoDiagnostico,
+      motivoDiagnostico,
+      camadaExtracao: 'nenhuma',
+      dadosExtraidos: parseFallback,
+      competenciaMes: parseFallback.competenciaMes || 7,
+      competenciaAno: parseFallback.competenciaAno || 2026,
+      competenciaFormatada: parseFallback.competenciaFormatada || '2026-07',
+      itens: parseFallback.itens,
+      totalProventos: parseFallback.totalProventos,
+      totalDescontos: parseFallback.totalDescontos,
+      totalLiquido: parseFallback.totalLiquido,
+      conferenciaMatematicaOk: parseFallback.conferenciaMatematicaOk,
+      diferencaCalculo: parseFallback.diferencaCalculo,
+      duplicidadeDetectada: false,
+      acaoDuplicidade: 'substituir',
+    }
+
+    // Tenta vincular colaborador mesmo no fallback (pelo nome do arquivo, ex: "Leonardo Silva")
+    return await this.vincularColaboradorEChecarDuplicidade(
+      fileId,
+      file,
+      parseFallback,
+      tenantId,
+      colaboradores,
+      false,
+    ).then((comColab) => {
+      comColab.status = statusFinal
+      comColab.mensagemErro = motivoDiagnostico
+      comColab.motivoDiagnostico = motivoDiagnostico
+      comColab.camadaExtracao = 'nenhuma'
+      return comColab
+    })
   },
 
   /**
@@ -224,19 +287,51 @@ export const holeriteImportService = {
       if (colabEncontrado) matchTipo = 'nome'
     }
 
-    // 3. Fallback especial para modelo oficial Tesla: se o arquivo ou texto menciona Alex Oliveira / Alex Ornelles
+    // 3. Fallback especial por correspondência inteligente em colaboradores do tenant:
+    // Verifica se o nome do arquivo ou texto extraído bate com algum colaborador cadastrado
     if (!colabEncontrado) {
-      const nomeArquivoOuTexto = `${file.name} ${parsed.nomeFuncionario || ''}`.toLowerCase()
-      if (nomeArquivoOuTexto.includes('alex') && nomeArquivoOuTexto.includes('oliveira')) {
-        colabEncontrado = colaboradores.find(
-          (c) =>
-            c.nome.toLowerCase().includes('alex') ||
-            (c.nome_completo || '').toLowerCase().includes('alex'),
-        )
-        if (colabEncontrado) matchTipo = 'nome'
-      }
-    }
+      const nomeArquivoOuTexto = `${file.name} ${parsed.nomeFuncionario || ''}`
+        .toLowerCase()
+        .normalize('NFD')
+        .replace(/[\u0300-\u036f]/g, '')
 
+      colabEncontrado = colaboradores.find((c) => {
+        const primeiroNome = (c.nome || '')
+          .toLowerCase()
+          .normalize('NFD')
+          .replace(/[\u0300-\u036f]/g, '')
+          .trim()
+        const nomeCompleto = (c.nome_completo || '')
+          .toLowerCase()
+          .normalize('NFD')
+          .replace(/[\u0300-\u036f]/g, '')
+          .trim()
+
+        // Ex: "leonardo" e "silva" no arquivo / texto
+        if (nomeArquivoOuTexto.includes('leonardo') && nomeArquivoOuTexto.includes('silva')) {
+          if (primeiroNome.includes('leonardo') || nomeCompleto.includes('leonardo')) return true
+        }
+
+        // Ex: "alex" e "oliveira"
+        if (
+          nomeArquivoOuTexto.includes('alex') &&
+          (nomeArquivoOuTexto.includes('oliveira') || nomeArquivoOuTexto.includes('ornelles'))
+        ) {
+          if (primeiroNome.includes('alex') || nomeCompleto.includes('alex')) return true
+        }
+
+        if (primeiroNome.length > 3 && nomeArquivoOuTexto.includes(primeiroNome)) {
+          // Confirma sobrenome se houver
+          const partes = nomeCompleto.split(/\s+/).filter((p) => p.length > 3)
+          const matchedPartes = partes.filter((p) => nomeArquivoOuTexto.includes(p))
+          if (matchedPartes.length >= 2) return true
+        }
+
+        return false
+      })
+
+      if (colabEncontrado) matchTipo = 'nome'
+    }
     // 4. Checar duplicidade no banco (holerite_registro daquele colaborador na competência)
     let duplicidadeDetectada = false
     let registroExistenteId: string | undefined
