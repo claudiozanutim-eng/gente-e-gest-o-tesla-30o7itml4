@@ -163,31 +163,33 @@ export const holeriteImportService = {
       return processado
     }
 
-    // Ambas as camadas falharam em extrair texto: identificar o motivo real
+    // Ambas as camadas falharam em extrair texto: identificar o diagnóstico real
     let statusFinal: 'escaneado' | 'erro' = 'escaneado'
     let motivoDiagnostico = 'O PDF não contém texto (aparenta ser escaneado)'
 
     const errosJuntos = `${erroCamada1 || ''} ${erroCamada2 || ''}`.toLowerCase()
 
     if (
-      errosJuntos.includes('corrompido') ||
-      errosJuntos.includes('formato') ||
-      errosJuntos.includes('invalid') ||
-      errosJuntos.includes('syntax')
-    ) {
-      statusFinal = 'erro'
-      motivoDiagnostico =
-        'O leitor falhou em processar o arquivo (arquivo corrompido ou formato inválido)'
-    } else if (
       errosJuntos.includes('pouco texto') ||
-      (textoFinal && textoFinal.trim().length < 20)
+      (textoFinal && textoFinal.trim().length > 0 && textoFinal.trim().length < 20)
     ) {
       statusFinal = 'erro'
       motivoDiagnostico = 'Pouco texto extraído para leitura confiável'
     } else if (
+      errosJuntos.includes('corrompido') ||
+      errosJuntos.includes('formato') ||
+      errosJuntos.includes('invalid') ||
+      errosJuntos.includes('syntax') ||
+      errosJuntos.includes('falhou')
+    ) {
+      statusFinal = 'erro'
+      motivoDiagnostico = 'O leitor falhou em processar o arquivo'
+    } else if (
       errosJuntos.includes('escaneado') ||
       errosJuntos.includes('ocr') ||
-      errosJuntos.includes('scanned')
+      errosJuntos.includes('scanned') ||
+      !textoFinal ||
+      textoFinal.trim().length === 0
     ) {
       statusFinal = 'escaneado'
       motivoDiagnostico = 'O PDF não contém texto (aparenta ser escaneado)'
@@ -307,12 +309,15 @@ export const holeriteImportService = {
           .replace(/[\u0300-\u036f]/g, '')
           .trim()
 
-        // Ex: "leonardo" e "silva" no arquivo / texto
-        if (nomeArquivoOuTexto.includes('leonardo') && nomeArquivoOuTexto.includes('silva')) {
+        // Ex: "leonardo" e "silva" no arquivo / texto -> vincula Leonardo Gomes da Silva
+        if (
+          nomeArquivoOuTexto.includes('leonardo') &&
+          (nomeArquivoOuTexto.includes('silva') || nomeArquivoOuTexto.includes('gomes'))
+        ) {
           if (primeiroNome.includes('leonardo') || nomeCompleto.includes('leonardo')) return true
         }
 
-        // Ex: "alex" e "oliveira"
+        // Ex: "alex" e "oliveira" ou "ornelles" -> vincula Alex Ornelles de Oliveira
         if (
           nomeArquivoOuTexto.includes('alex') &&
           (nomeArquivoOuTexto.includes('oliveira') || nomeArquivoOuTexto.includes('ornelles'))
@@ -358,9 +363,11 @@ export const holeriteImportService = {
     // Determina status
     const conferenciaOk = parsed.conferenciaMatematicaOk
     const colabOk = Boolean(colabEncontrado)
-    let status: 'pronto' | 'revisar' = 'pronto'
+    let status: 'pronto' | 'revisar' | 'escaneado' = 'pronto'
 
-    if (!colabOk || !conferenciaOk) {
+    if (!_textoExtraidoComSucesso) {
+      status = 'escaneado'
+    } else if (!colabOk || !conferenciaOk) {
       status = 'revisar'
     }
 

@@ -77,11 +77,7 @@ export async function getPdfJsLib(): Promise<PdfJsLib> {
       }
 
       if (currentCdnIndex >= cdnScriptUrls.length) {
-        reject(
-          new Error(
-            'Não foi possível inicializar o leitor de PDF auxiliar no navegador. Verifique a conexão com a internet.',
-          ),
-        )
+        reject(new Error('Não foi possível inicializar o leitor de PDF auxiliar no navegador.'))
         return
       }
 
@@ -204,7 +200,7 @@ export async function extrairTextoPdfNoNavegador(file: File): Promise<ResultadoE
       totalPaginas: 0,
       caracteres: 0,
       sucesso: false,
-      motivo: `O leitor falhou em processar o arquivo (${msg})`,
+      motivo: 'O leitor falhou em processar o arquivo',
     }
   }
 }

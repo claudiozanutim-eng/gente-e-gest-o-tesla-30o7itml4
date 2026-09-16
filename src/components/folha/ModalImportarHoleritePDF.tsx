@@ -49,6 +49,7 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table'
+import pb from '@/lib/pocketbase/client'
 import { useToast } from '@/hooks/use-toast'
 import { Colaborador } from '@/types'
 import { formatMoedaPtBr } from '@/lib/exportReports'
@@ -154,8 +155,27 @@ export const ModalImportarHoleritePDF: React.FC<ModalImportarHoleritePDFProps> =
   }, [arquivosProcessados, arquivoSelecionadoId])
 
   // 2. Atualizar Colaborador Vinculado Manualmente
-  const handleAlterarColaborador = (arquivoId: string, novoColabId: string) => {
+  const handleAlterarColaborador = async (arquivoId: string, novoColabId: string) => {
     const colab = colaboradores.find((c) => c.id === novoColabId)
+    const itemAtual = arquivosProcessados.find((a) => a.id === arquivoId)
+
+    let duplicidadeDetectada = false
+    let registroExistenteId: string | undefined
+
+    if (colab && itemAtual) {
+      try {
+        const registrosExistentes = await pb.collection('holerite_registro').getList(1, 1, {
+          filter: `tenant_id = "${tenantId}" && colaborador_id = "${colab.id}" && competencia = "${itemAtual.competenciaFormatada}"`,
+        })
+        if (registrosExistentes.items.length > 0) {
+          duplicidadeDetectada = true
+          registroExistenteId = registrosExistentes.items[0].id
+        }
+      } catch (err) {
+        console.warn('Erro ao checar duplicidade ao trocar colaborador:', err)
+      }
+    }
+
     setArquivosProcessados((prev) =>
       prev.map((item) => {
         if (item.id !== arquivoId) return item
@@ -165,6 +185,8 @@ export const ModalImportarHoleritePDF: React.FC<ModalImportarHoleritePDFProps> =
           colaboradorId: novoColabId,
           colaboradorEncontrado: colab,
           colaboradorMatchTipo: 'manual',
+          duplicidadeDetectada,
+          registroExistenteId,
           status: item.status === 'escaneado' ? 'escaneado' : statusNovo,
         }
       }),
@@ -172,8 +194,27 @@ export const ModalImportarHoleritePDF: React.FC<ModalImportarHoleritePDFProps> =
   }
 
   // 3. Atualizar Competência
-  const handleAlterarCompetencia = (arquivoId: string, mes: number, ano: number) => {
+  const handleAlterarCompetencia = async (arquivoId: string, mes: number, ano: number) => {
     const compFormatada = `${ano}-${String(mes).padStart(2, '0')}`
+    const itemAtual = arquivosProcessados.find((a) => a.id === arquivoId)
+
+    let duplicidadeDetectada = false
+    let registroExistenteId: string | undefined
+
+    if (itemAtual?.colaboradorId) {
+      try {
+        const registrosExistentes = await pb.collection('holerite_registro').getList(1, 1, {
+          filter: `tenant_id = "${tenantId}" && colaborador_id = "${itemAtual.colaboradorId}" && competencia = "${compFormatada}"`,
+        })
+        if (registrosExistentes.items.length > 0) {
+          duplicidadeDetectada = true
+          registroExistenteId = registrosExistentes.items[0].id
+        }
+      } catch (err) {
+        console.warn('Erro ao checar duplicidade ao mudar competência:', err)
+      }
+    }
+
     setArquivosProcessados((prev) =>
       prev.map((item) => {
         if (item.id !== arquivoId) return item
@@ -182,6 +223,8 @@ export const ModalImportarHoleritePDF: React.FC<ModalImportarHoleritePDFProps> =
           competenciaMes: mes,
           competenciaAno: ano,
           competenciaFormatada: compFormatada,
+          duplicidadeDetectada,
+          registroExistenteId,
         }
       }),
     )
@@ -287,10 +330,11 @@ export const ModalImportarHoleritePDF: React.FC<ModalImportarHoleritePDFProps> =
 
   // 8. Confirmar e Efetivar Gravação
   const handleConfirmarImportacao = async () => {
-    // Arquivos aptos: aqueles prontos para gravação
+    // Arquivos aptos: aqueles prontos para gravação (com colaborador e conferência matemática batida)
     const aptos = arquivosProcessados.filter(
       (a) =>
         a.colaboradorId &&
+        a.status !== 'escaneado' &&
         (a.status === 'pronto' || (a.status === 'revisar' && a.conferenciaMatematicaOk)),
     )
 
@@ -334,6 +378,7 @@ export const ModalImportarHoleritePDF: React.FC<ModalImportarHoleritePDFProps> =
   const totalAptosConfirmar = arquivosProcessados.filter(
     (a) =>
       a.colaboradorId &&
+      a.status !== 'escaneado' &&
       (a.status === 'pronto' || (a.status === 'revisar' && a.conferenciaMatematicaOk)),
   ).length
 
@@ -616,10 +661,13 @@ export const ModalImportarHoleritePDF: React.FC<ModalImportarHoleritePDFProps> =
                       <p className="leading-relaxed">
                         O arquivo <strong>&quot;{arquivoAtivo.nomeArquivo}&quot;</strong> foi
                         analisado por ambas as camadas de extração (servidor e leitor do navegador)
-                        e não possui caracteres legíveis. O PDF aparenta ser uma imagem
-                        digitalizada. Para garantir segurança contábil sem adivinhação de pixels por
-                        IA, faça o download do PDF digital oficial no software de folha ou realize o
-                        lançamento manual preenchendo os campos abaixo.
+                        e não possui caracteres legíveis (
+                        {arquivoAtivo.motivoDiagnostico ||
+                          'O PDF não contém texto (aparenta ser escaneado)'}
+                        ). O PDF aparenta ser uma imagem digitalizada. Para garantir segurança
+                        contábil sem adivinhação de pixels por IA, faça o download do PDF digital
+                        oficial no software de folha ou realize o lançamento manual preenchendo os
+                        campos abaixo.
                       </p>
                     </div>
                   ) : arquivoAtivo.status === 'erro' ? (
@@ -634,8 +682,8 @@ export const ModalImportarHoleritePDF: React.FC<ModalImportarHoleritePDFProps> =
                       <p className="leading-relaxed">
                         O arquivo <strong>&quot;{arquivoAtivo.nomeArquivo}&quot;</strong> não pôde
                         ter seus dados extraídos automaticamente:{' '}
-                        <em>{arquivoAtivo.mensagemErro}</em>. Você pode conferir o arquivo ou
-                        preencher os campos abaixo manualmente.
+                        <em>{arquivoAtivo.motivoDiagnostico || arquivoAtivo.mensagemErro}</em>. Você
+                        pode conferir o arquivo ou preencher os campos abaixo manualmente.
                       </p>
                     </div>
                   ) : arquivoAtivo.camadaExtracao === 'navegador' ? (
@@ -644,18 +692,18 @@ export const ModalImportarHoleritePDF: React.FC<ModalImportarHoleritePDFProps> =
                         <Layers className="h-4 w-4 text-[#0D47A1]" />
                         <span>
                           Extração executada via{' '}
-                          <strong>Camada 2 (Leitor de PDF no Navegador)</strong> com sucesso.
+                          <strong>Camada 2 (Leitor de PDF no Navegador - Fallback)</strong> com
+                          sucesso.
                         </span>
                       </div>
                       <Badge
                         variant="outline"
-                        className="text-[10px] bg-blue-100/60 text-[#0D47A1] border-blue-300"
+                        className="text-[10px] bg-blue-100/60 text-[#0D47A1] border-blue-300 font-semibold"
                       >
-                        Fallback Ativo
+                        Camada 2 (Fallback)
                       </Badge>
                     </div>
                   ) : null}
-
                   {/* ALERTA DE DUPLICIDADE (SE HOUVER) */}
                   {arquivoAtivo.duplicidadeDetectada && (
                     <div className="p-3.5 rounded-xl bg-amber-50 border border-amber-200 text-xs text-amber-900 flex flex-col sm:flex-row sm:items-center justify-between gap-3">

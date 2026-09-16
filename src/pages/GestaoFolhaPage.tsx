@@ -574,6 +574,7 @@ export const GestaoFolhaPage: React.FC = () => {
           tenantId={user.tenant_id}
           userId={user.id}
           colaboradores={itensGestao.map((i) => i.colaborador)}
+          colaboradorPreSelecionado={colaboradorSelecionado}
           onSuccess={() => {
             carregarDadosGestao()
             setRefreshTrigger((prev) => prev + 1)
