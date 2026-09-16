@@ -1,6 +1,7 @@
 import React from 'react'
-import { Bot, Sparkles, BookOpen, Scale, ShieldCheck, Zap, Info } from 'lucide-react'
+import { Sparkles, BookOpen, Scale, ShieldCheck, Zap } from 'lucide-react'
 import { NikoChatInterface } from '@/components/chat/NikoChatInterface'
+import { NIKO_ROBOT_AVATAR_URL } from '@/lib/nikoAsset'
 import { Card, CardContent } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 
@@ -10,9 +11,14 @@ export default function NikoRhPage() {
       {/* Cabeçalho da Página */}
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 pb-2 border-b border-[#E0E0E0]">
         <div>
-          <div className="flex items-center gap-2.5">
-            <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-[#0D47A1] text-white shadow-sm">
-              <Bot className="h-6 w-6" />
+          <div className="flex items-center gap-3">
+            <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-white border border-[#0D47A1]/30 p-1 shadow-sm shrink-0">
+              <img
+                src={NIKO_ROBOT_AVATAR_URL}
+                alt="NIKO RH"
+                loading="lazy"
+                className="h-full w-full object-contain drop-shadow-xs"
+              />
             </div>
             <div>
               <div className="flex items-center gap-2">

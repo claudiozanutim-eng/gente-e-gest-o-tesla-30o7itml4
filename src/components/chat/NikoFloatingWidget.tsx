@@ -1,7 +1,8 @@
 import React, { useState } from 'react'
-import { MessageSquare, X, Minimize2, Maximize2, Sparkles, Bot } from 'lucide-react'
+import { X, Minimize2, Maximize2, Sparkles } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { NikoChatInterface } from '@/components/chat/NikoChatInterface'
+import { NIKO_ROBOT_AVATAR_URL } from '@/lib/nikoAsset'
 import { useAuth } from '@/context/AuthContext'
 import { usePermission } from '@/hooks/usePermission'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
@@ -86,9 +87,14 @@ export const NikoFloatingWidget: React.FC = () => {
               type="button"
               onClick={() => setIsOpen(true)}
               aria-label="Abrir assistente virtual NIKO RH"
-              className="group relative flex h-14 w-14 items-center justify-center rounded-full bg-[#0D47A1] text-white shadow-xl hover:bg-[#0A3A82] hover:scale-105 active:scale-95 transition-all duration-200 border-2 border-white ring-4 ring-[#0D47A1]/20 cursor-pointer"
+              className="group relative flex h-14 w-14 items-center justify-center rounded-full bg-white shadow-xl hover:scale-105 active:scale-95 transition-all duration-200 border-2 border-[#0D47A1] ring-4 ring-[#0D47A1]/20 cursor-pointer p-1 overflow-hidden"
             >
-              <Bot className="h-7 w-7 text-white transition-transform group-hover:rotate-6" />
+              <img
+                src={NIKO_ROBOT_AVATAR_URL}
+                alt="NIKO RH"
+                loading="lazy"
+                className="h-full w-full object-contain drop-shadow-xs transition-transform group-hover:scale-110"
+              />
 
               {/* Indicador de Status Ativo */}
               <span className="absolute top-0 right-0 flex h-3.5 w-3.5 -mt-0.5 -mr-0.5">

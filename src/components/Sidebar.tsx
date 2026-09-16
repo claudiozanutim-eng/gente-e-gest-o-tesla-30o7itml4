@@ -35,6 +35,7 @@ import { usePermission } from '@/hooks/usePermission'
 import { UserPerfil, PROFILE_HOME_MAP, PermissaoMenuKey } from '@/types'
 import { Button } from '@/components/ui/button'
 import { TESLA_LOGO_URL } from '@/lib/logoAsset'
+import { NIKO_ROBOT_AVATAR_URL } from '@/lib/nikoAsset'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 import { ROTA_PARA_CHAVE_MAP } from '@/services/permissaoUsuarioService'
 
@@ -48,7 +49,8 @@ interface SidebarProps {
 interface MenuItem {
   title: string
   path: string
-  icon: React.ElementType
+  icon?: React.ElementType
+  customIcon?: React.ReactNode
   permissionKey?: PermissaoMenuKey
 }
 
@@ -235,8 +237,15 @@ export const Sidebar: React.FC<SidebarProps> = ({
               {
                 title: 'NIKO RH — Assistente',
                 path: '/niko-rh',
-                icon: Bot,
                 permissionKey: 'niko_rh' as PermissaoMenuKey,
+                customIcon: (
+                  <img
+                    src={NIKO_ROBOT_AVATAR_URL}
+                    alt="NIKO RH"
+                    loading="lazy"
+                    className="h-5 w-5 shrink-0 object-contain drop-shadow-xs"
+                  />
+                ),
               },
             ]
           : []),
@@ -468,6 +477,12 @@ export const Sidebar: React.FC<SidebarProps> = ({
               {section.items.map((item) => {
                 const IconComponent = item.icon
 
+                const iconContent = item.customIcon ? (
+                  item.customIcon
+                ) : IconComponent ? (
+                  <IconComponent className="h-5 w-5 shrink-0" />
+                ) : null
+
                 const linkElement = (
                   <NavLink
                     key={item.path}
@@ -481,7 +496,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
                       } ${collapsed ? 'justify-center px-2' : ''}`
                     }
                   >
-                    <IconComponent className="h-5 w-5 shrink-0" />
+                    {iconContent}
                     {!collapsed && <span className="truncate">{item.title}</span>}
                   </NavLink>
                 )

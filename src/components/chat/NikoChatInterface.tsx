@@ -2,7 +2,6 @@ import React, { useState, useEffect, useRef } from 'react'
 import {
   Send,
   Sparkles,
-  Bot,
   User,
   RotateCcw,
   Scale,
@@ -14,6 +13,7 @@ import {
   Copy,
   Check,
 } from 'lucide-react'
+import { NIKO_ROBOT_AVATAR_URL } from '@/lib/nikoAsset'
 import { Button } from '@/components/ui/button'
 import { Textarea } from '@/components/ui/textarea'
 import { Badge } from '@/components/ui/badge'
@@ -250,8 +250,13 @@ export const NikoChatInterface: React.FC<NikoChatInterfaceProps> = ({
       {/* Header do Chat */}
       <div className="flex items-center justify-between px-4 py-3 bg-gradient-to-r from-[#0D47A1] to-[#1565C0] text-white shrink-0">
         <div className="flex items-center gap-3 min-w-0">
-          <div className="relative flex h-10 w-10 items-center justify-center rounded-xl bg-white/10 backdrop-blur-xs border border-white/20 text-white shrink-0 shadow-xs">
-            <Bot className="h-6 w-6 text-white" />
+          <div className="relative flex h-10 w-10 items-center justify-center rounded-xl bg-white/15 backdrop-blur-xs border border-white/20 p-1 shrink-0 shadow-xs">
+            <img
+              src={NIKO_ROBOT_AVATAR_URL}
+              alt="NIKO RH"
+              loading="lazy"
+              className="h-full w-full object-contain drop-shadow-xs"
+            />
             <span className="absolute -bottom-0.5 -right-0.5 flex h-3 w-3">
               <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
               <span className="relative inline-flex rounded-full h-3 w-3 bg-emerald-500 border border-white"></span>
@@ -360,8 +365,13 @@ export const NikoChatInterface: React.FC<NikoChatInterfaceProps> = ({
           </div>
         ) : messages.length === 0 ? (
           <div className="flex flex-col items-center justify-center min-h-[300px] py-6 px-2 text-center max-w-lg mx-auto space-y-4">
-            <div className="flex h-16 w-16 items-center justify-center rounded-2xl bg-gradient-to-tr from-[#0D47A1] to-[#1E88E5] text-white shadow-md">
-              <Sparkles className="h-8 w-8" />
+            <div className="relative flex h-20 w-20 items-center justify-center rounded-2xl bg-gradient-to-tr from-[#0D47A1]/10 to-[#1E88E5]/20 border border-[#0D47A1]/20 p-2 shadow-md">
+              <img
+                src={NIKO_ROBOT_AVATAR_URL}
+                alt="NIKO RH"
+                loading="lazy"
+                className="h-full w-full object-contain drop-shadow-sm"
+              />
             </div>
 
             <div className="space-y-1.5">
@@ -406,13 +416,20 @@ export const NikoChatInterface: React.FC<NikoChatInterfaceProps> = ({
               >
                 {/* Avatar */}
                 <div
-                  className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-lg shadow-2xs text-xs font-bold ${
-                    isUser
-                      ? 'bg-[#212121] text-white'
-                      : 'bg-[#0D47A1] text-white border border-[#0D47A1]/30'
+                  className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-lg shadow-2xs text-xs font-bold overflow-hidden ${
+                    isUser ? 'bg-[#212121] text-white' : 'bg-white border border-[#0D47A1]/30 p-0.5'
                   }`}
                 >
-                  {isUser ? <User className="h-4 w-4" /> : <Bot className="h-4 w-4" />}
+                  {isUser ? (
+                    <User className="h-4 w-4" />
+                  ) : (
+                    <img
+                      src={NIKO_ROBOT_AVATAR_URL}
+                      alt="NIKO RH"
+                      loading="lazy"
+                      className="h-full w-full object-contain"
+                    />
+                  )}
                 </div>
 
                 {/* Balão de Mensagem */}
