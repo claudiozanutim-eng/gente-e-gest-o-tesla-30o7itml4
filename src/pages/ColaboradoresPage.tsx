@@ -525,15 +525,17 @@ export default function ColaboradoresPage() {
       </Card>
 
       {/* Modal Ficha Completa com as 10 abas e registro de auditoria */}
-      <FichaColaboradorModal
-        colaborador={selectedColaborador}
-        open={fichaModalOpen}
-        onClose={() => {
-          setFichaModalOpen(false)
-          setSelectedColaborador(null)
-        }}
-        onColaboradorUpdated={handleColaboradorAtualizado}
-      />
+      {selectedColaborador && (
+        <FichaColaboradorModal
+          colaborador={selectedColaborador}
+          open={fichaModalOpen}
+          onClose={() => {
+            setFichaModalOpen(false)
+            setSelectedColaborador(null)
+          }}
+          onColaboradorUpdated={handleColaboradorAtualizado}
+        />
+      )}
     </div>
   )
 }
