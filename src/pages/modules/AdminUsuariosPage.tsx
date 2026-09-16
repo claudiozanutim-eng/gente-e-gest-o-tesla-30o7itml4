@@ -41,17 +41,27 @@ import {
 } from '@/components/ui/dialog'
 import { Skeleton } from '@/components/ui/skeleton'
 import { useToast } from '@/hooks/use-toast'
+import { CardPermissoesAcesso } from '@/components/admin/CardPermissoesAcesso'
 
 export default function AdminUsuariosPage() {
-  const { user: currentUser } = useAuth()
+  const { user: currentUser, refreshUserFlags } = useAuth()
   const tenantId = currentUser?.tenant_id
   const { toast } = useToast()
+
+  // Permissão do usuário logado: apenas 'admin_rh' e 'admin' enxergam/editam o card de permissões
+  const isPodeGerenciarPermissoes =
+    currentUser?.perfil === 'admin' || currentUser?.perfil === 'admin_rh'
 
   const [usuarios, setUsuarios] = useState<AppUser[]>([])
   const [loading, setLoading] = useState(true)
   const [searchTerm, setSearchTerm] = useState('')
   const [filtroPerfil, setFiltroPerfil] = useState<string>('todos')
   const [filtroStatus, setFiltroStatus] = useState<string>('todos')
+
+  // Usuário selecionado para o Card de Permissões de Acesso
+  const [usuarioSelecionadoPermissoes, setUsuarioSelecionadoPermissoes] = useState<AppUser | null>(
+    null,
+  )
 
   // Modais
   const [modalNovoUsuarioOpen, setModalNovoUsuarioOpen] = useState(false)
@@ -76,6 +86,12 @@ export default function AdminUsuariosPage() {
       setLoading(true)
       const list = await userService.getUsersByTenant(tenantId)
       setUsuarios(list)
+
+      // Se havia um usuário selecionado para permissões, atualiza a referência dele
+      if (usuarioSelecionadoPermissoes) {
+        const updatedTarget = list.find((u) => u.id === usuarioSelecionadoPermissoes.id)
+        if (updatedTarget) setUsuarioSelecionadoPermissoes(updatedTarget)
+      }
     } catch (err) {
       console.error('Erro ao carregar usuários:', err)
       toast({
@@ -365,6 +381,43 @@ export default function AdminUsuariosPage() {
         </div>
       </div>
 
+      {/* NOVO CARD: Permissões de Acesso (Flags de Liberação)
+          Visível APENAS para 'admin_rh' e 'admin' quando um usuário for selecionado */}
+      {isPodeGerenciarPermissoes && usuarioSelecionadoPermissoes && currentUser && (
+        <CardPermissoesAcesso
+          usuario={usuarioSelecionadoPermissoes}
+          currentUser={currentUser}
+          onFechar={() => setUsuarioSelecionadoPermissoes(null)}
+          onPermissoesSalvas={() => {
+            // Se o usuário alterado for o próprio usuário logado, atualiza as flags no AuthContext
+            if (usuarioSelecionadoPermissoes.id === currentUser.id) {
+              refreshUserFlags()
+            }
+          }}
+        />
+      )}
+
+      {/* Banner de Instrução para Selecionar Usuário para Permissões */}
+      {isPodeGerenciarPermissoes && !usuarioSelecionadoPermissoes && (
+        <div className="rounded-xl border border-[#0D47A1]/20 bg-[#E8EEF7]/50 p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs text-[#0D47A1]">
+          <div className="flex items-center gap-2.5">
+            <div className="h-8 w-8 rounded-lg bg-[#0D47A1] text-white flex items-center justify-center shrink-0">
+              <Shield className="h-4 w-4" />
+            </div>
+            <div>
+              <p className="font-bold text-[#0D47A1] text-sm">
+                Alçadas e Flags de Permissão Individual
+              </p>
+              <p className="text-[#424242] mt-0.5">
+                Clique no botão <strong>"Permissões"</strong> de qualquer usuário na lista abaixo
+                para inspecionar ou customizar as flags de liberação do menu lateral e alçadas de
+                acesso.
+              </p>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Barra de Filtros */}
       <Card className="border border-[#E0E0E0] bg-white p-4 shadow-xs">
         <div className="flex flex-col md:flex-row items-stretch md:items-center justify-between gap-3">
@@ -500,6 +553,36 @@ export default function AdminUsuariosPage() {
 
                         <td className="py-3 px-4 whitespace-nowrap text-right">
                           <div className="flex items-center justify-end gap-1.5">
+                            {/* Botão de Flags de Permissão: Visível para admin_rh e admin */}
+                            {isPodeGerenciarPermissoes && (
+                              <Button
+                                variant={
+                                  usuarioSelecionadoPermissoes?.id === item.id
+                                    ? 'default'
+                                    : 'outline'
+                                }
+                                size="sm"
+                                onClick={() => {
+                                  if (usuarioSelecionadoPermissoes?.id === item.id) {
+                                    setUsuarioSelecionadoPermissoes(null)
+                                  } else {
+                                    setUsuarioSelecionadoPermissoes(item)
+                                  }
+                                }}
+                                className={`h-7 px-2.5 text-[11px] font-semibold transition-all ${
+                                  usuarioSelecionadoPermissoes?.id === item.id
+                                    ? 'bg-[#0D47A1] text-white hover:bg-[#0A3A82]'
+                                    : 'border-[#0D47A1]/40 text-[#0D47A1] hover:bg-[#E8EEF7]'
+                                }`}
+                                title="Configurar flags de liberação e exceções de acesso para este usuário"
+                              >
+                                <Shield className="h-3 w-3 mr-1" />
+                                {usuarioSelecionadoPermissoes?.id === item.id
+                                  ? 'Ocultar Flags'
+                                  : 'Permissões'}
+                              </Button>
+                            )}
+
                             <Button
                               variant="ghost"
                               size="sm"

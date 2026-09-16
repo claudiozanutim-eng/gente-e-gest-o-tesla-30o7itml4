@@ -1,11 +1,13 @@
 import React, { createContext, useContext, useEffect, useState, useMemo } from 'react'
 import pb from '@/lib/pocketbase/client'
-import { AppUser, Colaborador, UserPerfil, PROFILE_HOME_MAP } from '@/types'
+import { AppUser, Colaborador, UserPerfil, PROFILE_HOME_MAP, PermissoesFlags } from '@/types'
 import { colaboradorService } from '@/services/api'
+import { permissaoUsuarioService } from '@/services/permissaoUsuarioService'
 
 interface AuthContextType {
   user: AppUser | null
   colaborador: Colaborador | null
+  userFlags: PermissoesFlags
   isLoading: boolean
   isAuthenticated: boolean
   login: (
@@ -14,6 +16,7 @@ interface AuthContextType {
   ) => Promise<{ success: boolean; error?: string; user?: AppUser }>
   logout: () => void
   refreshProfile: () => Promise<void>
+  refreshUserFlags: () => Promise<void>
   getHomeRoute: () => string
 }
 
@@ -22,12 +25,14 @@ const AuthContext = createContext<AuthContextType | undefined>(undefined)
 export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [user, setUser] = useState<AppUser | null>(null)
   const [colaborador, setColaborador] = useState<Colaborador | null>(null)
+  const [userFlags, setUserFlags] = useState<PermissoesFlags>({})
   const [isLoading, setIsLoading] = useState<boolean>(true)
 
   const fetchProfileAndColaborador = async (authModel: Record<string, unknown> | null) => {
     if (!authModel) {
       setUser(null)
       setColaborador(null)
+      setUserFlags({})
       return
     }
 
@@ -39,6 +44,14 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       // Fetch linked colaborador details if any
       const colab = await colaboradorService.getColaboradorByUserId(currentUser.id)
       setColaborador(colab)
+
+      // Fetch user custom permission flags
+      try {
+        const permRec = await permissaoUsuarioService.getPermissaoPorUsuario(currentUser.id)
+        setUserFlags(permRec?.flags_json || {})
+      } catch {
+        setUserFlags({})
+      }
     } catch {
       // Fallback to auth model if direct fetch fails
       const fallbackUser: AppUser = {
@@ -52,6 +65,18 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         updated: (authModel.updated as string) || '',
       }
       setUser(fallbackUser)
+      setUserFlags({})
+    }
+  }
+
+  const refreshUserFlags = async () => {
+    if (user?.id) {
+      try {
+        const permRec = await permissaoUsuarioService.getPermissaoPorUsuario(user.id)
+        setUserFlags(permRec?.flags_json || {})
+      } catch {
+        setUserFlags({})
+      }
     }
   }
 
@@ -102,6 +127,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     pb.authStore.clear()
     setUser(null)
     setColaborador(null)
+    setUserFlags({})
   }
 
   const refreshProfile = async () => {
@@ -119,14 +145,16 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     () => ({
       user,
       colaborador,
+      userFlags,
       isLoading,
       isAuthenticated: !!user && pb.authStore.isValid,
       login,
       logout,
       refreshProfile,
+      refreshUserFlags,
       getHomeRoute,
     }),
-    [user, colaborador, isLoading],
+    [user, colaborador, userFlags, isLoading],
   )
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>

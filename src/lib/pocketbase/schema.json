@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-09-10T18:22:18.611Z",
+  "generatedAt": "2026-09-16T11:48:21.468Z",
   "collections": [
     {
       "name": "users",
@@ -7,8 +7,8 @@
       "apiRules": {
         "list": "@request.auth.id != '' && tenant_id = @request.auth.tenant_id",
         "view": "@request.auth.id != '' && (tenant_id = @request.auth.tenant_id || id = @request.auth.id)",
-        "create": "@request.auth.id != '' && @request.auth.perfil = 'admin'",
-        "update": "@request.auth.id != '' && ((tenant_id = @request.auth.tenant_id && @request.auth.perfil = 'admin') || id = @request.auth.id)",
+        "create": "@request.auth.id != '' && tenant_id = @request.auth.tenant_id && (@request.auth.perfil = 'admin' || @request.auth.perfil = 'admin_rh')",
+        "update": "@request.auth.id != '' && ((tenant_id = @request.auth.tenant_id && (@request.auth.perfil = 'admin' || @request.auth.perfil = 'admin_rh')) || id = @request.auth.id)",
         "delete": "@request.auth.id != '' && tenant_id = @request.auth.tenant_id && @request.auth.perfil = 'admin'"
       },
       "fields": [
@@ -2839,6 +2839,64 @@
         "CREATE INDEX idx_resp_pesquisa ON pesquisa_clima_resposta (pesquisa_id)",
         "CREATE INDEX idx_resp_colaborador ON pesquisa_clima_resposta (colaborador_id)",
         "CREATE UNIQUE INDEX idx_resp_pesquisa_colab ON pesquisa_clima_resposta (pesquisa_id, colaborador_id)"
+      ]
+    },
+    {
+      "name": "permissao_usuario",
+      "type": "base",
+      "apiRules": {
+        "list": "@request.auth.id != '' && tenant_id = @request.auth.tenant_id && (user_id = @request.auth.id || @request.auth.perfil = 'admin_rh' || @request.auth.perfil = 'admin')",
+        "view": "@request.auth.id != '' && tenant_id = @request.auth.tenant_id && (user_id = @request.auth.id || @request.auth.perfil = 'admin_rh' || @request.auth.perfil = 'admin')",
+        "create": "@request.auth.id != '' && tenant_id = @request.auth.tenant_id && (@request.auth.perfil = 'admin_rh' || @request.auth.perfil = 'admin')",
+        "update": "@request.auth.id != '' && tenant_id = @request.auth.tenant_id && (@request.auth.perfil = 'admin_rh' || @request.auth.perfil = 'admin')",
+        "delete": "@request.auth.id != '' && tenant_id = @request.auth.tenant_id && (@request.auth.perfil = 'admin_rh' || @request.auth.perfil = 'admin')"
+      },
+      "fields": [
+        {
+          "name": "tenant_id",
+          "type": "relation",
+          "required": true,
+          "system": false,
+          "collectionRef": "tenant"
+        },
+        {
+          "name": "user_id",
+          "type": "relation",
+          "required": true,
+          "system": false,
+          "collectionRef": "users"
+        },
+        {
+          "name": "flags_json",
+          "type": "json",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "atualizado_por",
+          "type": "relation",
+          "required": false,
+          "system": false,
+          "collectionRef": "users"
+        },
+        {
+          "name": "created",
+          "type": "autodate",
+          "required": false,
+          "system": false,
+          "autodateTriggers": ["onCreate"]
+        },
+        {
+          "name": "updated",
+          "type": "autodate",
+          "required": false,
+          "system": false,
+          "autodateTriggers": ["onCreate", "onUpdate"]
+        }
+      ],
+      "indexes": [
+        "CREATE UNIQUE INDEX idx_perm_user_tenant ON permissao_usuario (tenant_id, user_id)",
+        "CREATE INDEX idx_perm_user_user ON permissao_usuario (user_id)"
       ]
     }
   ]

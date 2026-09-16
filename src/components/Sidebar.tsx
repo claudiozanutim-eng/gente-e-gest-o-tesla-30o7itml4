@@ -31,10 +31,11 @@ import {
 } from 'lucide-react'
 import { useAuth } from '@/context/AuthContext'
 import { usePermission } from '@/hooks/usePermission'
-import { UserPerfil, PROFILE_HOME_MAP } from '@/types'
+import { UserPerfil, PROFILE_HOME_MAP, PermissaoMenuKey } from '@/types'
 import { Button } from '@/components/ui/button'
 import { TESLA_LOGO_URL } from '@/lib/logoAsset'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
+import { ROTA_PARA_CHAVE_MAP } from '@/services/permissaoUsuarioService'
 
 interface SidebarProps {
   collapsed: boolean
@@ -47,6 +48,7 @@ interface MenuItem {
   title: string
   path: string
   icon: React.ElementType
+  permissionKey?: PermissaoMenuKey
 }
 
 interface PillarSection {
@@ -76,8 +78,24 @@ export const Sidebar: React.FC<SidebarProps> = ({
     isRHOrAbove,
     isAdminRHOrAbove,
     isAdminGeral,
+    podeAcessarItem,
+    userFlags,
   } = usePermission()
   const perfil = userPerfil || user?.perfil || 'colaborador'
+
+  /**
+   * Helper para checar se um item de menu deve ser exibido,
+   * respeitando as flags de liberação (exceções individuais: liberado / bloqueado).
+   */
+  const deveExibirItem = (item: MenuItem, defaultVisible: boolean): boolean => {
+    const permKey = item.permissionKey || ROTA_PARA_CHAVE_MAP[item.path]
+    if (!permKey) return defaultVisible
+
+    const flag = userFlags?.[permKey] || 'padrao'
+    if (flag === 'bloqueado') return false
+    if (flag === 'liberado') return true
+    return defaultVisible
+  }
 
   // Define the 3 pillars + Administration
   const sections: PillarSection[] = [
@@ -97,7 +115,10 @@ export const Sidebar: React.FC<SidebarProps> = ({
           path: PROFILE_HOME_MAP[perfil],
           icon: LayoutDashboard,
         },
-        ...(isGestor || isRHOrAbove
+        ...(deveExibirItem(
+          { title: 'Portal do Gestor', path: '/portal-gestor', icon: LayoutDashboard },
+          isGestor || isRHOrAbove,
+        )
           ? [
               {
                 title: 'Portal do Gestor',
@@ -144,52 +165,110 @@ export const Sidebar: React.FC<SidebarProps> = ({
     },
     {
       title: 'Gestão de Talentos',
-      allowedProfiles: ['rh', 'admin_rh', 'admin'],
+      allowedProfiles: ['colaborador', 'gestor', 'rh', 'admin_rh', 'admin'],
       items: [
-        { title: 'Vagas', path: '/vagas', icon: Briefcase },
-        { title: 'Candidatos', path: '/candidatos', icon: UserCheck },
+        ...(deveExibirItem({ title: 'Vagas', path: '/vagas', icon: Briefcase }, isRHOrAbove)
+          ? [{ title: 'Vagas', path: '/vagas', icon: Briefcase }]
+          : []),
+        ...(deveExibirItem(
+          { title: 'Candidatos', path: '/candidatos', icon: UserCheck },
+          isRHOrAbove,
+        )
+          ? [{ title: 'Candidatos', path: '/candidatos', icon: UserCheck }]
+          : []),
       ],
     },
     {
       title: 'Gestão de Pessoas',
       allowedProfiles: ['colaborador', 'gestor', 'rh', 'admin_rh', 'admin'],
       items: [
-        ...(isRHOrAbove
-          ? [
-              { title: 'Colaboradores', path: '/colaboradores', icon: Users },
-              // Gestão da Folha visível apenas para admin_rh e admin
-              ...(podeGerenciarFolha
-                ? [{ title: 'Gestão da Folha', path: '/folha/gestao', icon: Briefcase }]
-                : []),
-              { title: 'Comunicados', path: '/comunicados/gestao', icon: Megaphone },
-              { title: 'Alterações Pendentes', path: '/alteracoes/pendentes', icon: UserCog },
-              // Avaliações Admin (ciclos e competências) visível para admin_rh e admin
-              ...(podeConfigurarAvaliacoes
-                ? [{ title: 'Avaliações Admin', path: '/avaliacoes/admin', icon: Award }]
-                : []),
-              { title: 'Pesquisa de Clima', path: '/pesquisa-clima', icon: HeartHandshake },
-              { title: 'Pendências Docs', path: '/pendencias-documentais', icon: FileWarning },
-              { title: 'Documentos', path: '/documentos', icon: FolderOpen },
-              { title: 'Gestão Benefícios', path: '/beneficios/gestao', icon: Gift },
-              { title: 'Validação Atestados', path: '/atestados/validacao', icon: ShieldCheck },
-              { title: 'Aprovações de Férias', path: '/ferias/aprovacoes', icon: CalendarCheck },
-              { title: 'Relatórios', path: '/relatorios', icon: BarChart3 },
-            ]
+        ...(deveExibirItem(
+          { title: 'Colaboradores', path: '/colaboradores', icon: Users },
+          isRHOrAbove,
+        )
+          ? [{ title: 'Colaboradores', path: '/colaboradores', icon: Users }]
           : []),
-        ...(isGestor
-          ? [
-              { title: 'Minha Equipe', path: '/minha-equipe', icon: Users },
-              { title: 'Aprovações de Férias', path: '/ferias/aprovacoes', icon: CalendarCheck },
-              { title: 'Minhas Avaliações', path: '/avaliacoes', icon: Award },
-            ]
+        ...(deveExibirItem(
+          { title: 'Gestão da Folha', path: '/folha/gestao', icon: Briefcase },
+          isAdminRHOrAbove,
+        )
+          ? [{ title: 'Gestão da Folha', path: '/folha/gestao', icon: Briefcase }]
+          : []),
+        ...(deveExibirItem(
+          { title: 'Comunicados', path: '/comunicados/gestao', icon: Megaphone },
+          isRHOrAbove,
+        )
+          ? [{ title: 'Comunicados', path: '/comunicados/gestao', icon: Megaphone }]
+          : []),
+        ...(deveExibirItem(
+          { title: 'Alterações Pendentes', path: '/alteracoes/pendentes', icon: UserCog },
+          isRHOrAbove,
+        )
+          ? [{ title: 'Alterações Pendentes', path: '/alteracoes/pendentes', icon: UserCog }]
+          : []),
+        ...(deveExibirItem(
+          { title: 'Avaliações Admin', path: '/avaliacoes/admin', icon: Award },
+          isAdminRHOrAbove,
+        )
+          ? [{ title: 'Avaliações Admin', path: '/avaliacoes/admin', icon: Award }]
+          : []),
+        ...(deveExibirItem(
+          { title: 'Pesquisa de Clima', path: '/pesquisa-clima', icon: HeartHandshake },
+          isRHOrAbove,
+        )
+          ? [{ title: 'Pesquisa de Clima', path: '/pesquisa-clima', icon: HeartHandshake }]
+          : []),
+        ...(deveExibirItem(
+          { title: 'Pendências Docs', path: '/pendencias-documentais', icon: FileWarning },
+          isRHOrAbove,
+        )
+          ? [{ title: 'Pendências Docs', path: '/pendencias-documentais', icon: FileWarning }]
+          : []),
+        ...(deveExibirItem(
+          { title: 'Documentos', path: '/documentos', icon: FolderOpen },
+          isRHOrAbove,
+        )
+          ? [{ title: 'Documentos', path: '/documentos', icon: FolderOpen }]
+          : []),
+        ...(deveExibirItem(
+          { title: 'Gestão Benefícios', path: '/beneficios/gestao', icon: Gift },
+          isRHOrAbove,
+        )
+          ? [{ title: 'Gestão Benefícios', path: '/beneficios/gestao', icon: Gift }]
+          : []),
+        ...(deveExibirItem(
+          { title: 'Validação Atestados', path: '/atestados/validacao', icon: ShieldCheck },
+          isRHOrAbove,
+        )
+          ? [{ title: 'Validação Atestados', path: '/atestados/validacao', icon: ShieldCheck }]
+          : []),
+        ...(deveExibirItem(
+          { title: 'Aprovações de Férias', path: '/ferias/aprovacoes', icon: CalendarCheck },
+          isGestor || isRHOrAbove,
+        )
+          ? [{ title: 'Aprovações de Férias', path: '/ferias/aprovacoes', icon: CalendarCheck }]
+          : []),
+        ...(deveExibirItem(
+          { title: 'Relatórios', path: '/relatorios', icon: BarChart3 },
+          isRHOrAbove,
+        )
+          ? [{ title: 'Relatórios', path: '/relatorios', icon: BarChart3 }]
+          : []),
+        ...(deveExibirItem({ title: 'Minha Equipe', path: '/minha-equipe', icon: Users }, isGestor)
+          ? [{ title: 'Minha Equipe', path: '/minha-equipe', icon: Users }]
           : []),
         { title: 'Atestados / Licenças', path: '/atestados', icon: FileText },
         { title: 'Férias', path: '/ferias', icon: Palmtree },
-        // Espelho de Férias Coletivo (acessível a rh, admin_rh e admin)
-        ...(isRHOrAbove
+        ...(deveExibirItem(
+          { title: 'Férias Coletivas', path: '/ferias/coletivo', icon: Palmtree },
+          isRHOrAbove,
+        )
           ? [{ title: 'Férias Coletivas', path: '/ferias/coletivo', icon: Palmtree }]
           : []),
-        ...(isRHOrAbove || isGestor
+        ...(deveExibirItem(
+          { title: 'Estrutura', path: '/estrutura', icon: Network },
+          isRHOrAbove || isGestor,
+        )
           ? [{ title: 'Estrutura', path: '/estrutura', icon: Network }]
           : []),
       ],
@@ -200,7 +279,14 @@ export const Sidebar: React.FC<SidebarProps> = ({
       items: [
         { title: 'Meu Ponto', path: '/ponto', icon: Clock },
         { title: 'Banco de Horas', path: '/banco-horas', icon: Clock },
-        ...(isRHOrAbove
+        ...(deveExibirItem(
+          {
+            title: 'Fechamento Banco Horas',
+            path: '/banco-horas/fechamento',
+            icon: CalendarDays,
+          },
+          isRHOrAbove,
+        )
           ? [
               {
                 title: 'Fechamento Banco Horas',
@@ -209,32 +295,52 @@ export const Sidebar: React.FC<SidebarProps> = ({
               },
             ]
           : []),
-        ...(isRHOrAbove || isGestor
+        ...(deveExibirItem(
+          { title: 'Gestão de Ponto', path: '/ponto/gestao', icon: CheckCircle2 },
+          isRHOrAbove || isGestor,
+        )
           ? [{ title: 'Gestão de Ponto', path: '/ponto/gestao', icon: CheckCircle2 }]
           : []),
-        // Escalas visível para admin_rh e admin
-        ...(isAdminRHOrAbove ? [{ title: 'Escalas', path: '/escalas', icon: CalendarDays }] : []),
+        ...(deveExibirItem(
+          { title: 'Escalas', path: '/escalas', icon: CalendarDays },
+          isAdminRHOrAbove,
+        )
+          ? [{ title: 'Escalas', path: '/escalas', icon: CalendarDays }]
+          : []),
       ],
     },
     {
       title: 'Administração',
-      allowedProfiles: ['admin_rh', 'admin'],
+      allowedProfiles: ['colaborador', 'gestor', 'rh', 'admin_rh', 'admin'],
       items: [
-        // Dashboard Financeiro Consolidado (acessível a admin_rh e admin)
-        { title: 'Dashboard Financeiro', path: '/financeiro', icon: DollarSign },
-        // Configurações da Empresa e Usuários e Permissões: APENAS 'admin'
-        ...(isAdminGeral
-          ? [
-              { title: 'Configurações da Empresa', path: '/admin/configuracoes', icon: Building },
-              { title: 'Configurações de E-mail', path: '/admin/email', icon: Mail },
-              { title: 'Usuários e Permissões', path: '/admin/usuarios', icon: Users },
-            ]
+        ...(deveExibirItem(
+          { title: 'Dashboard Financeiro', path: '/financeiro', icon: DollarSign },
+          isAdminRHOrAbove,
+        )
+          ? [{ title: 'Dashboard Financeiro', path: '/financeiro', icon: DollarSign }]
           : []),
-        // Logs de Auditoria: 'admin_rh' e 'admin'
-        ...(podeVerLogsAuditoria
+        ...(deveExibirItem(
+          { title: 'Configurações da Empresa', path: '/admin/configuracoes', icon: Building },
+          isAdminGeral,
+        )
+          ? [{ title: 'Configurações da Empresa', path: '/admin/configuracoes', icon: Building }]
+          : []),
+        ...(isAdminGeral
+          ? [{ title: 'Configurações de E-mail', path: '/admin/email', icon: Mail }]
+          : []),
+        // Usuários e Permissões: visível para Admin e Administrador de RH (ou se flag liberada)
+        ...(deveExibirItem(
+          { title: 'Usuários e Permissões', path: '/admin/usuarios', icon: Users },
+          isAdminRHOrAbove,
+        )
+          ? [{ title: 'Usuários e Permissões', path: '/admin/usuarios', icon: Users }]
+          : []),
+        ...(deveExibirItem(
+          { title: 'Logs de Auditoria', path: '/admin/logs', icon: ShieldCheck },
+          isAdminRHOrAbove,
+        )
           ? [{ title: 'Logs de Auditoria', path: '/admin/logs', icon: ShieldCheck }]
           : []),
-        // Gestão de Tenant: APENAS 'admin'
         ...(podeGerenciarTenant
           ? [{ title: 'Gestão de Tenant (SaaS)', path: '/admin/tenant', icon: Building2 }]
           : []),
@@ -242,8 +348,10 @@ export const Sidebar: React.FC<SidebarProps> = ({
     },
   ]
 
-  // Filter sections visible to current user's profile
-  const visibleSections = sections.filter((sec) => sec.allowedProfiles.includes(perfil))
+  // Filter sections visible to current user's profile and hide sections with no visible items
+  const visibleSections = sections
+    .filter((sec) => sec.allowedProfiles.includes(perfil))
+    .filter((sec) => sec.items.length > 0)
 
   const content = (
     <div className="flex h-full flex-col justify-between bg-white border-r border-[#E0E0E0] select-none">
@@ -345,7 +453,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
             <p className="text-[11px] text-[#757575] leading-snug font-medium">Tesla Mecatrônica</p>
           </div>
           <p className="text-[10px] font-medium text-[#0D47A1]" title="Versão do Sistema">
-            Tesla RH v0.0.30
+            Tesla RH v0.0.38
           </p>
         </div>
       )}

@@ -1007,3 +1007,62 @@ export interface PesquisaClimaResposta {
     pesquisa_id?: PesquisaClima
   }
 }
+
+// ----------------------------------------------------
+// Flags de Liberação / Permissões Individuais de Usuário
+// ----------------------------------------------------
+
+/**
+ * Cada flag pode estar em um dos 3 estados:
+ * - 'padrao': herda o padrão do perfil do usuário
+ * - 'liberado': expressamente concedido (exceção positiva)
+ * - 'bloqueado': expressamente revogado/bloqueado (exceção negativa)
+ */
+export type FlagPermissaoEstado = 'padrao' | 'liberado' | 'bloqueado'
+
+export type PermissaoMenuKey =
+  | 'comunicados'
+  | 'alteracoes_cadastrais'
+  | 'colaboradores'
+  | 'documentos'
+  | 'dashboard_rh'
+  | 'relatorios'
+  | 'beneficios'
+  | 'atestados'
+  | 'ponto_gestao'
+  | 'ferias_aprovacoes'
+  | 'escalas'
+  | 'avaliacoes_admin'
+  | 'folha'
+  | 'banco_horas_fechamento'
+  | 'pesquisa_clima'
+  | 'dashboard_financeiro'
+  | 'logs_auditoria'
+  | 'assistente_clt'
+  | 'configuracoes_empresa'
+  | 'usuarios_permissoes'
+  | 'portal_gestor'
+  | 'minha_equipe'
+  | 'vagas'
+  | 'candidatos'
+  | 'pendencias_docs'
+  | 'ferias_coletivo'
+  | 'estrutura'
+
+export type PermissoesFlags = Partial<Record<PermissaoMenuKey, FlagPermissaoEstado>>
+
+export interface PermissaoUsuario {
+  id: string
+  collectionId?: string
+  collectionName?: string
+  tenant_id: string
+  user_id: string
+  flags_json: PermissoesFlags
+  atualizado_por?: string
+  created: string
+  updated: string
+  expand?: {
+    user_id?: AppUser
+    atualizado_por?: AppUser
+  }
+}

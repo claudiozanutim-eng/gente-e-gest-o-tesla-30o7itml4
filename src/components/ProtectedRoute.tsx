@@ -1,23 +1,26 @@
 import React from 'react'
 import { Navigate, useLocation } from 'react-router-dom'
 import { useAuth } from '@/context/AuthContext'
-import { UserPerfil, PROFILE_HOME_MAP } from '@/types'
+import { UserPerfil, PROFILE_HOME_MAP, PermissaoMenuKey } from '@/types'
 import { Skeleton } from '@/components/ui/skeleton'
 import { usePermission } from '@/hooks/usePermission'
+import { ROTA_PARA_CHAVE_MAP } from '@/services/permissaoUsuarioService'
 
 interface ProtectedRouteProps {
   children: React.ReactNode
   allowedProfiles?: UserPerfil[]
   minProfile?: UserPerfil
+  permissionKey?: PermissaoMenuKey
 }
 
 export const ProtectedRoute: React.FC<ProtectedRouteProps> = ({
   children,
   allowedProfiles,
   minProfile,
+  permissionKey,
 }) => {
   const { user, isLoading, isAuthenticated } = useAuth()
-  const { hasAnyPerfil, hasMinPerfil } = usePermission()
+  const { hasAnyPerfil, hasMinPerfil, podeAcessarItem, userFlags } = usePermission()
   const location = useLocation()
 
   if (isLoading) {
@@ -35,6 +38,27 @@ export const ProtectedRoute: React.FC<ProtectedRouteProps> = ({
 
   if (!isAuthenticated || !user) {
     return <Navigate to="/login" state={{ from: location }} replace />
+  }
+
+  // Determina a chave de permissão para esta rota (seja passada explicitamente ou mapeada pelo pathname)
+  const resolvedKey: PermissaoMenuKey | undefined =
+    permissionKey || ROTA_PARA_CHAVE_MAP[location.pathname]
+
+  // Se houver uma chave de permissão associada a esta rota:
+  // As flags individuais funcionam como exceção prioritária:
+  // 1. Se flag = 'bloqueado' -> bloqueia imediatamente mesmo se o perfil permitir
+  // 2. Se flag = 'liberado' -> concede imediatamente mesmo se o perfil não permitir
+  // 3. Se flag = 'padrao' (ou sem flag) -> segue a checagem padrão de allowedProfiles/minProfile
+  if (resolvedKey) {
+    const flag = userFlags?.[resolvedKey] || 'padrao'
+    if (flag === 'bloqueado') {
+      const profileHome = PROFILE_HOME_MAP[user.perfil] || '/portal'
+      return <Navigate to={profileHome} replace />
+    }
+    if (flag === 'liberado') {
+      // Concedido individualmente pela flag de liberação
+      return <>{children}</>
+    }
   }
 
   // Profile-based route protection (by allowed list or minimum hierarchy)

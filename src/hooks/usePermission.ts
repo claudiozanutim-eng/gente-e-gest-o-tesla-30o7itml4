@@ -1,5 +1,6 @@
 import { useAuth } from '@/context/AuthContext'
-import { UserPerfil } from '@/types'
+import { UserPerfil, PermissaoMenuKey, PermissoesFlags } from '@/types'
+import { avaliarPermissaoItem } from '@/services/permissaoUsuarioService'
 
 /**
  * Hierarquia dos 5 perfis de acesso:
@@ -74,7 +75,7 @@ export interface PermissoesUsuario {
  * Hook `usePermission` para validação declarativa e granular de permissões por perfil.
  */
 export function usePermission() {
-  const { user } = useAuth()
+  const { user, userFlags } = useAuth()
   const perfil: UserPerfil = user?.perfil || 'colaborador'
   const nivel = HIERARQUIA_PERFIL[perfil] ?? 0
 
@@ -88,47 +89,57 @@ export function usePermission() {
     return nivel >= nivelMinimo
   }
 
-  // Permissões granulares de acordo com a especificação do Prompt 17 e Prompt 18
+  /**
+   * Avalia uma flag de permissão do menu para o usuário corrente considerando
+   * o perfil base + exceções individuais (liberado/bloqueado).
+   */
+  const podeAcessarItem = (itemKey: PermissaoMenuKey): boolean => {
+    return avaliarPermissaoItem(perfil, userFlags, itemKey)
+  }
+
+  // Permissões granulares integradas com as flags de liberação individuais
   const permissoes: PermissoesUsuario = {
-    // Edição Direta de Perfil do Colaborador (Prompt 18)
-    podeEditarPerfilColaborador: perfil === 'rh' || perfil === 'admin_rh' || perfil === 'admin',
+    // Edição Direta de Perfil do Colaborador
+    podeEditarPerfilColaborador:
+      podeAcessarItem('colaboradores') &&
+      (perfil === 'rh' || perfil === 'admin_rh' || perfil === 'admin'),
     podeEditarCpfColaborador: perfil === 'admin',
     podeEditarAdmissaoStatusColaborador: perfil === 'admin_rh' || perfil === 'admin',
 
-    // 1. Apenas Administrador Geral ('admin')
+    // 1. Apenas Administrador Geral ('admin') por padrão ou com flag
     podeGerenciarTenant: perfil === 'admin',
-    podeGerenciarUsuarios: perfil === 'admin',
+    podeGerenciarUsuarios: podeAcessarItem('usuarios_permissoes'),
 
-    // 2. Administrador de RH ('admin_rh') e Admin Geral ('admin')
-    podeVerLogsAuditoria: perfil === 'admin_rh' || perfil === 'admin',
-    podeGerenciarFolha: perfil === 'admin_rh' || perfil === 'admin',
-    podeGerenciarEscalas: perfil === 'admin_rh' || perfil === 'admin',
-    podeConfigurarAvaliacoes: perfil === 'admin_rh' || perfil === 'admin',
-    podeAcessarAssistenteClt: perfil === 'admin_rh' || perfil === 'admin',
+    // 2. Administrador de RH e Admin Geral por padrão, ou por flag individual
+    podeVerLogsAuditoria: podeAcessarItem('logs_auditoria'),
+    podeGerenciarFolha: podeAcessarItem('folha'),
+    podeGerenciarEscalas: podeAcessarItem('escalas'),
+    podeConfigurarAvaliacoes: podeAcessarItem('avaliacoes_admin'),
+    podeAcessarAssistenteClt: podeAcessarItem('assistente_clt'),
 
-    // 3. RH Operacional ('rh'), Admin RH ('admin_rh') e Admin Geral ('admin')
-    podeAcessarDashboardRH: perfil === 'rh' || perfil === 'admin_rh' || perfil === 'admin',
-    podeGerenciarColaboradores: perfil === 'rh' || perfil === 'admin_rh' || perfil === 'admin',
-    podePublicarComunicados: perfil === 'rh' || perfil === 'admin_rh' || perfil === 'admin',
-    podeValidarAtestados: perfil === 'rh' || perfil === 'admin_rh' || perfil === 'admin',
-    podeAprovarAlteracoesCadastrais: perfil === 'rh' || perfil === 'admin_rh' || perfil === 'admin',
-    podeGerenciarDocumentosCorporativos:
-      perfil === 'rh' || perfil === 'admin_rh' || perfil === 'admin',
-    podeGerenciarBeneficios: perfil === 'rh' || perfil === 'admin_rh' || perfil === 'admin',
-    podeGerarRelatorios: perfil === 'rh' || perfil === 'admin_rh' || perfil === 'admin',
-    podeExportarRelatorios: perfil === 'rh' || perfil === 'admin_rh' || perfil === 'admin',
+    // 3. RH Operacional, Admin RH e Admin Geral por padrão, ou por flag individual
+    podeAcessarDashboardRH: podeAcessarItem('dashboard_rh'),
+    podeGerenciarColaboradores: podeAcessarItem('colaboradores'),
+    podePublicarComunicados: podeAcessarItem('comunicados'),
+    podeValidarAtestados: podeAcessarItem('atestados'),
+    podeAprovarAlteracoesCadastrais: podeAcessarItem('alteracoes_cadastrais'),
+    podeGerenciarDocumentosCorporativos: podeAcessarItem('documentos'),
+    podeGerenciarBeneficios: podeAcessarItem('beneficios'),
+    podeGerarRelatorios: podeAcessarItem('relatorios'),
+    podeExportarRelatorios: podeAcessarItem('relatorios'),
 
-    // 4. Gestor ('gestor'), RH Operacional ('rh'), Admin RH ('admin_rh') e Admin Geral ('admin')
-    podeAcessarGestaoPonto:
-      perfil === 'gestor' || perfil === 'rh' || perfil === 'admin_rh' || perfil === 'admin',
-    podeAprovarFeriasEquipe:
-      perfil === 'gestor' || perfil === 'rh' || perfil === 'admin_rh' || perfil === 'admin',
-    podeVerEquipe:
-      perfil === 'gestor' || perfil === 'rh' || perfil === 'admin_rh' || perfil === 'admin',
+    // 4. Gestor, RH, Admin RH e Admin por padrão, ou por flag individual
+    podeAcessarGestaoPonto: podeAcessarItem('ponto_gestao'),
+    podeAprovarFeriasEquipe: podeAcessarItem('ferias_aprovacoes'),
+    podeVerEquipe: podeAcessarItem('minha_equipe'),
     podeAvaliarEquipe:
-      perfil === 'gestor' || perfil === 'rh' || perfil === 'admin_rh' || perfil === 'admin',
+      podeAcessarItem('avaliacoes_admin') ||
+      perfil === 'gestor' ||
+      perfil === 'rh' ||
+      perfil === 'admin_rh' ||
+      perfil === 'admin',
 
-    // 5. Todos os 5 perfis
+    // 5. Portal do Colaborador (itens básicos de self-service)
     podeBaterPonto: true,
     podeVerHolerite: true,
     podeSolicitarFerias: true,
@@ -141,9 +152,11 @@ export function usePermission() {
   return {
     perfil,
     nivel,
+    userFlags,
     hasPerfil,
     hasAnyPerfil,
     hasMinPerfil,
+    podeAcessarItem,
     permissoes,
     // Permissões desempacotadas diretamente para acesso simplificado
     ...permissoes,

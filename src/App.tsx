@@ -204,7 +204,10 @@ const App = () => (
             <Route
               path="/admin/usuarios"
               element={
-                <ProtectedRoute allowedProfiles={['admin']}>
+                <ProtectedRoute
+                  allowedProfiles={['admin_rh', 'admin']}
+                  permissionKey="usuarios_permissoes"
+                >
                   <AdminUsuariosPage />
                 </ProtectedRoute>
               }
