@@ -9,6 +9,8 @@ import {
   UploadCloud,
   CheckCircle2,
   ExternalLink,
+  Maximize2,
+  Minimize2,
   MessageSquare,
   ShieldAlert,
   Loader2,
@@ -53,6 +55,7 @@ export default function AtestadosPage() {
 
   // Estado do modal de visualização de anexo
   const [previewAtestado, setPreviewAtestado] = useState<Atestado | null>(null)
+  const [modoExpandidoPreview, setModoExpandidoPreview] = useState(false)
 
   const tenantId = user?.tenant_id
   const colaboradorId = colaborador?.id
@@ -655,39 +658,99 @@ export default function AtestadosPage() {
       </div>
 
       {/* 4. Modal de Visualização do Anexo / Detalhes */}
-      <Dialog open={!!previewAtestado} onOpenChange={(open) => !open && setPreviewAtestado(null)}>
+      <Dialog
+        open={!!previewAtestado}
+        onOpenChange={(open) => {
+          if (!open) {
+            setPreviewAtestado(null)
+            setModoExpandidoPreview(false)
+          }
+        }}
+      >
         {previewAtestado && (
-          <DialogContent className="max-w-2xl bg-white border border-[#E0E0E0] p-6 max-h-[90vh] flex flex-col">
-            <DialogHeader className="text-left space-y-1 pb-2 border-b border-[#E0E0E0]">
-              <div className="flex items-center justify-between">
-                <DialogTitle className="text-base font-bold text-[#212121] flex items-center gap-2">
-                  <FileText className="h-5 w-5 text-[#0D47A1]" />
-                  Comprovante de Atestado Médico
-                </DialogTitle>
-                <span
-                  className="px-2.5 py-0.5 rounded-full text-xs font-bold text-white"
-                  style={{
-                    backgroundColor:
-                      ATESTADO_STATUS_MAP[previewAtestado.status]?.color || '#0D47A1',
-                  }}
-                >
-                  {ATESTADO_STATUS_MAP[previewAtestado.status]?.label}
-                </span>
+          <DialogContent
+            className={
+              modoExpandidoPreview
+                ? 'fixed inset-2 z-50 w-[calc(100vw-1rem)] h-[calc(100vh-1rem)] max-w-none max-h-none translate-x-0 translate-y-0 left-2 top-2 p-0 flex flex-col overflow-hidden bg-white rounded-xl border border-[#0D47A1]/20 shadow-2xl duration-200'
+                : 'max-w-4xl w-[96vw] h-[85vh] flex flex-col p-0 overflow-hidden bg-white border border-[#E0E0E0] rounded-xl shadow-xl duration-200'
+            }
+          >
+            <div className="p-4 sm:p-5 border-b border-[#E0E0E0] bg-[#FAFAFA] flex items-center justify-between gap-3 shrink-0">
+              <div className="space-y-1 min-w-0 pr-6 sm:pr-0">
+                <div className="flex items-center gap-2 min-w-0">
+                  <div className="h-7 w-7 rounded bg-[#E8EEF7] text-[#0D47A1] flex items-center justify-center font-bold shrink-0">
+                    <FileText className="h-4 w-4" />
+                  </div>
+                  <DialogTitle className="text-base font-bold text-[#212121] truncate">
+                    Comprovante de Atestado Médico
+                  </DialogTitle>
+                  <span
+                    className="px-2.5 py-0.5 rounded-full text-xs font-bold text-white shrink-0 ml-1"
+                    style={{
+                      backgroundColor:
+                        ATESTADO_STATUS_MAP[previewAtestado.status]?.color || '#0D47A1',
+                    }}
+                  >
+                    {ATESTADO_STATUS_MAP[previewAtestado.status]?.label}
+                  </span>
+                </div>
+                <DialogDescription className="text-xs text-[#757575]">
+                  Período: {formatarPeriodo(previewAtestado.data_inicio, previewAtestado.qtd_dias)}{' '}
+                  • Enviado em{' '}
+                  {formatarDataEnvio(previewAtestado.data_envio, previewAtestado.created)}
+                </DialogDescription>
               </div>
-              <DialogDescription className="text-xs text-[#757575]">
-                Período: {formatarPeriodo(previewAtestado.data_inicio, previewAtestado.qtd_dias)} •
-                Enviado em {formatarDataEnvio(previewAtestado.data_envio, previewAtestado.created)}
-              </DialogDescription>
-            </DialogHeader>
 
-            {/* Visualizador de Imagem / PDF */}
-            <div className="flex-1 overflow-y-auto py-3 min-h-[300px] flex flex-col items-center justify-center bg-[#F9FAFB] rounded-lg border border-[#E0E0E0]">
+              {/* Botões do cabeçalho: Expandir e Abrir em Nova Aba */}
+              <div className="flex items-center gap-2 shrink-0 mr-8 sm:mr-6">
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setModoExpandidoPreview((prev) => !prev)}
+                  className="text-xs border-[#0D47A1]/30 text-[#0D47A1] hover:bg-[#E8EEF7] hover:text-[#0A3A82] gap-1.5 h-8 font-semibold shadow-2xs"
+                  title={modoExpandidoPreview ? 'Reduzir (ESC)' : 'Expandir para tela cheia'}
+                >
+                  {modoExpandidoPreview ? (
+                    <>
+                      <Minimize2 className="h-3.5 w-3.5 text-[#0D47A1]" />
+                      <span className="hidden sm:inline">Reduzir</span>
+                    </>
+                  ) : (
+                    <>
+                      <Maximize2 className="h-3.5 w-3.5 text-[#0D47A1]" />
+                      <span className="hidden sm:inline">Expandir</span>
+                    </>
+                  )}
+                </Button>
+
+                {(() => {
+                  const url = atestadoService.getFileUrl(previewAtestado)
+                  return url ? (
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      onClick={() => window.open(url, '_blank', 'noopener,noreferrer')}
+                      className="text-xs border-[#E0E0E0] gap-1.5 h-8 text-[#424242] hover:text-[#212121] hover:bg-white"
+                      title="Abrir arquivo em nova aba"
+                    >
+                      <ExternalLink className="h-3.5 w-3.5" />
+                      <span className="hidden sm:inline">Abrir em Nova Aba</span>
+                    </Button>
+                  ) : null
+                })()}
+              </div>
+            </div>
+
+            {/* Visualizador de Imagem / PDF — Preenchimento total sem faixas */}
+            <div className="flex-1 w-full min-h-0 bg-white relative overflow-hidden flex flex-col">
               {(() => {
                 const url = atestadoService.getFileUrl(previewAtestado)
                 if (!url) {
                   return (
-                    <div className="text-center p-6 text-xs text-[#757575]">
-                      <FileQuestion className="h-8 w-8 mx-auto mb-2 text-[#9E9E9E]" />
+                    <div className="flex-1 flex flex-col items-center justify-center p-6 text-center text-xs text-[#757575] bg-slate-50">
+                      <FileQuestion className="h-10 w-10 mx-auto mb-2 text-[#9E9E9E]" />
                       Nenhum arquivo encontrado para este atestado.
                     </div>
                   )
@@ -699,57 +762,38 @@ export default function AtestadosPage() {
 
                 if (isPdf) {
                   return (
-                    <div className="w-full h-[450px] flex flex-col">
-                      <iframe
-                        src={url}
-                        title="Documento PDF do Atestado"
-                        className="w-full flex-1 rounded border-0"
-                      />
-                      <div className="p-2 text-center bg-white border-t border-[#E0E0E0]">
-                        <a
-                          href={url}
-                          target="_blank"
-                          rel="noreferrer"
-                          className="text-xs text-[#0D47A1] font-semibold hover:underline inline-flex items-center gap-1"
-                        >
-                          <ExternalLink className="h-3 w-3" />
-                          Abrir PDF em nova aba
-                        </a>
-                      </div>
-                    </div>
+                    <iframe
+                      src={`${url}#toolbar=1&navpanes=0&view=FitH`}
+                      title="Documento PDF do Atestado"
+                      className="w-full h-full flex-1 border-0 block bg-white"
+                    />
                   )
                 }
 
                 return (
-                  <div className="w-full flex flex-col items-center">
+                  <div className="flex-1 w-full flex items-center justify-center p-4 bg-slate-100 overflow-auto">
                     <img
                       src={url}
                       alt="Atestado médico"
-                      className="max-h-[460px] max-w-full object-contain rounded shadow-xs"
+                      className="max-h-full max-w-full object-contain rounded shadow-md"
                     />
-                    <a
-                      href={url}
-                      target="_blank"
-                      rel="noreferrer"
-                      className="mt-3 text-xs text-[#0D47A1] font-semibold hover:underline inline-flex items-center gap-1"
-                    >
-                      <ExternalLink className="h-3 w-3" />
-                      Visualizar imagem em tamanho original
-                    </a>
                   </div>
                 )
               })()}
             </div>
 
             {/* Rodapé do Modal */}
-            <div className="pt-3 border-t border-[#E0E0E0] flex items-center justify-between text-xs">
+            <div className="p-3 sm:px-5 border-t border-[#E0E0E0] bg-[#FAFAFA] flex items-center justify-between text-xs shrink-0">
               <span className="text-[#757575] text-[11px]">
                 Gente e Gestão Tesla • Validação RH
               </span>
               <Button
                 variant="outline"
                 size="sm"
-                onClick={() => setPreviewAtestado(null)}
+                onClick={() => {
+                  setPreviewAtestado(null)
+                  setModoExpandidoPreview(false)
+                }}
                 className="h-8 text-xs border-[#E0E0E0]"
               >
                 Fechar

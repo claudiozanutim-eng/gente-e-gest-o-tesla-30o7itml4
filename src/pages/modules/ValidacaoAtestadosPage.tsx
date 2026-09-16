@@ -13,6 +13,8 @@ import {
   MessageSquare,
   ShieldCheck,
   ChevronRight,
+  Maximize2,
+  Minimize2,
   Loader2,
   X,
   History,
@@ -64,6 +66,7 @@ export default function ValidacaoAtestadosPage() {
   const [comentarioRh, setComentarioRh] = useState('')
   const [salvando, setSalvando] = useState(false)
   const [erroComentario, setErroComentario] = useState<string | null>(null)
+  const [modoExpandidoValidacao, setModoExpandidoValidacao] = useState(false)
 
   // Logs de auditoria do atestado selecionado
   const [logsAuditoria, setLogsAuditoria] = useState<LogAuditoria[]>([])
@@ -558,27 +561,64 @@ export default function ValidacaoAtestadosPage() {
       {/* 5. Modal Completo de Análise / Visualização do Anexo / Alteração de Status */}
       <Dialog
         open={!!atestadoSelecionado}
-        onOpenChange={(open) => !open && setAtestadoSelecionado(null)}
+        onOpenChange={(open) => {
+          if (!open) {
+            setAtestadoSelecionado(null)
+            setModoExpandidoValidacao(false)
+          }
+        }}
       >
         {atestadoSelecionado && (
-          <DialogContent className="max-w-4xl bg-white border border-[#E0E0E0] p-6 max-h-[92vh] flex flex-col">
-            <DialogHeader className="text-left space-y-1 pb-3 border-b border-[#E0E0E0]">
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-2">
-                  <FileText className="h-5 w-5 text-[#0D47A1]" />
-                  <DialogTitle className="text-lg font-bold text-[#212121]">
+          <DialogContent
+            className={
+              modoExpandidoValidacao
+                ? 'fixed inset-2 z-50 w-[calc(100vw-1rem)] h-[calc(100vh-1rem)] max-w-none max-h-none translate-x-0 translate-y-0 left-2 top-2 p-5 flex flex-col overflow-hidden bg-white rounded-xl border border-[#0D47A1]/20 shadow-2xl duration-200'
+                : 'max-w-5xl w-[96vw] bg-white border border-[#E0E0E0] p-6 max-h-[92vh] flex flex-col duration-200'
+            }
+          >
+            <DialogHeader className="text-left space-y-1 pb-3 border-b border-[#E0E0E0] shrink-0">
+              <div className="flex items-center justify-between gap-3">
+                <div className="flex items-center gap-2 min-w-0">
+                  <FileText className="h-5 w-5 text-[#0D47A1] shrink-0" />
+                  <DialogTitle className="text-lg font-bold text-[#212121] truncate">
                     Análise e Homologação de Atestado
                   </DialogTitle>
                 </div>
-                <span
-                  className="px-2.5 py-0.5 rounded-full text-xs font-bold text-white"
-                  style={{
-                    backgroundColor:
-                      ATESTADO_STATUS_MAP[atestadoSelecionado.status]?.color || '#0D47A1',
-                  }}
-                >
-                  {ATESTADO_STATUS_MAP[atestadoSelecionado.status]?.label}
-                </span>
+                <div className="flex items-center gap-2 shrink-0 mr-6">
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    onClick={() => setModoExpandidoValidacao((prev) => !prev)}
+                    className="text-xs border-[#0D47A1]/30 text-[#0D47A1] hover:bg-[#E8EEF7] hover:text-[#0A3A82] gap-1.5 h-8 font-semibold shadow-2xs"
+                    title={
+                      modoExpandidoValidacao
+                        ? 'Reduzir (ESC)'
+                        : 'Expandir área de leitura para quase toda a tela'
+                    }
+                  >
+                    {modoExpandidoValidacao ? (
+                      <>
+                        <Minimize2 className="h-3.5 w-3.5 text-[#0D47A1]" />
+                        <span className="hidden sm:inline">Reduzir</span>
+                      </>
+                    ) : (
+                      <>
+                        <Maximize2 className="h-3.5 w-3.5 text-[#0D47A1]" />
+                        <span className="hidden sm:inline">Expandir</span>
+                      </>
+                    )}
+                  </Button>
+                  <span
+                    className="px-2.5 py-0.5 rounded-full text-xs font-bold text-white shrink-0"
+                    style={{
+                      backgroundColor:
+                        ATESTADO_STATUS_MAP[atestadoSelecionado.status]?.color || '#0D47A1',
+                    }}
+                  >
+                    {ATESTADO_STATUS_MAP[atestadoSelecionado.status]?.label}
+                  </span>
+                </div>
               </div>
               <DialogDescription className="text-xs text-[#757575]">
                 Revise os dados médicos, visualize o anexo comprovante e defina a decisão do RH.
@@ -586,11 +626,11 @@ export default function ValidacaoAtestadosPage() {
             </DialogHeader>
 
             {/* Corpo do Modal: Layout em 2 Colunas (Esquerda: Detalhes + Anexo | Direita: Ação do RH + Auditoria) */}
-            <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 py-4 flex-1 overflow-y-auto">
+            <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 py-4 flex-1 min-h-0 overflow-y-auto">
               {/* Coluna Esquerda: Detalhes e Visualizador do Comprovante (7 colunas) */}
-              <div className="lg:col-span-7 space-y-4">
+              <div className="lg:col-span-7 flex flex-col space-y-4 min-h-0">
                 {/* Cartão de Informações do Afastamento */}
-                <div className="bg-[#FAFAFA] border border-[#E0E0E0] rounded-xl p-4 space-y-3 text-xs">
+                <div className="bg-[#FAFAFA] border border-[#E0E0E0] rounded-xl p-4 space-y-3 text-xs shrink-0">
                   <div className="flex items-start justify-between gap-2">
                     <div>
                       <span className="text-[#757575] font-medium block">Colaborador:</span>
@@ -636,9 +676,9 @@ export default function ValidacaoAtestadosPage() {
                   </div>
                 </div>
 
-                {/* Visualizador do Anexo */}
-                <div className="space-y-1.5">
-                  <Label className="text-xs font-bold text-[#212121] flex items-center justify-between">
+                {/* Visualizador do Anexo — Preenchimento total e flexível */}
+                <div className="space-y-1.5 flex-1 min-h-0 flex flex-col">
+                  <Label className="text-xs font-bold text-[#212121] flex items-center justify-between shrink-0">
                     <span>Comprovante Anexado pelo Colaborador</span>
                     {atestadoService.getFileUrl(atestadoSelecionado) && (
                       <a
@@ -647,17 +687,23 @@ export default function ValidacaoAtestadosPage() {
                         rel="noreferrer"
                         className="text-[11px] text-[#0D47A1] hover:underline inline-flex items-center gap-1 font-semibold"
                       >
-                        <ExternalLink className="h-3 w-3" /> Abrir original
+                        <ExternalLink className="h-3 w-3" /> Abrir original em nova aba
                       </a>
                     )}
                   </Label>
 
-                  <div className="h-[320px] bg-[#F5F5F5] border border-[#E0E0E0] rounded-xl overflow-hidden flex flex-col items-center justify-center p-2">
+                  <div
+                    className={
+                      modoExpandidoValidacao
+                        ? 'flex-1 min-h-[420px] bg-white border border-[#E0E0E0] rounded-xl overflow-hidden flex flex-col relative'
+                        : 'h-[360px] lg:h-[400px] bg-white border border-[#E0E0E0] rounded-xl overflow-hidden flex flex-col relative'
+                    }
+                  >
                     {(() => {
                       const url = atestadoService.getFileUrl(atestadoSelecionado)
                       if (!url) {
                         return (
-                          <div className="text-center p-6 text-xs text-[#757575]">
+                          <div className="w-full h-full flex flex-col items-center justify-center p-6 text-center text-xs text-[#757575] bg-slate-50">
                             <FileQuestion className="h-8 w-8 mx-auto mb-2 text-[#9E9E9E]" />
                             Nenhum arquivo anexado a este atestado.
                           </div>
@@ -671,19 +717,21 @@ export default function ValidacaoAtestadosPage() {
                       if (isPdf) {
                         return (
                           <iframe
-                            src={url}
+                            src={`${url}#toolbar=1&navpanes=0&view=FitH`}
                             title="Comprovante do Atestado"
-                            className="w-full h-full rounded border-0"
+                            className="w-full h-full border-0 block bg-white"
                           />
                         )
                       }
 
                       return (
-                        <img
-                          src={url}
-                          alt="Comprovante do Atestado Médico"
-                          className="max-h-full max-w-full object-contain rounded"
-                        />
+                        <div className="w-full h-full flex items-center justify-center p-3 bg-slate-100 overflow-auto">
+                          <img
+                            src={url}
+                            alt="Comprovante do Atestado Médico"
+                            className="max-h-full max-w-full object-contain rounded shadow-xs"
+                          />
+                        </div>
                       )
                     })()}
                   </div>

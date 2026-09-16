@@ -10,6 +10,8 @@ import {
   Layers,
   Sparkles,
   ExternalLink,
+  Maximize2,
+  Minimize2,
   Info,
 } from 'lucide-react'
 import { useAuth } from '@/context/AuthContext'
@@ -40,6 +42,7 @@ export default function DocumentosImportantesPage() {
   // Documento selecionado para leitura / visualização e ciência
   const [docSelecionado, setDocSelecionado] = useState<Documento | null>(null)
   const [registrandoCiencia, setRegistrandoCiencia] = useState(false)
+  const [modoExpandido, setModoExpandido] = useState(false)
 
   const tenantId = user?.tenant_id
   const colaboradorId = colaborador?.id
@@ -163,8 +166,23 @@ export default function DocumentosImportantesPage() {
 
   // Trata abertura do modal de visualização e ciência
   const handleAbrirDocumento = (doc: Documento) => {
+    setModoExpandido(false)
     setDocSelecionado(doc)
   }
+
+  // Tecla ESC para desativar modo expandido caso esteja ativo
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape' && modoExpandido) {
+        e.stopPropagation()
+        setModoExpandido(false)
+      }
+    }
+    if (modoExpandido) {
+      window.addEventListener('keydown', handleKeyDown)
+      return () => window.removeEventListener('keydown', handleKeyDown)
+    }
+  }, [modoExpandido])
 
   // Registrar a ciência na versão atual
   const handleDarCiencia = async () => {
@@ -469,78 +487,128 @@ export default function DocumentosImportantesPage() {
       {/* Modal / Dialog de Visualização do Documento e Ciência */}
       <Dialog
         open={Boolean(docSelecionado)}
-        onOpenChange={(open) => !open && setDocSelecionado(null)}
+        onOpenChange={(open) => {
+          if (!open) {
+            setDocSelecionado(null)
+            setModoExpandido(false)
+          }
+        }}
       >
         {docSelecionado && (
-          <DialogContent className="max-w-4xl w-[95vw] max-h-[92vh] flex flex-col p-0 overflow-hidden bg-white border border-[#E0E0E0]">
+          <DialogContent
+            className={
+              modoExpandido
+                ? 'fixed inset-2 z-50 w-[calc(100vw-1rem)] h-[calc(100vh-1rem)] max-w-none max-h-none translate-x-0 translate-y-0 left-2 top-2 p-0 flex flex-col overflow-hidden bg-white rounded-xl border border-[#0D47A1]/20 shadow-2xl duration-200'
+                : 'max-w-5xl w-[96vw] h-[90vh] flex flex-col p-0 overflow-hidden bg-white border border-[#E0E0E0] rounded-xl shadow-xl duration-200'
+            }
+          >
             {/* Header do Modal */}
-            <div className="p-5 border-b border-[#E0E0E0] bg-[#FAFAFA] flex items-center justify-between">
-              <div className="space-y-1">
-                <div className="flex items-center gap-2">
-                  <div className="h-7 w-7 rounded bg-[#E8EEF7] text-[#0D47A1] flex items-center justify-center font-bold">
+            <div className="p-4 sm:p-5 border-b border-[#E0E0E0] bg-[#FAFAFA] flex items-center justify-between gap-3 shrink-0">
+              <div className="space-y-1 min-w-0 pr-6 sm:pr-0">
+                <div className="flex items-center gap-2 min-w-0">
+                  <div className="h-7 w-7 rounded bg-[#E8EEF7] text-[#0D47A1] flex items-center justify-center font-bold shrink-0">
                     <FileText className="h-4 w-4" />
                   </div>
-                  <DialogTitle className="text-base font-bold text-[#212121]">
+                  <DialogTitle className="text-base font-bold text-[#212121] truncate">
                     {docSelecionado.nome}
                   </DialogTitle>
                 </div>
-                <DialogDescription className="text-xs text-[#757575] flex items-center gap-3">
-                  <span>Versão atual: {formatarVersao(docSelecionado.versao)}</span>
+                <DialogDescription className="text-xs text-[#757575] flex items-center gap-2 flex-wrap">
+                  <span className="font-semibold text-[#0D47A1] bg-[#E8EEF7] px-1.5 py-0.5 rounded">
+                    Versão atual: {formatarVersao(docSelecionado.versao)}
+                  </span>
                   <span>•</span>
                   <span>
                     Publicado em:{' '}
                     {formatarData(docSelecionado.data_publicacao || docSelecionado.created)}
                   </span>
+                  {modoExpandido && (
+                    <span className="text-[11px] text-[#0D47A1] bg-[#E8EEF7] px-2 py-0.5 rounded-full font-medium ml-1">
+                      Modo de Leitura Expandido (ESC para reduzir)
+                    </span>
+                  )}
                 </DialogDescription>
               </div>
 
-              {urlArquivo && (
+              {/* Ações do Topo: Expandir / Reduzir e Abrir em Nova Aba */}
+              <div className="flex items-center gap-2 shrink-0 mr-8 sm:mr-6">
                 <Button
+                  type="button"
                   variant="outline"
                   size="sm"
-                  onClick={() => window.open(urlArquivo, '_blank', 'noopener,noreferrer')}
-                  className="text-xs border-[#E0E0E0] gap-1.5 h-8 hidden sm:flex"
+                  onClick={() => setModoExpandido((prev) => !prev)}
+                  className="text-xs border-[#0D47A1]/30 text-[#0D47A1] hover:bg-[#E8EEF7] hover:text-[#0A3A82] gap-1.5 h-8 font-semibold shadow-2xs"
+                  title={
+                    modoExpandido
+                      ? 'Reduzir para o tamanho padrão (ESC)'
+                      : 'Expandir área de leitura para quase toda a tela'
+                  }
                 >
-                  <ExternalLink className="h-3.5 w-3.5" />
-                  Abrir em Nova Aba
+                  {modoExpandido ? (
+                    <>
+                      <Minimize2 className="h-3.5 w-3.5 text-[#0D47A1]" />
+                      <span className="hidden sm:inline">Reduzir</span>
+                    </>
+                  ) : (
+                    <>
+                      <Maximize2 className="h-3.5 w-3.5 text-[#0D47A1]" />
+                      <span className="hidden sm:inline">Expandir</span>
+                    </>
+                  )}
                 </Button>
-              )}
+
+                {urlArquivo && (
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    onClick={() => window.open(urlArquivo, '_blank', 'noopener,noreferrer')}
+                    className="text-xs border-[#E0E0E0] gap-1.5 h-8 text-[#424242] hover:text-[#212121] hover:bg-white"
+                    title="Abrir o documento oficial em uma nova aba do navegador"
+                  >
+                    <ExternalLink className="h-3.5 w-3.5" />
+                    <span className="hidden md:inline">Abrir em Nova Aba</span>
+                  </Button>
+                )}
+              </div>
             </div>
 
-            {/* Visualizador de PDF / Arquivo */}
-            <div className="flex-1 min-h-[380px] max-h-[58vh] bg-[#525659] relative overflow-hidden flex items-center justify-center">
+            {/* Visualizador de PDF / Arquivo — 100% preenchido sem faixas cinzas */}
+            <div className="flex-1 w-full min-h-0 bg-white relative overflow-hidden flex flex-col">
               {urlArquivo ? (
                 <iframe
-                  src={`${urlArquivo}#toolbar=1&navpanes=0`}
+                  src={`${urlArquivo}#toolbar=1&navpanes=0&view=FitH`}
                   title={docSelecionado.nome}
-                  className="w-full h-full border-0"
+                  className="w-full h-full flex-1 border-0 block bg-white"
                 />
               ) : (
-                <div className="bg-white p-8 rounded-xl max-w-md text-center m-4 shadow-lg border border-[#E0E0E0]">
-                  <div className="h-12 w-12 rounded-full bg-blue-50 text-[#0D47A1] mx-auto flex items-center justify-center mb-3">
-                    <FileText className="h-6 w-6" />
-                  </div>
-                  <h4 className="font-bold text-sm text-[#212121] mb-1">
-                    Visualização do Documento
-                  </h4>
-                  <p className="text-xs text-[#757575] leading-relaxed mb-4">
-                    Este é o registro oficial de <strong>{docSelecionado.nome}</strong> (Versão{' '}
-                    {formatarVersao(docSelecionado.versao)}). Como se trata de um documento de
-                    demonstração sem binário hospedado, sua leitura pode ser validada diretamente
-                    abaixo.
-                  </p>
-                  <div className="bg-[#F5F5F5] p-3 rounded-lg text-left text-xs text-[#424242] space-y-1">
-                    <p className="font-semibold text-[#0D47A1]">Sumário Normativo:</p>
-                    <p>• Diretrizes de conformidade corporativa e ética no trabalho;</p>
-                    <p>• Uso responsável dos recursos computacionais e privacidade;</p>
-                    <p>• Padrões de segurança, ergonomia e saúde ocupacional.</p>
+                <div className="flex-1 w-full flex items-center justify-center p-6 bg-slate-50">
+                  <div className="bg-white p-6 sm:p-8 rounded-xl max-w-lg w-full text-center shadow-xs border border-[#E0E0E0]">
+                    <div className="h-12 w-12 rounded-full bg-blue-50 text-[#0D47A1] mx-auto flex items-center justify-center mb-3">
+                      <FileText className="h-6 w-6" />
+                    </div>
+                    <h4 className="font-bold text-sm text-[#212121] mb-1">
+                      Visualização do Documento
+                    </h4>
+                    <p className="text-xs text-[#757575] leading-relaxed mb-4">
+                      Este é o registro oficial de <strong>{docSelecionado.nome}</strong> (Versão{' '}
+                      {formatarVersao(docSelecionado.versao)}). Como se trata de um documento de
+                      demonstração sem binário hospedado, sua leitura pode ser validada diretamente
+                      abaixo.
+                    </p>
+                    <div className="bg-[#F5F5F5] p-3 rounded-lg text-left text-xs text-[#424242] space-y-1">
+                      <p className="font-semibold text-[#0D47A1]">Sumário Normativo:</p>
+                      <p>• Diretrizes de conformidade corporativa e ética no trabalho;</p>
+                      <p>• Uso responsável dos recursos computacionais e privacidade;</p>
+                      <p>• Padrões de segurança, ergonomia e saúde ocupacional.</p>
+                    </div>
                   </div>
                 </div>
               )}
             </div>
 
             {/* Rodapé com Status e Botão Exato de Ciência */}
-            <div className="p-4 bg-white border-t border-[#E0E0E0] flex flex-col sm:flex-row items-center justify-between gap-3">
+            <div className="p-4 bg-white border-t border-[#E0E0E0] flex flex-col sm:flex-row items-center justify-between gap-3 shrink-0">
               <div className="text-xs text-[#757575] text-center sm:text-left">
                 {statusCienciasMap[docSelecionado.id]?.ciente ? (
                   <div className="flex items-center gap-2 text-[#2E7D32] font-semibold">
@@ -565,7 +633,10 @@ export default function DocumentosImportantesPage() {
                 <Button
                   variant="outline"
                   size="sm"
-                  onClick={() => setDocSelecionado(null)}
+                  onClick={() => {
+                    setDocSelecionado(null)
+                    setModoExpandido(false)
+                  }}
                   className="text-xs h-9 border-[#E0E0E0]"
                 >
                   Fechar
