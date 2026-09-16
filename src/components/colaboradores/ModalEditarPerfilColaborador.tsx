@@ -52,6 +52,7 @@ import {
   contatoEmergenciaService,
   solicitacaoService,
   logAuditoriaService,
+  historicoFuncaoService,
 } from '@/services/api'
 import { useToast } from '@/hooks/use-toast'
 import {
@@ -161,6 +162,11 @@ export const ModalEditarPerfilColaborador: React.FC<ModalEditarPerfilColaborador
   const [cargo, setCargo] = useState<string>('')
   const [departamento, setDepartamento] = useState<string>('')
   const [dataAdmissao, setDataAdmissao] = useState<string>('')
+  const [dataMudancaFuncao, setDataMudancaFuncao] = useState<string>(
+    new Date().toISOString().slice(0, 10),
+  )
+  const [motivoMudancaFuncao, setMotivoMudancaFuncao] = useState<string>('')
+  const [dataInicioFuncaoVigente, setDataInicioFuncaoVigente] = useState<string | null>(null)
   const [jornada, setJornada] = useState<string>('44h/semana')
   const [localTrabalho, setLocalTrabalho] = useState<string>('')
   const [status, setStatus] = useState<string>('ativo')
@@ -328,12 +334,30 @@ export const ModalEditarPerfilColaborador: React.FC<ModalEditarPerfilColaborador
           }
         })
         setDepartamentosTenant(Array.from(depts).sort((a, b) => a.localeCompare(b, 'pt-BR')))
+
+        // Buscar histórico de funções para identificar a data de início da função vigente atual
+        try {
+          const hist = await historicoFuncaoService.getHistoricoPorColaborador(colaborador.id, true)
+          const vigente = hist.find((h) => !h.data_fim)
+          if (vigente?.data_inicio) {
+            setDataInicioFuncaoVigente(vigente.data_inicio.slice(0, 10))
+          } else {
+            setDataInicioFuncaoVigente(null)
+          }
+        } catch (e) {
+          console.warn('Erro ao carregar histórico de funções para o modal:', e)
+          setDataInicioFuncaoVigente(null)
+        }
       } catch (err) {
         console.error('Erro ao carregar dados complementares para edição:', err)
       } finally {
         setLoading(false)
       }
     }
+
+    // Resetar campos de data de mudança de função ao abrir
+    setDataMudancaFuncao(new Date().toISOString().slice(0, 10))
+    setMotivoMudancaFuncao('')
 
     carregarRelacionados()
   }, [open, colaborador, user?.tenant_id])
@@ -488,6 +512,30 @@ export const ModalEditarPerfilColaborador: React.FC<ModalEditarPerfilColaborador
       }
     }
 
+    // Validação da mudança de função quando cargo ou departamento mudam
+    const houveMudancaFuncao =
+      (cargo.trim() && cargo.trim() !== (colaborador?.cargo || '').trim()) ||
+      (departamento.trim() && departamento.trim() !== (colaborador?.departamento || '').trim())
+
+    if (houveMudancaFuncao) {
+      if (!dataMudancaFuncao) {
+        novosErros.dataMudancaFuncao = 'Informe a data em que a nova função entra em vigor'
+      } else {
+        const dtMudanca = new Date(dataMudancaFuncao)
+        const dtAdm = new Date(dataAdmissao || colaborador.data_admissao)
+        if (dtMudanca < dtAdm) {
+          novosErros.dataMudancaFuncao =
+            'A data da mudança não pode ser anterior à data de admissão do colaborador'
+        } else if (dataInicioFuncaoVigente) {
+          const dtVigente = new Date(dataInicioFuncaoVigente)
+          if (dtMudanca < dtVigente) {
+            novosErros.dataMudancaFuncao =
+              'A data da mudança não pode ser anterior ao início da função vigente atual'
+          }
+        }
+      }
+    }
+
     if (!status) {
       novosErros.status = 'Status é obrigatório'
     }
@@ -617,6 +665,63 @@ export const ModalEditarPerfilColaborador: React.FC<ModalEditarPerfilColaborador
           }
         }
       })
+
+      // 1.1 Se houve alteração de cargo ou departamento, registrar na linha do tempo de histórico de funções
+      const houveMudancaFuncao =
+        (cargo.trim() && cargo.trim() !== (colaborador?.cargo || '').trim()) ||
+        (departamento.trim() && departamento.trim() !== (colaborador?.departamento || '').trim())
+
+      let transicaoFuncaoRealizada: {
+        novaFuncao: import('@/types').HistoricoFuncao
+        funcaoAnteriorEncerrada?: import('@/types').HistoricoFuncao | null
+      } | null = null
+
+      if (houveMudancaFuncao) {
+        try {
+          transicaoFuncaoRealizada = await historicoFuncaoService.registrarTransicaoFuncao({
+            tenant_id: user.tenant_id,
+            colaborador_id: colaborador.id,
+            novoCargo: cargo.trim(),
+            novoDepartamento: departamento.trim(),
+            dataMudanca: dataMudancaFuncao,
+            origem: 'mudanca',
+            motivo: motivoMudancaFuncao.trim() || 'Mudança de enquadramento funcional',
+            criadoPor: user.id,
+            cargoAnteriorFallback: colaborador.cargo || 'Função Inicial',
+            departamentoAnteriorFallback: colaborador.departamento || '',
+            dataAdmissaoFallback: colaborador.data_admissao,
+          })
+
+          // Auditoria específica da mudança de função na linha do tempo
+          await logAuditoriaService.registrarLog({
+            tenant_id: user.tenant_id,
+            user_id: user.id,
+            acao: `Mudança de função de ${colaborador.nome}: de "${colaborador.cargo || 'Não informado'}" para "${cargo.trim()}" a partir de ${dataMudancaFuncao}`,
+            entidade: 'historico_funcao',
+            entidade_id: transicaoFuncaoRealizada.novaFuncao.id,
+            dados_json: {
+              tipo_acao: 'mudanca_funcao_colaborador',
+              origem: 'modal_editar_perfil',
+              colaborador_id: colaborador.id,
+              colaborador_nome: colaborador.nome,
+              cargo_anterior: colaborador.cargo,
+              departamento_anterior: colaborador.departamento,
+              novo_cargo: cargo.trim(),
+              novo_departamento: departamento.trim(),
+              data_mudanca: dataMudancaFuncao,
+              motivo: motivoMudancaFuncao.trim() || 'Mudança de enquadramento funcional',
+              responsavel_id: user.id,
+              responsavel_nome: user.name,
+              funcao_anterior_encerrada_id:
+                transicaoFuncaoRealizada.funcaoAnteriorEncerrada?.id || null,
+              nova_funcao_id: transicaoFuncaoRealizada.novaFuncao.id,
+              data_registro: new Date().toISOString(),
+            },
+          })
+        } catch (histErr) {
+          console.warn('Erro ao registrar transição de função:', histErr)
+        }
+      }
 
       // 2. Salvar atualização cadastral na coleção colaborador
       let colaboradorSalvo = await colaboradorService.updateColaborador(
@@ -1571,6 +1676,74 @@ export const ModalEditarPerfilColaborador: React.FC<ModalEditarPerfilColaborador
                     />
                   </div>
                 </div>
+
+                {/* Bloco Condicional: Mudança de Função detectada */}
+                {((cargo.trim() && cargo.trim() !== (colaborador?.cargo || '').trim()) ||
+                  (departamento.trim() &&
+                    departamento.trim() !== (colaborador?.departamento || '').trim())) && (
+                  <div className="mt-4 p-4 rounded-xl bg-blue-50/70 border-2 border-[#0D47A1]/30 space-y-3">
+                    <div className="flex items-start gap-2.5">
+                      <div className="h-7 w-7 rounded-full bg-[#0D47A1] text-white flex items-center justify-center shrink-0 text-xs font-bold">
+                        <Briefcase className="h-3.5 w-3.5" />
+                      </div>
+                      <div className="flex-1">
+                        <h4 className="text-xs font-bold text-[#0D47A1]">
+                          Nova Função Detectada — Linha do Tempo de Carreira
+                        </h4>
+                        <p className="text-[11px] text-[#424242] mt-0.5 leading-relaxed">
+                          Ao alterar o cargo ou departamento, a função anterior (
+                          <strong className="text-[#212121]">
+                            {colaborador?.cargo || 'Cargo atual'}
+                          </strong>
+                          ) será encerrada na data indicada e a nova função passará a vigorar a
+                          partir dela, mantendo a jornada completa do colaborador.
+                        </p>
+                      </div>
+                    </div>
+
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-1 border-t border-blue-100">
+                      <div className="space-y-1">
+                        <Label className="text-xs font-bold text-[#212121] flex items-center gap-1">
+                          Data de Início da Nova Função <span className="text-red-600">*</span>
+                        </Label>
+                        <Input
+                          type="date"
+                          value={dataMudancaFuncao}
+                          onChange={(e) => setDataMudancaFuncao(e.target.value)}
+                          className={`text-xs h-9 bg-white ${
+                            erros.dataMudancaFuncao
+                              ? 'border-red-600 ring-1 ring-red-600'
+                              : 'border-[#E0E0E0]'
+                          }`}
+                        />
+                        {erros.dataMudancaFuncao ? (
+                          <span className="text-[11px] text-red-600">
+                            {erros.dataMudancaFuncao}
+                          </span>
+                        ) : (
+                          <span className="text-[10px] text-[#757575] block">
+                            Padrão: hoje. Encerra a função anterior nesta data.
+                          </span>
+                        )}
+                      </div>
+
+                      <div className="space-y-1">
+                        <Label className="text-xs font-semibold text-[#616161]">
+                          Motivo / Justificativa da Mudança (opcional)
+                        </Label>
+                        <Input
+                          value={motivoMudancaFuncao}
+                          onChange={(e) => setMotivoMudancaFuncao(e.target.value)}
+                          placeholder="Ex: Promoção de cargo, transferência de setor..."
+                          className="text-xs h-9 border-[#E0E0E0] bg-white"
+                        />
+                        <span className="text-[10px] text-[#757575] block">
+                          Ficará visível na linha do tempo e no log de auditoria.
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+                )}
               </div>
             </TabsContent>
 

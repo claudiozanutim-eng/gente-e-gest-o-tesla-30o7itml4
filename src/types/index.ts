@@ -105,6 +105,23 @@ export interface SolicitacaoAlteracao {
   updated?: string
 }
 
+export type HistoricoFuncaoOrigem = 'admissao' | 'mudanca' | 'promocao' | 'transferencia'
+
+export interface HistoricoFuncao {
+  id: string
+  tenant_id: string
+  colaborador_id: string
+  cargo: string
+  departamento?: string
+  data_inicio: string
+  data_fim?: string | null
+  origem: HistoricoFuncaoOrigem
+  motivo?: string
+  criado_por?: string
+  created?: string
+  updated?: string
+}
+
 export interface LogAuditoria {
   id: string
   tenant_id: string

@@ -43,7 +43,9 @@ import {
   contatoEmergenciaService,
   solicitacaoService,
   logAuditoriaService,
+  historicoFuncaoService,
 } from '@/services/api'
+import { HistoricoFuncao } from '@/types'
 import {
   Colaborador,
   Dependente,
@@ -80,18 +82,18 @@ import { useToast } from '@/hooks/use-toast'
 import { TESLA_LOGO_URL } from '@/lib/logoAsset'
 
 // Helper para calcular tempo de empresa em anos e meses
-function calcularTempoEmpresa(dataAdmissaoStr?: string): string {
-  if (!dataAdmissaoStr) return 'Não informado'
+function calcularTempoEmpresa(dataInicioStr?: string, dataFimStr?: string): string {
+  if (!dataInicioStr) return 'Não informado'
   try {
-    const inicio = new Date(dataAdmissaoStr)
-    const agora = new Date()
+    const inicio = new Date(dataInicioStr)
+    const fim = dataFimStr ? new Date(dataFimStr) : new Date()
 
-    if (isNaN(inicio.getTime())) return 'Não informado'
+    if (isNaN(inicio.getTime()) || isNaN(fim.getTime())) return 'Não informado'
 
-    let anos = agora.getFullYear() - inicio.getFullYear()
-    let meses = agora.getMonth() - inicio.getMonth()
+    let anos = fim.getFullYear() - inicio.getFullYear()
+    let meses = fim.getMonth() - inicio.getMonth()
 
-    if (agora.getDate() < inicio.getDate()) {
+    if (fim.getDate() < inicio.getDate()) {
       meses -= 1
     }
 
@@ -100,11 +102,14 @@ function calcularTempoEmpresa(dataAdmissaoStr?: string): string {
       meses += 12
     }
 
-    if (anos < 0) return 'Recém-admitido'
+    if (anos < 0) return 'Menos de 1 mês'
 
     if (anos === 0 && meses === 0) {
-      const diffDias = Math.floor((agora.getTime() - inicio.getTime()) / (1000 * 60 * 60 * 24))
-      return diffDias <= 1 ? 'Menos de 1 mês (admissão recente)' : `${diffDias} dias`
+      const diffDias = Math.max(
+        0,
+        Math.floor((fim.getTime() - inicio.getTime()) / (1000 * 60 * 60 * 24)),
+      )
+      return diffDias <= 1 ? 'Menos de 1 mês' : `${diffDias} dias`
     }
 
     const partes: string[] = []
@@ -155,6 +160,7 @@ export default function MeuPerfilPage() {
   const [dependentes, setDependentes] = useState<Dependente[]>([])
   const [contatosEmergencia, setContatosEmergencia] = useState<ContatoEmergencia[]>([])
   const [solicitacoes, setSolicitacoes] = useState<SolicitacaoAlteracao[]>([])
+  const [historicoFuncoes, setHistoricoFuncoes] = useState<HistoricoFuncao[]>([])
   const [loading, setLoading] = useState<boolean>(true)
   const [uploadingFoto, setUploadingFoto] = useState<boolean>(false)
   const fileInputRef = useRef<HTMLInputElement>(null)
@@ -306,16 +312,18 @@ export default function MeuPerfilPage() {
       if (colabRecord) {
         setColaborador(colabRecord)
 
-        // Buscar dependentes, contatos e solicitações em paralelo
-        const [depList, contatosList, solicList] = await Promise.all([
+        // Buscar dependentes, contatos, solicitações e histórico de funções em paralelo
+        const [depList, contatosList, solicList, funcList] = await Promise.all([
           dependenteService.getDependentesByColaborador(colabRecord.id).catch(() => []),
           contatoEmergenciaService.getContatosByColaborador(colabRecord.id).catch(() => []),
           solicitacaoService.getSolicitacoesByColaborador(colabRecord.id).catch(() => []),
+          historicoFuncaoService.getHistoricoPorColaborador(colabRecord.id, false).catch(() => []),
         ])
 
         setDependentes(depList)
         setContatosEmergencia(contatosList)
         setSolicitacoes(solicList)
+        setHistoricoFuncoes(funcList)
       }
     } catch (err) {
       console.error('Erro ao carregar dados do perfil:', err)
@@ -601,6 +609,22 @@ export default function MeuPerfilPage() {
     return calcularTempoEmpresa(colaborador?.data_admissao)
   }, [colaborador?.data_admissao])
 
+  // Função vigente atual: busca no histórico a que não tem data_fim
+  const funcaoVigente = useMemo(() => {
+    if (historicoFuncoes.length === 0) return null
+    const aberta = historicoFuncoes.find((h) => !h.data_fim)
+    if (aberta) return aberta
+    return [...historicoFuncoes].sort(
+      (a, b) => new Date(b.data_inicio).getTime() - new Date(a.data_inicio).getTime(),
+    )[0]
+  }, [historicoFuncoes])
+
+  // Início da função vigente e tempo calculado no cargo atual
+  const dataInicioFuncaoAtual = funcaoVigente?.data_inicio || colaborador?.data_admissao
+  const tempoNoCargoAtual = useMemo(() => {
+    return calcularTempoEmpresa(dataInicioFuncaoAtual)
+  }, [dataInicioFuncaoAtual])
+
   const nomeExibicao =
     colaborador?.nome_completo || colaborador?.nome || user?.name || 'Colaborador'
   const iniciais = getIniciais(nomeExibicao)
@@ -732,6 +756,10 @@ export default function MeuPerfilPage() {
               <div className="flex items-center gap-1.5">
                 <Clock className="h-3.5 w-3.5 text-blue-200" />
                 <span>Admissão: {formatarDataBR(colaborador?.data_admissao)}</span>
+              </div>
+              <div className="flex items-center gap-1.5">
+                <Briefcase className="h-3.5 w-3.5 text-blue-200" />
+                <span>No Cargo Atual: {tempoNoCargoAtual}</span>
               </div>
             </div>
           </div>
@@ -1366,12 +1394,28 @@ export default function MeuPerfilPage() {
                   </p>
                 </div>
 
-                {/* Tempo de Empresa Calculado */}
+                {/* Tempo no Cargo Atual */}
                 <div className="space-y-1">
                   <span className="text-xs font-semibold text-[#757575] uppercase tracking-wide">
-                    Tempo de Empresa
+                    Tempo no Cargo Atual
                   </span>
                   <div className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md bg-[#E8EEF7] text-[#0D47A1] font-bold text-xs">
+                    <Briefcase className="h-3.5 w-3.5" />
+                    <span>{tempoNoCargoAtual}</span>
+                  </div>
+                  {funcaoVigente?.data_inicio && (
+                    <span className="text-[10px] text-[#757575] block">
+                      Início da função: {formatarDataBR(funcaoVigente.data_inicio)}
+                    </span>
+                  )}
+                </div>
+
+                {/* Tempo Total de Empresa */}
+                <div className="space-y-1">
+                  <span className="text-xs font-semibold text-[#757575] uppercase tracking-wide">
+                    Tempo de Empresa (CLT)
+                  </span>
+                  <div className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md bg-slate-100 text-[#424242] font-semibold text-xs">
                     <Clock className="h-3.5 w-3.5" />
                     <span>{tempoEmpresa}</span>
                   </div>
@@ -1388,7 +1432,7 @@ export default function MeuPerfilPage() {
                 </div>
 
                 {/* Local de Trabalho */}
-                <div className="space-y-1">
+                <div className="space-y-1 sm:col-span-2 lg:col-span-3">
                   <span className="text-xs font-semibold text-[#757575] uppercase tracking-wide">
                     Local de Trabalho
                   </span>
@@ -1396,6 +1440,154 @@ export default function MeuPerfilPage() {
                     {colaborador?.local_trabalho || 'Escritório Central'}
                   </p>
                 </div>
+              </div>
+
+              {/* Linha do Tempo de Funções no Meu Perfil */}
+              <div className="mt-6 pt-6 border-t border-[#F0F0F0] space-y-4">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <Briefcase className="h-4 w-4 text-[#0D47A1]" />
+                    <h4 className="text-xs font-bold text-[#212121] uppercase tracking-wide">
+                      Minha Jornada e Histórico de Funções
+                    </h4>
+                  </div>
+                  {historicoFuncoes.length > 0 && (
+                    <span className="text-[11px] text-[#757575]">
+                      {historicoFuncoes.length}{' '}
+                      {historicoFuncoes.length === 1 ? 'etapa registrada' : 'etapas registradas'}
+                    </span>
+                  )}
+                </div>
+
+                {historicoFuncoes.length > 0 ? (
+                  <div className="relative border-l-2 border-[#0D47A1] ml-3 pl-4 space-y-5 text-xs">
+                    {[...historicoFuncoes]
+                      .sort(
+                        (a, b) =>
+                          new Date(b.data_inicio).getTime() - new Date(a.data_inicio).getTime(),
+                      )
+                      .map((item, idx) => {
+                        const isVigente = !item.data_fim
+                        const tempoNestaEtapa = calcularTempoEmpresa(
+                          item.data_inicio,
+                          item.data_fim || undefined,
+                        )
+
+                        return (
+                          <div key={item.id || idx} className="relative group">
+                            <span
+                              className={`absolute -left-[23px] top-1 h-3 w-3 rounded-full ring-4 ring-white ${
+                                isVigente ? 'bg-[#0D47A1]' : 'bg-slate-400'
+                              }`}
+                            />
+                            <div className="flex items-center justify-between gap-2">
+                              <p className="font-bold text-[#212121] text-xs">{item.cargo}</p>
+                              {isVigente ? (
+                                <Badge
+                                  variant="outline"
+                                  className="bg-emerald-50 text-emerald-800 border-emerald-200 text-[10px] shrink-0"
+                                >
+                                  Posição Atual
+                                </Badge>
+                              ) : (
+                                <Badge
+                                  variant="outline"
+                                  className="bg-slate-50 text-slate-700 border-slate-200 text-[10px] shrink-0"
+                                >
+                                  {item.origem === 'promocao'
+                                    ? 'Promoção'
+                                    : item.origem === 'transferencia'
+                                      ? 'Transferência'
+                                      : 'Etapa Anterior'}
+                                </Badge>
+                              )}
+                            </div>
+
+                            <div className="mt-0.5 space-y-0.5 text-[#616161]">
+                              <p className="text-[11px]">
+                                <strong className="text-[#424242]">Departamento:</strong>{' '}
+                                {item.departamento || colaborador?.departamento || 'Não informado'}
+                                {' • '}
+                                {isVigente ? (
+                                  <span>Desde {formatarDataBR(item.data_inicio)}</span>
+                                ) : (
+                                  <span>
+                                    {formatarDataBR(item.data_inicio)} até{' '}
+                                    {formatarDataBR(item.data_fim)}
+                                  </span>
+                                )}
+                              </p>
+                              <p className="text-[10px] text-[#757575]">
+                                Tempo nesta função: <strong>{tempoNestaEtapa}</strong>
+                                {item.motivo && ` • Motivo: ${item.motivo}`}
+                              </p>
+                            </div>
+                          </div>
+                        )
+                      })}
+
+                    {/* Nó fixo da Admissão e Integração */}
+                    <div className="relative opacity-80 pt-1">
+                      <span className="absolute -left-[23px] top-2 h-3 w-3 rounded-full bg-slate-300 ring-4 ring-white" />
+                      <div className="flex items-center justify-between">
+                        <p className="font-semibold text-[#212121]">Admissão e Integração</p>
+                        <Badge
+                          variant="outline"
+                          className="bg-blue-50 text-[#0D47A1] border-blue-200 text-[10px]"
+                        >
+                          Ingresso
+                        </Badge>
+                      </div>
+                      <p className="text-[#757575] text-[11px] mt-0.5">
+                        Contratação inicial registrada em{' '}
+                        {formatarDataBR(colaborador?.data_admissao)} • Tempo total na empresa:{' '}
+                        <strong>{tempoEmpresa}</strong>
+                      </p>
+                    </div>
+                  </div>
+                ) : (
+                  /* Fallback inicial: posição atual a partir da admissão */
+                  <div className="relative border-l-2 border-[#0D47A1] ml-3 pl-4 space-y-4 text-xs">
+                    <div className="relative">
+                      <span className="absolute -left-[23px] top-1 h-3 w-3 rounded-full bg-[#0D47A1] ring-4 ring-white" />
+                      <div className="flex items-center justify-between">
+                        <p className="font-bold text-[#212121]">
+                          {colaborador?.cargo || 'Cargo atual'}
+                        </p>
+                        <Badge
+                          variant="outline"
+                          className="bg-emerald-50 text-emerald-800 border-emerald-200 text-[10px]"
+                        >
+                          Posição Atual
+                        </Badge>
+                      </div>
+                      <p className="text-[#757575] text-[11px]">
+                        Departamento: {colaborador?.departamento || 'Setor'} • Desde{' '}
+                        {formatarDataBR(colaborador?.data_admissao)}
+                      </p>
+                      <p className="text-[10px] text-[#757575] mt-0.5">
+                        Tempo na função: <strong>{tempoEmpresa}</strong>
+                      </p>
+                    </div>
+
+                    <div className="relative opacity-70">
+                      <span className="absolute -left-[23px] top-1 h-3 w-3 rounded-full bg-slate-300 ring-4 ring-white" />
+                      <div className="flex items-center justify-between">
+                        <p className="font-semibold text-[#212121]">Admissão e Integração</p>
+                        <Badge
+                          variant="outline"
+                          className="bg-blue-50 text-[#0D47A1] border-blue-200 text-[10px]"
+                        >
+                          Ingresso
+                        </Badge>
+                      </div>
+                      <p className="text-[#757575] text-[11px] mt-0.5">
+                        Contratação inicial registrada em{' '}
+                        {formatarDataBR(colaborador?.data_admissao)}
+                      </p>
+                    </div>
+                  </div>
+                )}
               </div>
             </CardContent>
           </Card>

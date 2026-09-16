@@ -1511,3 +1511,4 @@ export const beneficioService = {
 }
 
 export { feriasService } from './feriasService'
+export { historicoFuncaoService } from './historicoFuncaoService'
