@@ -92,35 +92,62 @@ export const userService = {
 
   /**
    * Exclusão permanente de usuário (apenas Admin Geral).
-   * Remove também registros correlacionados em permissao_usuario se existirem.
+   * Desvincula colaborador, remove permissões, limpa notificações e onboarding,
+   * preservando integralmente o histórico cadastral de RH e logs de auditoria.
    */
   async deleteUser(userId: string): Promise<boolean> {
-    // 1. Remove permissões associadas se existirem
+    // 1. Se houver colaborador atrelado, desvincula user_id para manter histórico de RH
     try {
-      const perms = await pb.collection('permissao_usuario').getList(1, 1, {
+      const colabs = await pb.collection('colaborador').getFullList({
         filter: `user_id = "${userId}"`,
       })
-      if (perms.items.length > 0) {
-        await pb.collection('permissao_usuario').delete(perms.items[0].id)
-      }
-    } catch (e) {
-      console.warn('Aviso ao limpar permissões do usuário excluído:', e)
-    }
-
-    // 2. Se houver colaborador atrelado, desvincula user_id para manter histórico de RH
-    try {
-      const colab = await pb.collection('colaborador').getFirstListItem(`user_id = "${userId}"`)
-      if (colab?.id) {
+      for (const colab of colabs) {
         await pb.collection('colaborador').update(colab.id, {
           user_id: null,
           status: 'inativo',
         })
       }
-    } catch {
-      // Nenhum colaborador atrelado ou já desvinculado
+    } catch (e) {
+      console.warn('Aviso ao desvincular colaborador do usuário:', e)
     }
 
-    // 3. Deleta o registro de usuário
+    // 2. Remove registros em permissao_usuario (flags do usuário)
+    try {
+      const perms = await pb.collection('permissao_usuario').getFullList({
+        filter: `user_id = "${userId}"`,
+      })
+      for (const perm of perms) {
+        await pb.collection('permissao_usuario').delete(perm.id)
+      }
+    } catch (e) {
+      console.warn('Aviso ao limpar permissões do usuário excluído:', e)
+    }
+
+    // 3. Remove notificações direcionadas a este usuário
+    try {
+      const notifs = await pb.collection('notificacao').getFullList({
+        filter: `destinatario_id = "${userId}"`,
+      })
+      for (const notif of notifs) {
+        await pb.collection('notificacao').delete(notif.id)
+      }
+    } catch (e) {
+      console.warn('Aviso ao limpar notificações do usuário:', e)
+    }
+
+    // 4. Remove onboarding de gestor vinculado ao usuário
+    try {
+      const onboardings = await pb.collection('onboarding_gestor').getFullList({
+        filter: `gestor_user_id = "${userId}"`,
+      })
+      for (const ob of onboardings) {
+        await pb.collection('onboarding_gestor').delete(ob.id)
+      }
+    } catch (e) {
+      console.warn('Aviso ao limpar onboarding_gestor do usuário:', e)
+    }
+
+    // 5. Deleta o registro de usuário (o hook on_user_delete também desvincula auditoria e referências auxiliares)
     await pb.collection('users').delete(userId)
     return true
   },

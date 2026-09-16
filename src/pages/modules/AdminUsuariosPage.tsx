@@ -370,9 +370,21 @@ export default function AdminUsuariosPage() {
       setUsuarioAlvoAcao(null)
     } catch (err: any) {
       console.error('Erro ao processar ação no usuário:', err)
+      const errDetail = err?.data?.message || err?.message || ''
+      let userFriendlyMsg = 'Não foi possível concluir a operação no banco de dados.'
+      if (
+        errDetail.includes('required relation reference') ||
+        errDetail.includes('part of a required relation')
+      ) {
+        userFriendlyMsg =
+          'O usuário ainda possui vínculos obrigatórios pendentes de desassociação no sistema.'
+      } else if (errDetail) {
+        userFriendlyMsg = errDetail
+      }
+
       toast({
         title: 'Erro ao processar ação',
-        description: err?.message || 'Não foi possível concluir a operação no banco de dados.',
+        description: userFriendlyMsg,
         variant: 'destructive',
       })
     } finally {
