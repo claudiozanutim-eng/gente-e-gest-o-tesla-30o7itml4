@@ -25,7 +25,17 @@ import {
   Clock3,
   XCircle,
   Camera,
+  MessageSquarePlus,
+  FileSpreadsheet,
 } from 'lucide-react'
+import {
+  validarCpf,
+  formatarCpf,
+  formatarTelefone,
+  formatarCep,
+  validarEmail,
+  dateToInputString,
+} from '@/lib/validationColaborador'
 import { useAuth } from '@/context/AuthContext'
 import {
   colaboradorService,
@@ -157,6 +167,24 @@ export default function MeuPerfilPage() {
   const [editOldValue, setEditOldValue] = useState<string>('')
   const [editNewValue, setEditNewValue] = useState<string>('')
   const [editObservation, setEditObservation] = useState<string>('')
+
+  // Subcampos para blocos compostos
+  const [docSubTipo, setDocSubTipo] = useState<'cnh' | 'titulo_eleitor' | 'reservista'>('cnh')
+  const [filiacaoSubTipo, setFiliacaoSubTipo] = useState<'nome_mae' | 'nome_pai'>('nome_mae')
+
+  // Endereço estruturado
+  const [endCep, setEndCep] = useState<string>('')
+  const [endLogradouro, setEndLogradouro] = useState<string>('')
+  const [endNumero, setEndNumero] = useState<string>('')
+  const [endComplemento, setEndComplemento] = useState<string>('')
+  const [endBairro, setEndBairro] = useState<string>('')
+  const [endCidade, setEndCidade] = useState<string>('')
+  const [endUf, setEndUf] = useState<string>('')
+
+  // Modal de Solicitação Geral
+  const [modalGeralOpen, setModalGeralOpen] = useState<boolean>(false)
+  const [descricaoGeral, setDescricaoGeral] = useState<string>('')
+  const [submittingGeral, setSubmittingGeral] = useState<boolean>(false)
 
   // Para dados bancários, campos estruturados para facilitar edição
   const [bancoNome, setBancoNome] = useState<string>('')
@@ -305,19 +333,14 @@ export default function MeuPerfilPage() {
     carregarDados()
   }, [carregarDados])
 
-  // Abre modal para campo simples ou dados bancários
-  const handleOpenEditModal = (
-    campoKey: 'telefone' | 'endereco' | 'estado_civil' | 'pix' | 'dados_bancarios',
-    label: string,
-    valorAtual?: string,
-  ) => {
+  // Abre modal para qualquer campo de dados pessoais
+  const handleOpenEditModal = (campoKey: string, label: string, valorAtual?: string) => {
     setEditFieldKey(campoKey)
     setEditFieldLabel(label)
     setEditOldValue(valorAtual || '')
     setEditObservation('')
 
     if (campoKey === 'dados_bancarios') {
-      // Tentar pré-preencher a partir da string caso contenha padrão "Banco X | Agência: Y | Conta: Z"
       const raw = valorAtual || ''
       setEditNewValue(raw)
       const bancoMatch = raw.match(/^(.*?)\s*\|/i)
@@ -328,11 +351,53 @@ export default function MeuPerfilPage() {
       setBancoAgencia(agenciaMatch ? agenciaMatch[1].trim() : '')
       setBancoConta(contaMatch ? contaMatch[1].trim() : '')
       setBancoTipo(raw.toLowerCase().includes('poupança') ? 'Conta Poupança' : 'Conta Corrente')
+    } else if (campoKey === 'documentos_complementares') {
+      setDocSubTipo('cnh')
+      setEditOldValue(colaborador?.cnh || '')
+      setEditNewValue(colaborador?.cnh || '')
+    } else if (campoKey === 'filiacao') {
+      setFiliacaoSubTipo('nome_mae')
+      setEditOldValue(colaborador?.nome_mae || '')
+      setEditNewValue(colaborador?.nome_mae || '')
+    } else if (campoKey === 'endereco') {
+      const raw = valorAtual || ''
+      setEditNewValue(raw)
+      // Tentar decompor se já estiver no padrão "Rua X, nº Y, Compl, Bairro, Cidade - UF, CEP 00000-000"
+      const cepMatch = raw.match(/CEP\s*([\d-]+)/i)
+      setEndCep(cepMatch ? formatarCep(cepMatch[1]) : '')
+      setEndLogradouro('')
+      setEndNumero('')
+      setEndComplemento('')
+      setEndBairro('')
+      setEndCidade('')
+      setEndUf('')
+    } else if (campoKey === 'data_nascimento') {
+      setEditNewValue(dateToInputString(valorAtual))
     } else {
       setEditNewValue(valorAtual || '')
     }
 
     setModalOpen(true)
+  }
+
+  // Mudança do subtipo de documento complementar no modal
+  const handleDocSubTipoChange = (novoSubTipo: 'cnh' | 'titulo_eleitor' | 'reservista') => {
+    setDocSubTipo(novoSubTipo)
+    let valAtual = ''
+    if (novoSubTipo === 'cnh') valAtual = colaborador?.cnh || ''
+    if (novoSubTipo === 'titulo_eleitor') valAtual = colaborador?.titulo_eleitor || ''
+    if (novoSubTipo === 'reservista') valAtual = colaborador?.reservista || ''
+    setEditOldValue(valAtual)
+    setEditNewValue(valAtual)
+  }
+
+  // Mudança do subtipo de filiação no modal
+  const handleFiliacaoSubTipoChange = (novoSubTipo: 'nome_mae' | 'nome_pai') => {
+    setFiliacaoSubTipo(novoSubTipo)
+    const valAtual =
+      novoSubTipo === 'nome_mae' ? colaborador?.nome_mae || '' : colaborador?.nome_pai || ''
+    setEditOldValue(valAtual)
+    setEditNewValue(valAtual)
   }
 
   // Enviar solicitação ao RH
@@ -348,7 +413,9 @@ export default function MeuPerfilPage() {
       return
     }
 
+    let finalCampoLabel = editFieldLabel
     let finalNewValue = editNewValue.trim()
+    let finalOldValue = editOldValue.trim()
 
     if (editFieldKey === 'dados_bancarios') {
       if (!bancoNome.trim() || !bancoAgencia.trim() || !bancoConta.trim()) {
@@ -360,6 +427,58 @@ export default function MeuPerfilPage() {
         return
       }
       finalNewValue = `${bancoNome.trim()} | Agência: ${bancoAgencia.trim()} | ${bancoTipo}: ${bancoConta.trim()}`
+    } else if (editFieldKey === 'documentos_complementares') {
+      const mapaLabels: Record<string, string> = {
+        cnh: 'CNH',
+        titulo_eleitor: 'Título de Eleitor',
+        reservista: 'Reservista',
+      }
+      finalCampoLabel = mapaLabels[docSubTipo] || 'CNH'
+      finalOldValue =
+        (docSubTipo === 'cnh'
+          ? colaborador.cnh
+          : docSubTipo === 'titulo_eleitor'
+            ? colaborador.titulo_eleitor
+            : colaborador.reservista) || 'Não informado'
+    } else if (editFieldKey === 'filiacao') {
+      finalCampoLabel = filiacaoSubTipo === 'nome_mae' ? 'Mãe' : 'Pai'
+      finalOldValue =
+        (filiacaoSubTipo === 'nome_mae' ? colaborador.nome_mae : colaborador.nome_pai) ||
+        'Não informado'
+    } else if (editFieldKey === 'endereco') {
+      // Se preencheu os subcampos estruturados, montar o endereço
+      if (endLogradouro.trim()) {
+        const partes: string[] = []
+        partes.push(endLogradouro.trim())
+        if (endNumero.trim()) partes.push(`nº ${endNumero.trim()}`)
+        if (endComplemento.trim()) partes.push(endComplemento.trim())
+        if (endBairro.trim()) partes.push(endBairro.trim())
+        if (endCidade.trim() || endUf.trim()) {
+          partes.push(`${endCidade.trim() || ''}${endUf.trim() ? ` - ${endUf.trim()}` : ''}`)
+        }
+        if (endCep.trim()) partes.push(`CEP ${formatarCep(endCep.trim())}`)
+        finalNewValue = partes.join(', ')
+      }
+    } else if (editFieldKey === 'cpf') {
+      const cpfFormatado = formatarCpf(finalNewValue)
+      if (finalNewValue && !validarCpf(finalNewValue)) {
+        toast({
+          title: 'CPF inválido',
+          description: 'O número de CPF digitado não é válido. Verifique os dígitos.',
+          variant: 'destructive',
+        })
+        return
+      }
+      finalNewValue = cpfFormatado
+    } else if (editFieldKey === 'email') {
+      if (finalNewValue && !validarEmail(finalNewValue)) {
+        toast({
+          title: 'E-mail inválido',
+          description: 'Por favor, insira um formato de e-mail válido.',
+          variant: 'destructive',
+        })
+        return
+      }
     }
 
     if (!finalNewValue) {
@@ -371,7 +490,7 @@ export default function MeuPerfilPage() {
       return
     }
 
-    if (finalNewValue === editOldValue.trim()) {
+    if (finalNewValue === finalOldValue) {
       toast({
         title: 'Valor idêntico',
         description: 'O novo valor deve ser diferente do valor cadastrado atualmente.',
@@ -386,8 +505,8 @@ export default function MeuPerfilPage() {
       const payload = {
         colaborador_id: colaborador.id,
         tenant_id: user.tenant_id,
-        campo: editFieldLabel,
-        valor_antigo: editOldValue || 'Não informado',
+        campo: finalCampoLabel,
+        valor_antigo: finalOldValue || 'Não informado',
         valor_novo: editObservation
           ? `${finalNewValue} (Obs: ${editObservation.trim()})`
           : finalNewValue,
@@ -399,8 +518,8 @@ export default function MeuPerfilPage() {
       setSolicitacoes((prev) => [novaSolicitacao, ...prev])
 
       toast({
-        title: 'Solicitação enviada ao RH',
-        description: `Seu pedido de alteração de "${editFieldLabel}" foi registrado e está com status pendente de aprovação.`,
+        title: 'Solicitação enviada ao RH com sucesso',
+        description: `Seu pedido de alteração de "${finalCampoLabel}" foi registrado e está em análise.`,
       })
 
       setModalOpen(false)
@@ -413,6 +532,61 @@ export default function MeuPerfilPage() {
       })
     } finally {
       setSubmitting(false)
+    }
+  }
+
+  // Enviar Solicitação Geral (texto livre)
+  const handleSubmitSolicitacaoGeral = async (e: React.FormEvent) => {
+    e.preventDefault()
+    if (!colaborador || !user?.tenant_id) {
+      toast({
+        title: 'Erro ao enviar',
+        description: 'Registro de colaborador não localizado.',
+        variant: 'destructive',
+      })
+      return
+    }
+
+    const texto = descricaoGeral.trim()
+    if (!texto) {
+      toast({
+        title: 'Descrição obrigatória',
+        description: 'Por favor, descreva as correções necessárias nos seus dados cadastrais.',
+        variant: 'destructive',
+      })
+      return
+    }
+
+    try {
+      setSubmittingGeral(true)
+
+      const payload = {
+        colaborador_id: colaborador.id,
+        tenant_id: user.tenant_id,
+        campo: 'Geral',
+        valor_antigo: 'Revisão cadastral solicitada pelo colaborador',
+        valor_novo: texto,
+      }
+
+      const novaSolicitacao = await solicitacaoService.createSolicitacao(payload)
+      setSolicitacoes((prev) => [novaSolicitacao, ...prev])
+
+      toast({
+        title: 'Solicitação enviada ao RH com sucesso',
+        description: 'Sua solicitação geral foi encaminhada para a equipe de Recursos Humanos.',
+      })
+
+      setModalGeralOpen(false)
+      setDescricaoGeral('')
+    } catch (err) {
+      console.error('Erro ao enviar solicitação geral:', err)
+      toast({
+        title: 'Falha ao registrar solicitação',
+        description: 'Não foi possível enviar a solicitação geral. Tente novamente.',
+        variant: 'destructive',
+      })
+    } finally {
+      setSubmittingGeral(false)
     }
   }
 
@@ -605,7 +779,7 @@ export default function MeuPerfilPage() {
           {/* 2. Seção Dados Pessoais */}
           <Card className="border border-[#E0E0E0] shadow-xs bg-white">
             <CardHeader className="border-b border-[#F0F0F0] pb-4">
-              <div className="flex items-center justify-between">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
                 <div className="flex items-center gap-2.5">
                   <div className="h-9 w-9 rounded-lg bg-blue-50 text-[#0D47A1] flex items-center justify-center">
                     <User className="h-5 w-5" />
@@ -619,66 +793,181 @@ export default function MeuPerfilPage() {
                     </CardDescription>
                   </div>
                 </div>
-                <Tooltip>
-                  <TooltipTrigger asChild>
-                    <div className="flex items-center gap-1 text-xs text-[#757575] bg-[#F5F5F5] px-2.5 py-1 rounded-md">
-                      <Info className="h-3.5 w-3.5 text-[#0D47A1]" />
-                      <span>Campos com</span>
-                      <Edit3 className="h-3 w-3 text-[#0D47A1]" />
-                      <span>são editáveis via RH</span>
-                    </div>
-                  </TooltipTrigger>
-                  <TooltipContent className="text-xs max-w-xs">
-                    Campos como CPF, RG e Nome são mantidos pelo RH para integridade do eSocial.
-                    Telefone, Endereço, Estado Civil e PIX podem ser solicitados para alteração.
-                  </TooltipContent>
-                </Tooltip>
+
+                <div className="flex items-center gap-2 flex-wrap">
+                  {/* Botão de Solicitação Geral em destaque */}
+                  {getSolicitacaoPendente('Geral') ? (
+                    <Badge
+                      variant="outline"
+                      className="bg-amber-50 text-amber-700 border-amber-300 text-xs py-1"
+                    >
+                      <Clock3 className="h-3.5 w-3.5 mr-1 text-amber-600" />
+                      Solicitação Geral em Análise
+                    </Badge>
+                  ) : (
+                    <Button
+                      size="sm"
+                      onClick={() => setModalGeralOpen(true)}
+                      className="bg-[#0D47A1] hover:bg-[#0A3A82] text-white text-xs font-semibold h-8 px-3 gap-1.5 shadow-xs"
+                    >
+                      <MessageSquarePlus className="h-3.5 w-3.5" />
+                      Solicitação Geral
+                    </Button>
+                  )}
+
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <div className="flex items-center gap-1 text-xs text-[#757575] bg-[#F5F5F5] px-2.5 py-1 rounded-md cursor-default">
+                        <Info className="h-3.5 w-3.5 text-[#0D47A1]" />
+                        <span>Campos com</span>
+                        <Edit3 className="h-3 w-3 text-[#0D47A1]" />
+                        <span>são editáveis via RH</span>
+                      </div>
+                    </TooltipTrigger>
+                    <TooltipContent className="text-xs max-w-xs">
+                      Clique em &quot;Solicitar Alteração&quot; em qualquer campo para pedir
+                      correção ao RH caso encontre erro de digitação.
+                    </TooltipContent>
+                  </Tooltip>
+                </div>
               </div>
             </CardHeader>
 
             <CardContent className="pt-6">
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-y-5 gap-x-6">
-                {/* Nome Completo (Read-only) */}
+                {/* Nome Completo */}
                 <div className="space-y-1">
-                  <span className="text-xs font-semibold text-[#757575] uppercase tracking-wide">
-                    Nome Completo
-                  </span>
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs font-semibold text-[#757575] uppercase tracking-wide">
+                      Nome Completo
+                    </span>
+                    {getSolicitacaoPendente('Nome Completo') ? (
+                      <Badge
+                        variant="outline"
+                        className="bg-amber-50 text-amber-700 border-amber-300 text-[10px] py-0"
+                      >
+                        Pendente RH
+                      </Badge>
+                    ) : (
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={() =>
+                          handleOpenEditModal(
+                            'nome_completo',
+                            'Nome Completo',
+                            colaborador?.nome_completo || colaborador?.nome,
+                          )
+                        }
+                        className="h-6 px-2 text-[11px] text-[#0D47A1] hover:text-[#0A3A82] hover:bg-blue-50 font-semibold gap-1"
+                      >
+                        <Edit3 className="h-3 w-3" />
+                        Solicitar Alteração
+                      </Button>
+                    )}
+                  </div>
                   <p className="text-sm font-medium text-[#212121]">
                     {colaborador?.nome_completo || colaborador?.nome || '—'}
                   </p>
                 </div>
 
-                {/* CPF (Read-only) */}
+                {/* CPF */}
                 <div className="space-y-1">
-                  <span className="text-xs font-semibold text-[#757575] uppercase tracking-wide">
-                    CPF
-                  </span>
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs font-semibold text-[#757575] uppercase tracking-wide">
+                      CPF
+                    </span>
+                    {getSolicitacaoPendente('CPF') ? (
+                      <Badge
+                        variant="outline"
+                        className="bg-amber-50 text-amber-700 border-amber-300 text-[10px] py-0"
+                      >
+                        Pendente RH
+                      </Badge>
+                    ) : (
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => handleOpenEditModal('cpf', 'CPF', colaborador?.cpf)}
+                        className="h-6 px-2 text-[11px] text-[#0D47A1] hover:text-[#0A3A82] hover:bg-blue-50 font-semibold gap-1"
+                      >
+                        <Edit3 className="h-3 w-3" />
+                        Solicitar Alteração
+                      </Button>
+                    )}
+                  </div>
                   <p className="text-sm font-medium text-[#212121] font-mono">
                     {colaborador?.cpf || '—'}
                   </p>
                 </div>
 
-                {/* RG (Read-only) */}
+                {/* RG */}
                 <div className="space-y-1">
-                  <span className="text-xs font-semibold text-[#757575] uppercase tracking-wide">
-                    RG
-                  </span>
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs font-semibold text-[#757575] uppercase tracking-wide">
+                      RG
+                    </span>
+                    {getSolicitacaoPendente('RG') ? (
+                      <Badge
+                        variant="outline"
+                        className="bg-amber-50 text-amber-700 border-amber-300 text-[10px] py-0"
+                      >
+                        Pendente RH
+                      </Badge>
+                    ) : (
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => handleOpenEditModal('rg', 'RG', colaborador?.rg)}
+                        className="h-6 px-2 text-[11px] text-[#0D47A1] hover:text-[#0A3A82] hover:bg-blue-50 font-semibold gap-1"
+                      >
+                        <Edit3 className="h-3 w-3" />
+                        Solicitar Alteração
+                      </Button>
+                    )}
+                  </div>
                   <p className="text-sm font-medium text-[#212121]">
                     {colaborador?.rg || 'Não informado'}
                   </p>
                 </div>
 
-                {/* Data de Nascimento (Read-only) */}
+                {/* Data de Nascimento */}
                 <div className="space-y-1">
-                  <span className="text-xs font-semibold text-[#757575] uppercase tracking-wide">
-                    Data de Nascimento
-                  </span>
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs font-semibold text-[#757575] uppercase tracking-wide">
+                      Data de Nascimento
+                    </span>
+                    {getSolicitacaoPendente('Data de Nascimento') ? (
+                      <Badge
+                        variant="outline"
+                        className="bg-amber-50 text-amber-700 border-amber-300 text-[10px] py-0"
+                      >
+                        Pendente RH
+                      </Badge>
+                    ) : (
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={() =>
+                          handleOpenEditModal(
+                            'data_nascimento',
+                            'Data de Nascimento',
+                            colaborador?.data_nascimento,
+                          )
+                        }
+                        className="h-6 px-2 text-[11px] text-[#0D47A1] hover:text-[#0A3A82] hover:bg-blue-50 font-semibold gap-1"
+                      >
+                        <Edit3 className="h-3 w-3" />
+                        Solicitar Alteração
+                      </Button>
+                    )}
+                  </div>
                   <p className="text-sm font-medium text-[#212121]">
                     {formatarDataBR(colaborador?.data_nascimento)}
                   </p>
                 </div>
 
-                {/* Estado Civil (Editável) */}
+                {/* Estado Civil */}
                 <div className="space-y-1">
                   <div className="flex items-center justify-between">
                     <span className="text-xs font-semibold text-[#757575] uppercase tracking-wide">
@@ -714,7 +1003,7 @@ export default function MeuPerfilPage() {
                   </p>
                 </div>
 
-                {/* Telefone (Editável) */}
+                {/* Telefone */}
                 <div className="space-y-1">
                   <div className="flex items-center justify-between">
                     <span className="text-xs font-semibold text-[#757575] uppercase tracking-wide">
@@ -746,17 +1035,44 @@ export default function MeuPerfilPage() {
                   </p>
                 </div>
 
-                {/* E-mail Corporativo (Read-only) */}
+                {/* E-mail Corporativo */}
                 <div className="space-y-1">
-                  <span className="text-xs font-semibold text-[#757575] uppercase tracking-wide">
-                    E-mail Corporativo
-                  </span>
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs font-semibold text-[#757575] uppercase tracking-wide">
+                      E-mail Corporativo
+                    </span>
+                    {getSolicitacaoPendente('E-mail Corporativo') ||
+                    getSolicitacaoPendente('E-mail') ? (
+                      <Badge
+                        variant="outline"
+                        className="bg-amber-50 text-amber-700 border-amber-300 text-[10px] py-0"
+                      >
+                        Pendente RH
+                      </Badge>
+                    ) : (
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={() =>
+                          handleOpenEditModal(
+                            'email',
+                            'E-mail Corporativo',
+                            colaborador?.email || user?.email,
+                          )
+                        }
+                        className="h-6 px-2 text-[11px] text-[#0D47A1] hover:text-[#0A3A82] hover:bg-blue-50 font-semibold gap-1"
+                      >
+                        <Edit3 className="h-3 w-3" />
+                        Solicitar Alteração
+                      </Button>
+                    )}
+                  </div>
                   <p className="text-sm font-medium text-[#212121] break-all">
                     {colaborador?.email || user?.email || '—'}
                   </p>
                 </div>
 
-                {/* Chave PIX (Editável) */}
+                {/* Chave PIX */}
                 <div className="space-y-1">
                   <div className="flex items-center justify-between">
                     <span className="text-xs font-semibold text-[#757575] uppercase tracking-wide">
@@ -786,31 +1102,99 @@ export default function MeuPerfilPage() {
                   </p>
                 </div>
 
-                {/* Raça / Cor (Read-only) */}
+                {/* Raça / Cor */}
                 <div className="space-y-1">
-                  <span className="text-xs font-semibold text-[#757575] uppercase tracking-wide">
-                    Raça / Cor
-                  </span>
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs font-semibold text-[#757575] uppercase tracking-wide">
+                      Raça / Cor
+                    </span>
+                    {getSolicitacaoPendente('Raça / Cor') ? (
+                      <Badge
+                        variant="outline"
+                        className="bg-amber-50 text-amber-700 border-amber-300 text-[10px] py-0"
+                      >
+                        Pendente RH
+                      </Badge>
+                    ) : (
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={() =>
+                          handleOpenEditModal('raca_cor', 'Raça / Cor', colaborador?.raca_cor)
+                        }
+                        className="h-6 px-2 text-[11px] text-[#0D47A1] hover:text-[#0A3A82] hover:bg-blue-50 font-semibold gap-1"
+                      >
+                        <Edit3 className="h-3 w-3" />
+                        Solicitar Alteração
+                      </Button>
+                    )}
+                  </div>
                   <p className="text-sm font-medium text-[#212121]">
                     {colaborador?.raca_cor || 'Não informado'}
                   </p>
                 </div>
 
-                {/* Sexo (Read-only) */}
+                {/* Sexo */}
                 <div className="space-y-1">
-                  <span className="text-xs font-semibold text-[#757575] uppercase tracking-wide">
-                    Sexo
-                  </span>
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs font-semibold text-[#757575] uppercase tracking-wide">
+                      Sexo
+                    </span>
+                    {getSolicitacaoPendente('Sexo') ? (
+                      <Badge
+                        variant="outline"
+                        className="bg-amber-50 text-amber-700 border-amber-300 text-[10px] py-0"
+                      >
+                        Pendente RH
+                      </Badge>
+                    ) : (
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => handleOpenEditModal('sexo', 'Sexo', colaborador?.sexo)}
+                        className="h-6 px-2 text-[11px] text-[#0D47A1] hover:text-[#0A3A82] hover:bg-blue-50 font-semibold gap-1"
+                      >
+                        <Edit3 className="h-3 w-3" />
+                        Solicitar Alteração
+                      </Button>
+                    )}
+                  </div>
                   <p className="text-sm font-medium text-[#212121]">
                     {colaborador?.sexo || 'Não informado'}
                   </p>
                 </div>
 
-                {/* Deficiência (PCD) (Read-only) */}
+                {/* Deficiência (PCD) */}
                 <div className="space-y-1">
-                  <span className="text-xs font-semibold text-[#757575] uppercase tracking-wide">
-                    Deficiência (PCD)
-                  </span>
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs font-semibold text-[#757575] uppercase tracking-wide">
+                      Deficiência (PCD)
+                    </span>
+                    {getSolicitacaoPendente('Deficiência (PCD)') ? (
+                      <Badge
+                        variant="outline"
+                        className="bg-amber-50 text-amber-700 border-amber-300 text-[10px] py-0"
+                      >
+                        Pendente RH
+                      </Badge>
+                    ) : (
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={() =>
+                          handleOpenEditModal(
+                            'deficiencia',
+                            'Deficiência (PCD)',
+                            colaborador?.deficiencia,
+                          )
+                        }
+                        className="h-6 px-2 text-[11px] text-[#0D47A1] hover:text-[#0A3A82] hover:bg-blue-50 font-semibold gap-1"
+                      >
+                        <Edit3 className="h-3 w-3" />
+                        Solicitar Alteração
+                      </Button>
+                    )}
+                  </div>
                   <p className="text-sm font-medium text-[#212121]">
                     {colaborador?.deficiencia || 'Nenhuma'}
                   </p>
@@ -818,9 +1202,39 @@ export default function MeuPerfilPage() {
 
                 {/* Documentos Complementares: Título Eleitor / CNH / Reservista */}
                 <div className="space-y-1">
-                  <span className="text-xs font-semibold text-[#757575] uppercase tracking-wide">
-                    CNH / Título / Reservista
-                  </span>
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs font-semibold text-[#757575] uppercase tracking-wide">
+                      CNH / Título / Reservista
+                    </span>
+                    {getSolicitacaoPendente('CNH') ||
+                    getSolicitacaoPendente('Título de Eleitor') ||
+                    getSolicitacaoPendente('Reservista') ? (
+                      <Badge
+                        variant="outline"
+                        className="bg-amber-50 text-amber-700 border-amber-300 text-[10px] py-0"
+                      >
+                        Pendente RH
+                      </Badge>
+                    ) : (
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={() =>
+                          handleOpenEditModal(
+                            'documentos_complementares',
+                            'CNH / Título / Reservista',
+                            colaborador?.cnh ||
+                              colaborador?.titulo_eleitor ||
+                              colaborador?.reservista,
+                          )
+                        }
+                        className="h-6 px-2 text-[11px] text-[#0D47A1] hover:text-[#0A3A82] hover:bg-blue-50 font-semibold gap-1"
+                      >
+                        <Edit3 className="h-3 w-3" />
+                        Solicitar Alteração
+                      </Button>
+                    )}
+                  </div>
                   <p className="text-xs text-[#424242] leading-relaxed">
                     CNH: {colaborador?.cnh || '—'} <br />
                     Título: {colaborador?.titulo_eleitor || '—'} <br />
@@ -830,9 +1244,35 @@ export default function MeuPerfilPage() {
 
                 {/* Filiação (Nome do Pai e Mãe) */}
                 <div className="space-y-1 sm:col-span-2">
-                  <span className="text-xs font-semibold text-[#757575] uppercase tracking-wide">
-                    Filiação (Pai e Mãe)
-                  </span>
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs font-semibold text-[#757575] uppercase tracking-wide">
+                      Filiação (Pai e Mãe)
+                    </span>
+                    {getSolicitacaoPendente('Mãe') || getSolicitacaoPendente('Pai') ? (
+                      <Badge
+                        variant="outline"
+                        className="bg-amber-50 text-amber-700 border-amber-300 text-[10px] py-0"
+                      >
+                        Pendente RH
+                      </Badge>
+                    ) : (
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={() =>
+                          handleOpenEditModal(
+                            'filiacao',
+                            'Filiação (Pai e Mãe)',
+                            `Mãe: ${colaborador?.nome_mae || 'Não informado'} | Pai: ${colaborador?.nome_pai || 'Não informado'}`,
+                          )
+                        }
+                        className="h-6 px-2 text-[11px] text-[#0D47A1] hover:text-[#0A3A82] hover:bg-blue-50 font-semibold gap-1"
+                      >
+                        <Edit3 className="h-3 w-3" />
+                        Solicitar Alteração
+                      </Button>
+                    )}
+                  </div>
                   <p className="text-sm font-medium text-[#212121]">
                     Mãe: {colaborador?.nome_mae || 'Não informado'}
                     <br />
@@ -840,7 +1280,7 @@ export default function MeuPerfilPage() {
                   </p>
                 </div>
 
-                {/* Endereço Residencial Completo (Editável) */}
+                {/* Endereço Residencial Completo */}
                 <div className="space-y-1 sm:col-span-2 lg:col-span-3 border-t border-[#F5F5F5] pt-4">
                   <div className="flex items-center justify-between">
                     <span className="text-xs font-semibold text-[#757575] uppercase tracking-wide flex items-center gap-1.5">
@@ -1300,6 +1740,191 @@ export default function MeuPerfilPage() {
                   </SelectContent>
                 </Select>
               </div>
+            ) : editFieldKey === 'sexo' ? (
+              <div className="space-y-1.5">
+                <Label htmlFor="sexo_select" className="text-xs font-semibold text-[#212121]">
+                  Novo Sexo *
+                </Label>
+                <Select value={editNewValue} onValueChange={setEditNewValue}>
+                  <SelectTrigger className="text-xs border-[#E0E0E0] h-9">
+                    <SelectValue placeholder="Selecione o sexo" />
+                  </SelectTrigger>
+                  <SelectContent className="bg-white border-[#E0E0E0]">
+                    <SelectItem value="Masculino">Masculino</SelectItem>
+                    <SelectItem value="Feminino">Feminino</SelectItem>
+                    <SelectItem value="Outro">Outro</SelectItem>
+                    <SelectItem value="Prefiro não informar">Prefiro não informar</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+            ) : editFieldKey === 'raca_cor' ? (
+              <div className="space-y-1.5">
+                <Label htmlFor="raca_select" className="text-xs font-semibold text-[#212121]">
+                  Nova Raça / Cor *
+                </Label>
+                <Select value={editNewValue} onValueChange={setEditNewValue}>
+                  <SelectTrigger className="text-xs border-[#E0E0E0] h-9">
+                    <SelectValue placeholder="Selecione a raça/cor" />
+                  </SelectTrigger>
+                  <SelectContent className="bg-white border-[#E0E0E0]">
+                    <SelectItem value="Branca">Branca</SelectItem>
+                    <SelectItem value="Preta">Preta</SelectItem>
+                    <SelectItem value="Parda">Parda</SelectItem>
+                    <SelectItem value="Amarela">Amarela</SelectItem>
+                    <SelectItem value="Indígena">Indígena</SelectItem>
+                    <SelectItem value="Não informado">Não informado</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+            ) : editFieldKey === 'deficiencia' ? (
+              <div className="space-y-1.5">
+                <Label
+                  htmlFor="deficiencia_select"
+                  className="text-xs font-semibold text-[#212121]"
+                >
+                  Deficiência (PCD) *
+                </Label>
+                <Select value={editNewValue} onValueChange={setEditNewValue}>
+                  <SelectTrigger className="text-xs border-[#E0E0E0] h-9">
+                    <SelectValue placeholder="Selecione a condição" />
+                  </SelectTrigger>
+                  <SelectContent className="bg-white border-[#E0E0E0]">
+                    <SelectItem value="Nenhuma">Nenhuma</SelectItem>
+                    <SelectItem value="Física">Física</SelectItem>
+                    <SelectItem value="Auditiva">Auditiva</SelectItem>
+                    <SelectItem value="Visual">Visual</SelectItem>
+                    <SelectItem value="Intelectual">Intelectual</SelectItem>
+                    <SelectItem value="Múltipla">Múltipla</SelectItem>
+                    <SelectItem value="Reabilitado">Reabilitado</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+            ) : editFieldKey === 'documentos_complementares' ? (
+              <div className="space-y-3">
+                <div className="space-y-1.5">
+                  <Label className="text-xs font-semibold text-[#212121]">
+                    Selecione qual documento deseja alterar *
+                  </Label>
+                  <Select
+                    value={docSubTipo}
+                    onValueChange={(val: 'cnh' | 'titulo_eleitor' | 'reservista') =>
+                      handleDocSubTipoChange(val)
+                    }
+                  >
+                    <SelectTrigger className="text-xs border-[#E0E0E0] h-9">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent className="bg-white border-[#E0E0E0]">
+                      <SelectItem value="cnh">CNH (Carteira Nacional de Habilitação)</SelectItem>
+                      <SelectItem value="titulo_eleitor">Título de Eleitor</SelectItem>
+                      <SelectItem value="reservista">Certificado de Reservista</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                <div className="space-y-1.5">
+                  <Label htmlFor="novo_doc_val" className="text-xs font-semibold text-[#212121]">
+                    Novo número para{' '}
+                    {docSubTipo === 'cnh'
+                      ? 'CNH'
+                      : docSubTipo === 'titulo_eleitor'
+                        ? 'Título de Eleitor'
+                        : 'Reservista'}{' '}
+                    *
+                  </Label>
+                  <Input
+                    id="novo_doc_val"
+                    value={editNewValue}
+                    onChange={(e) => setEditNewValue(e.target.value)}
+                    placeholder="Digite o número do documento"
+                    className="text-xs border-[#E0E0E0] h-9 font-mono"
+                    required
+                  />
+                </div>
+              </div>
+            ) : editFieldKey === 'filiacao' ? (
+              <div className="space-y-3">
+                <div className="space-y-1.5">
+                  <Label className="text-xs font-semibold text-[#212121]">
+                    Selecione qual filiação deseja alterar *
+                  </Label>
+                  <Select
+                    value={filiacaoSubTipo}
+                    onValueChange={(val: 'nome_mae' | 'nome_pai') =>
+                      handleFiliacaoSubTipoChange(val)
+                    }
+                  >
+                    <SelectTrigger className="text-xs border-[#E0E0E0] h-9">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent className="bg-white border-[#E0E0E0]">
+                      <SelectItem value="nome_mae">Nome da Mãe</SelectItem>
+                      <SelectItem value="nome_pai">Nome do Pai</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                <div className="space-y-1.5">
+                  <Label
+                    htmlFor="novo_filiacao_val"
+                    className="text-xs font-semibold text-[#212121]"
+                  >
+                    Novo {filiacaoSubTipo === 'nome_mae' ? 'Nome da Mãe' : 'Nome do Pai'} *
+                  </Label>
+                  <Input
+                    id="novo_filiacao_val"
+                    value={editNewValue}
+                    onChange={(e) => setEditNewValue(e.target.value)}
+                    placeholder="Digite o nome completo"
+                    className="text-xs border-[#E0E0E0] h-9"
+                    required
+                  />
+                </div>
+              </div>
+            ) : editFieldKey === 'cpf' ? (
+              <div className="space-y-1.5">
+                <Label htmlFor="novo_cpf" className="text-xs font-semibold text-[#212121]">
+                  Novo CPF (com validação de dígitos) *
+                </Label>
+                <Input
+                  id="novo_cpf"
+                  value={editNewValue}
+                  onChange={(e) => setEditNewValue(formatarCpf(e.target.value))}
+                  placeholder="000.000.000-00"
+                  maxLength={14}
+                  className="text-xs border-[#E0E0E0] h-9 font-mono"
+                  required
+                />
+              </div>
+            ) : editFieldKey === 'telefone' ? (
+              <div className="space-y-1.5">
+                <Label htmlFor="novo_tel" className="text-xs font-semibold text-[#212121]">
+                  Novo Telefone / Celular (com DDD) *
+                </Label>
+                <Input
+                  id="novo_tel"
+                  value={editNewValue}
+                  onChange={(e) => setEditNewValue(formatarTelefone(e.target.value))}
+                  placeholder="(00) 00000-0000"
+                  maxLength={15}
+                  className="text-xs border-[#E0E0E0] h-9 font-mono"
+                  required
+                />
+              </div>
+            ) : editFieldKey === 'data_nascimento' ? (
+              <div className="space-y-1.5">
+                <Label htmlFor="novo_nasc" className="text-xs font-semibold text-[#212121]">
+                  Nova Data de Nascimento *
+                </Label>
+                <Input
+                  id="novo_nasc"
+                  type="date"
+                  value={editNewValue}
+                  onChange={(e) => setEditNewValue(e.target.value)}
+                  className="text-xs border-[#E0E0E0] h-9"
+                  required
+                />
+              </div>
             ) : editFieldKey === 'dados_bancarios' ? (
               <div className="space-y-3">
                 <div className="grid grid-cols-2 gap-2.5">
@@ -1356,19 +1981,96 @@ export default function MeuPerfilPage() {
                 </div>
               </div>
             ) : editFieldKey === 'endereco' ? (
-              <div className="space-y-1.5">
-                <Label htmlFor="endereco" className="text-xs font-semibold text-[#212121]">
-                  Novo Endereço Completo (Rua, Nº, Apto, Bairro, Cidade - UF, CEP) *
-                </Label>
-                <Textarea
-                  id="endereco"
-                  rows={3}
-                  value={editNewValue}
-                  onChange={(e) => setEditNewValue(e.target.value)}
-                  placeholder="Ex: Rua das Flores, 120, Apto 34 - Pinheiros, São Paulo - SP, CEP 05412-000"
-                  className="text-xs border-[#E0E0E0]"
-                  required
-                />
+              <div className="space-y-3">
+                <div className="grid grid-cols-3 gap-2">
+                  <div className="space-y-1 col-span-1">
+                    <Label className="text-xs font-semibold text-[#212121]">CEP</Label>
+                    <Input
+                      placeholder="00000-000"
+                      value={endCep}
+                      maxLength={9}
+                      onChange={(e) => setEndCep(formatarCep(e.target.value))}
+                      className="text-xs border-[#E0E0E0] h-9 font-mono"
+                    />
+                  </div>
+                  <div className="space-y-1 col-span-2">
+                    <Label className="text-xs font-semibold text-[#212121]">
+                      Logradouro (Rua/Av)
+                    </Label>
+                    <Input
+                      placeholder="Ex: Av. Paulista"
+                      value={endLogradouro}
+                      onChange={(e) => setEndLogradouro(e.target.value)}
+                      className="text-xs border-[#E0E0E0] h-9"
+                    />
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-3 gap-2">
+                  <div className="space-y-1 col-span-1">
+                    <Label className="text-xs font-semibold text-[#212121]">Número</Label>
+                    <Input
+                      placeholder="Ex: 1000"
+                      value={endNumero}
+                      onChange={(e) => setEndNumero(e.target.value)}
+                      className="text-xs border-[#E0E0E0] h-9"
+                    />
+                  </div>
+                  <div className="space-y-1 col-span-2">
+                    <Label className="text-xs font-semibold text-[#212121]">Complemento</Label>
+                    <Input
+                      placeholder="Ex: Apto 42, Bloco B"
+                      value={endComplemento}
+                      onChange={(e) => setEndComplemento(e.target.value)}
+                      className="text-xs border-[#E0E0E0] h-9"
+                    />
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-3 gap-2">
+                  <div className="space-y-1 col-span-1">
+                    <Label className="text-xs font-semibold text-[#212121]">Bairro</Label>
+                    <Input
+                      placeholder="Bairro"
+                      value={endBairro}
+                      onChange={(e) => setEndBairro(e.target.value)}
+                      className="text-xs border-[#E0E0E0] h-9"
+                    />
+                  </div>
+                  <div className="space-y-1 col-span-1">
+                    <Label className="text-xs font-semibold text-[#212121]">Cidade</Label>
+                    <Input
+                      placeholder="Cidade"
+                      value={endCidade}
+                      onChange={(e) => setEndCidade(e.target.value)}
+                      className="text-xs border-[#E0E0E0] h-9"
+                    />
+                  </div>
+                  <div className="space-y-1 col-span-1">
+                    <Label className="text-xs font-semibold text-[#212121]">UF</Label>
+                    <Input
+                      placeholder="SP"
+                      maxLength={2}
+                      value={endUf}
+                      onChange={(e) => setEndUf(e.target.value.toUpperCase())}
+                      className="text-xs border-[#E0E0E0] h-9 uppercase"
+                    />
+                  </div>
+                </div>
+
+                <div className="space-y-1">
+                  <Label htmlFor="endereco" className="text-xs font-semibold text-[#757575]">
+                    Ou digite o endereço completo em texto livre *
+                  </Label>
+                  <Textarea
+                    id="endereco"
+                    rows={2}
+                    value={editNewValue}
+                    onChange={(e) => setEditNewValue(e.target.value)}
+                    placeholder="Ex: Rua Zilda, nº 1250, Apto 09, Casa Verde Alta, São Paulo - SP, CEP 02545-001"
+                    className="text-xs border-[#E0E0E0]"
+                  />
+                </div>
               </div>
             ) : (
               <div className="space-y-1.5">
@@ -1426,6 +2128,85 @@ export default function MeuPerfilPage() {
                   <>
                     <Send className="h-3.5 w-3.5" />
                     Enviar Solicitação
+                  </>
+                )}
+              </Button>
+            </DialogFooter>
+          </form>
+        </DialogContent>
+      </Dialog>
+
+      {/* 8. Modal de Solicitação Geral */}
+      <Dialog open={modalGeralOpen} onOpenChange={setModalGeralOpen}>
+        <DialogContent className="max-w-md bg-white border border-[#E0E0E0] p-0 overflow-hidden">
+          <div className="h-2 bg-[#0D47A1] w-full" />
+          <form onSubmit={handleSubmitSolicitacaoGeral} className="p-6 space-y-4">
+            <DialogHeader className="text-left space-y-1">
+              <div className="flex items-center gap-2">
+                <MessageSquarePlus className="h-4 w-4 text-[#0D47A1]" />
+                <DialogTitle className="text-lg font-bold text-[#212121]">
+                  Solicitação Geral de Correção Cadastral
+                </DialogTitle>
+              </div>
+              <DialogDescription className="text-xs text-[#757575]">
+                Use este formulário para solicitar correções abrangentes ou múltiplos campos com
+                divergência na sua ficha cadastral.
+              </DialogDescription>
+            </DialogHeader>
+
+            <div className="rounded-lg bg-blue-50/70 p-3 text-xs text-[#0D47A1] space-y-1 border border-blue-100">
+              <p className="font-semibold flex items-center gap-1.5">
+                <Info className="h-4 w-4 text-[#0D47A1] shrink-0" />
+                Como funciona a solicitação geral?
+              </p>
+              <p className="text-[#37474F] text-[11px] leading-relaxed">
+                Descreva detalhadamente o que precisa ser corrigido (por exemplo: &quot;Meu nome e
+                CPF possuem erros de digitação: o correto é...&quot;). A equipe de RH analisará seu
+                pedido para efetuar o ajuste.
+              </p>
+            </div>
+
+            <div className="space-y-1.5">
+              <Label htmlFor="desc_geral" className="text-xs font-semibold text-[#212121]">
+                Descreva as correções necessárias *
+              </Label>
+              <Textarea
+                id="desc_geral"
+                rows={5}
+                value={descricaoGeral}
+                onChange={(e) => setDescricaoGeral(e.target.value)}
+                placeholder="Ex: Meu sobrenome está incorreto, o certo é Silva e meu RG é 55.702.934-X expedido pela SSP-SP. Favor atualizar também meu e-mail corporativo para..."
+                className="text-xs border-[#E0E0E0] resize-y min-h-[110px]"
+                required
+              />
+            </div>
+
+            <DialogFooter className="pt-3 gap-2">
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={() => setModalGeralOpen(false)}
+                disabled={submittingGeral}
+                className="border-[#E0E0E0] text-xs h-9"
+              >
+                Cancelar
+              </Button>
+              <Button
+                type="submit"
+                size="sm"
+                disabled={submittingGeral}
+                className="bg-[#0D47A1] hover:bg-[#0A3A82] text-white text-xs h-9 gap-1.5 font-semibold"
+              >
+                {submittingGeral ? (
+                  <>
+                    <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                    Enviando...
+                  </>
+                ) : (
+                  <>
+                    <Send className="h-3.5 w-3.5" />
+                    Enviar ao RH
                   </>
                 )}
               </Button>

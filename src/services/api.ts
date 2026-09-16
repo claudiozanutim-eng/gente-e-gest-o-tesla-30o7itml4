@@ -581,6 +581,39 @@ export const solicitacaoService = {
       status: 'pendente',
       data_solicitacao: new Date().toISOString(),
     })
+
+    // Registrar auditoria da criação do pedido
+    try {
+      await logAuditoriaService.registrarLog({
+        tenant_id: data.tenant_id,
+        user_id: pb.authStore.record?.id || '',
+        acao: 'solicitacao_alteracao_criada',
+        entidade: 'solicitacao_alteracao',
+        entidade_id: record.id,
+        dados_json: {
+          colaborador_id: data.colaborador_id,
+          campo: data.campo,
+          valor_antigo: data.valor_antigo,
+          valor_novo: data.valor_novo,
+        },
+      })
+    } catch (e) {
+      console.warn('Erro ao registrar log de criacao de solicitacao:', e)
+    }
+
+    // Notificar a equipe de RH/Gestores sobre a nova solicitação
+    try {
+      const colab = await colaboradorService.getColaboradorById(data.colaborador_id)
+      const nomeSolicitante = colab?.nome_completo || colab?.nome || 'Colaborador'
+      await notificacaoService.notificarGestores(data.tenant_id, {
+        titulo: 'Nova solicitação de alteração cadastral',
+        mensagem: `${nomeSolicitante} solicitou alteração: "${data.campo}".`,
+        link: '/alteracoes/pendentes',
+      })
+    } catch (e) {
+      console.warn('Erro ao notificar RH sobre nova solicitacao:', e)
+    }
+
     return record
   },
 
@@ -591,37 +624,77 @@ export const solicitacaoService = {
     // 1. Mapear o nome do campo da solicitação para o campo no registro colaborador
     const campoNome = solicitacao.campo.trim().toLowerCase()
     const mapCampos: Record<string, string> = {
+      nome: 'nome_completo',
+      'nome completo': 'nome_completo',
+      cpf: 'cpf',
+      rg: 'rg',
+      'data de nascimento': 'data_nascimento',
+      'estado civil': 'estado_civil',
       telefone: 'telefone',
       'telefone / celular': 'telefone',
       celular: 'telefone',
-      endereço: 'endereco',
-      endereco: 'endereco',
-      'estado civil': 'estado_civil',
+      'e-mail corporativo': 'email',
+      'e-mail': 'email',
+      email: 'email',
       'chave pix': 'pix',
       pix: 'pix',
-      'dados bancários': 'dados_bancarios',
-      'dados bancarios': 'dados_bancarios',
-      rg: 'rg',
+      'raça / cor': 'raca_cor',
+      'raca / cor': 'raca_cor',
+      'raça/cor': 'raca_cor',
+      'raca/cor': 'raca_cor',
+      sexo: 'sexo',
+      'deficiência (pcd)': 'deficiencia',
+      deficiencia: 'deficiencia',
+      deficiência: 'deficiencia',
       cnh: 'cnh',
       'título de eleitor': 'titulo_eleitor',
       'titulo de eleitor': 'titulo_eleitor',
-      'e-mail': 'email',
-      email: 'email',
+      reservista: 'reservista',
+      mãe: 'nome_mae',
+      mae: 'nome_mae',
+      'nome da mãe': 'nome_mae',
+      pai: 'nome_pai',
+      'nome do pai': 'nome_pai',
+      endereço: 'endereco',
+      endereco: 'endereco',
+      'endereço residencial': 'endereco',
+      'dados bancários': 'dados_bancarios',
+      'dados bancarios': 'dados_bancarios',
     }
 
-    const fieldColaborador = mapCampos[campoNome] || campoNome
+    const fieldColaborador =
+      mapCampos[campoNome] || (mapCampos[campoNome.replace(/\s+/g, ' ')] ?? null)
 
-    // Limpar possíveis anotações (Obs: ...) se houver no valor_novo
+    // Limpar possíveis anotações (Obs: ...) se houver no valor_novo para campos que vão para a base
     let valorParaAtualizar = solicitacao.valor_novo
     if (valorParaAtualizar.includes(' (Obs: ')) {
       valorParaAtualizar = valorParaAtualizar.split(' (Obs: ')[0].trim()
     }
 
-    // 2. Atualizar no colaborador
-    if (solicitacao.colaborador_id && fieldColaborador) {
-      await pb.collection('colaborador').update(solicitacao.colaborador_id, {
-        [fieldColaborador]: valorParaAtualizar,
-      })
+    // 2. Isolamento por tenant: verificar e atualizar colaborador
+    let colaboradorAtualizado: Colaborador | null = null
+    if (solicitacao.colaborador_id) {
+      const colabExistente = await colaboradorService.getColaboradorById(solicitacao.colaborador_id)
+      if (colabExistente) {
+        if (colabExistente.tenant_id !== solicitacao.tenant_id) {
+          throw new Error(
+            'Violação de segurança: tenant do colaborador difere do tenant da solicitação.',
+          )
+        }
+        colaboradorAtualizado = colabExistente
+
+        // Se o campo for mapeável para coluna do colaborador (não geral)
+        if (fieldColaborador) {
+          const updatePayload: Record<string, unknown> = {
+            [fieldColaborador]: valorParaAtualizar,
+          }
+          // Se atualizar nome_completo, atualiza também a coluna nome legada
+          if (fieldColaborador === 'nome_completo') {
+            updatePayload.nome = valorParaAtualizar
+          }
+          await pb.collection('colaborador').update(solicitacao.colaborador_id, updatePayload)
+        }
+      }
     }
 
     // 3. Atualizar status da solicitação
@@ -642,7 +715,7 @@ export const solicitacaoService = {
       dados_json: {
         solicitacao_id: solicitacao.id,
         campo: solicitacao.campo,
-        campo_db: fieldColaborador,
+        campo_db: fieldColaborador || 'geral',
         valor_antigo: solicitacao.valor_antigo,
         valor_novo: valorParaAtualizar,
         resultado: 'aprovada',
@@ -651,14 +724,22 @@ export const solicitacaoService = {
 
     // 5. Notificar o colaborador
     try {
-      const colab = await colaboradorService.getColaboradorById(solicitacao.colaborador_id)
+      const colab =
+        colaboradorAtualizado ||
+        (await colaboradorService.getColaboradorById(solicitacao.colaborador_id))
       if (colab?.user_id) {
+        const mensagemTexto =
+          solicitacao.campo.toLowerCase() === 'geral' ||
+          solicitacao.campo.toLowerCase().includes('solicitação geral')
+            ? 'Sua solicitação geral de alteração cadastral foi revisada e concluída pelo RH.'
+            : `Sua solicitação de alteração para "${solicitacao.campo}" foi aprovada pelo RH.`
+
         await notificacaoService.notificar({
           tenantId: solicitacao.tenant_id,
           destinatarioId: colab.user_id,
           tipo: 'cadastro',
           titulo: 'Alteração cadastral aprovada',
-          mensagem: `Sua solicitação de alteração para "${solicitacao.campo}" foi aprovada pelo RH.`,
+          mensagem: mensagemTexto,
           link: '/meu-perfil',
           emailDestinatario: colab.email,
           nomeDestinatario: colab.nome,

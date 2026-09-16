@@ -368,21 +368,41 @@ export default function AlteracoesPendentesPage() {
                     </div>
 
                     {/* Comparativo: Campo, Valor Antigo -> Valor Novo */}
-                    <div className="flex flex-col sm:flex-row sm:items-center gap-2 text-xs pt-1">
-                      <span className="font-semibold text-[#0D47A1] bg-[#E8EEF7] px-2.5 py-1 rounded-md shrink-0">
-                        Campo: {solic.campo}
-                      </span>
-
-                      <div className="flex items-center gap-2 flex-wrap text-xs text-[#424242]">
-                        <span className="text-[#757575] line-through bg-slate-100 px-2 py-0.5 rounded">
-                          {solic.valor_antigo || 'Não informado'}
-                        </span>
-                        <ArrowRight className="h-3.5 w-3.5 text-[#0D47A1] shrink-0" />
-                        <span className="font-bold text-[#212121] bg-emerald-50 border border-emerald-200 px-2.5 py-0.5 rounded">
+                    {solic.campo.toLowerCase() === 'geral' ||
+                    solic.campo.toLowerCase().includes('solicitação geral') ? (
+                      <div className="space-y-1.5 pt-1">
+                        <div className="flex items-center gap-2">
+                          <span className="font-bold text-indigo-700 bg-indigo-50 border border-indigo-200 px-2.5 py-1 rounded-md text-xs">
+                            Solicitação Geral de Correção
+                          </span>
+                          <span className="text-xs text-[#757575]">
+                            (Requer revisão manual nos dados do colaborador)
+                          </span>
+                        </div>
+                        <div className="rounded-lg bg-slate-50 border border-slate-200 p-3 text-xs text-[#212121] whitespace-pre-wrap leading-relaxed">
+                          <p className="font-semibold text-[#616161] mb-1">
+                            Descrição informada pelo colaborador:
+                          </p>
                           {solic.valor_novo}
-                        </span>
+                        </div>
                       </div>
-                    </div>
+                    ) : (
+                      <div className="flex flex-col sm:flex-row sm:items-center gap-2 text-xs pt-1">
+                        <span className="font-semibold text-[#0D47A1] bg-[#E8EEF7] px-2.5 py-1 rounded-md shrink-0">
+                          Campo: {solic.campo}
+                        </span>
+
+                        <div className="flex items-center gap-2 flex-wrap text-xs text-[#424242]">
+                          <span className="text-[#757575] line-through bg-slate-100 px-2 py-0.5 rounded">
+                            {solic.valor_antigo || 'Não informado'}
+                          </span>
+                          <ArrowRight className="h-3.5 w-3.5 text-[#0D47A1] shrink-0" />
+                          <span className="font-bold text-[#212121] bg-emerald-50 border border-emerald-200 px-2.5 py-0.5 rounded">
+                            {solic.valor_novo}
+                          </span>
+                        </div>
+                      </div>
+                    )}
 
                     {/* Metadados: Data de solicitação */}
                     <div className="flex items-center gap-3 text-[11px] text-[#757575] pt-0.5">
