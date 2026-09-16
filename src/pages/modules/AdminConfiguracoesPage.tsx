@@ -57,7 +57,7 @@ export default function AdminConfiguracoesPage() {
     try {
       setLoading(true)
       setTenantNaoEncontrado(false)
-      const data = await tenantService.getTenant(tenantId)
+      const data = await tenantService.getTenant(tenantId).catch(() => null)
       if (!data) {
         setTenant(null)
         setTenantNaoEncontrado(true)
@@ -70,13 +70,9 @@ export default function AdminConfiguracoesPage() {
       setEndereco(data.endereco || '')
       setTelefone(data.telefone || '')
       setRegimeTributario(data.regime_tributario || 'Lucro Real')
-    } catch (err) {
-      console.warn('Erro ao buscar dados do tenant:', err)
-      toast({
-        title: 'Aviso',
-        description: 'Não foi possível carregar os dados cadastrais da empresa no momento.',
-        variant: 'destructive',
-      })
+    } catch {
+      setTenant(null)
+      setTenantNaoEncontrado(true)
     } finally {
       setLoading(false)
     }

@@ -94,7 +94,7 @@ export default function AdminPage({ initialTab = 'tenant' }: AdminPageProps) {
       if (!user?.tenant_id) return
       try {
         setLoadingTenant(true)
-        const t = await tenantService.getTenant(user.tenant_id)
+        const t = await tenantService.getTenant(user.tenant_id).catch(() => null)
         if (t) {
           setTenant(t)
           setSelectedPlano(t.plano)
@@ -102,8 +102,8 @@ export default function AdminPage({ initialTab = 'tenant' }: AdminPageProps) {
         } else {
           setTenant(null)
         }
-      } catch (err) {
-        console.warn('Aviso ao carregar dados do tenant no painel admin:', err)
+      } catch {
+        setTenant(null)
       } finally {
         setLoadingTenant(false)
       }

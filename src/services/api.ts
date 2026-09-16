@@ -27,13 +27,20 @@ export const tenantService = {
       const record = await pb.collection('tenant').getOne<Tenant>(tenantId)
       return record
     } catch (err: unknown) {
-      // Trata 404 de forma graciosa sem disparar unhandled rejection
-      const status = (err as { status?: number })?.status
-      if (status === 404) {
-        console.warn(`[tenantService] Tenant "${tenantId}" não encontrado (404).`)
+      // Trata 404 e erros de recurso não encontrado graciosamente sem estourar exceção no console
+      const anyErr = err as {
+        status?: number
+        response?: { code?: number; status?: number; message?: string }
+        message?: string
+      }
+      const status = anyErr?.status || anyErr?.response?.code || anyErr?.response?.status
+      const msg = anyErr?.message || anyErr?.response?.message || ''
+      if (status === 404 || status === 0 || /404|not found|não encontrad/i.test(msg)) {
+        console.warn(`[tenantService] Tenant "${tenantId}" não localizado (404).`)
         return null
       }
-      throw err
+      console.warn(`[tenantService] Falha ao buscar tenant "${tenantId}":`, err)
+      return null
     }
   },
 
