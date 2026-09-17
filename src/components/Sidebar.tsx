@@ -52,6 +52,72 @@ interface MenuItem {
   icon?: React.ElementType
   customIcon?: React.ReactNode
   permissionKey?: PermissaoMenuKey
+  color?: string
+}
+
+/**
+ * Mapeamento centralizado de cores harmônicas e de alta legibilidade para cada rota/item do menu lateral.
+ * Cores cuidadosamente selecionadas sobre o fundo claro (#FFFFFF / #F5F5F5) e harmônicas com o azul Tesla (#0D47A1).
+ */
+export const MENU_ITEM_COLORS: Record<string, string> = {
+  // Principal & Portais
+  '/portal': '#1976D2', // Azul Tesla Vibrante (Portal Colaborador)
+  '/portal-gestor': '#0284C7', // Sky / Cyan Escuro (Portal do Gestor)
+  '/dashboard': '#0D47A1', // Azul Marinho Institucional (Painel RH)
+  '/admin': '#475569', // Ardósia / Slate Executivo (Painel Geral / Admin)
+  '/documentos-importantes': '#059669', // Esmeralda Seguro (Docs Importantes)
+  '/demonstrativo': '#2563EB', // Azul Royal (Demonstrativo Financeiro)
+  '/beneficios': '#EA580C', // Laranja Vivo (Benefícios)
+  '/ferias': '#0D9488', // Teal / Verde Tropical (Férias)
+  '/avaliacoes': '#D97706', // Âmbar Dourado (Minhas Avaliações)
+
+  // Gestão de Talentos
+  '/vagas': '#4F46E5', // Índigo Moderno (Vagas)
+  '/candidatos': '#0891B2', // Ciano Profundo (Candidatos)
+  '/minha-equipe': '#7C3AED', // Violeta / Roxo (Minha Equipe)
+  '/estrutura': '#4338CA', // Índigo Escuro (Estrutura Organizacional)
+
+  // Gestão de Pessoas
+  '/colaboradores': '#1D4ED8', // Azul Safira (Colaboradores)
+  '/folha/gestao': '#16A34A', // Verde Folha / Financeiro (Gestão da Folha)
+  '/comunicados/gestao': '#9333EA', // Púrpura Comunicativa (Comunicados)
+  '/alteracoes/pendentes': '#D97706', // Âmbar / Atenção (Alterações Pendentes)
+  '/avaliacoes/admin': '#B45309', // Ocre / Âmbar Escuro (Avaliações Admin)
+  '/pesquisa-clima': '#E11D48', // Rosa Magenta Humano (Pesquisa de Clima)
+  '/pendencias-documentais': '#DC2626', // Vermelho Alerta (Pendências Docs)
+  '/documentos': '#0284C7', // Azul Céu / Pastas (Documentos)
+  '/beneficios/gestao': '#C2410C', // Laranja Escuro (Gestão Benefícios)
+  '/atestados/validacao': '#0D9488', // Teal Médico (Validação Atestados)
+  '/ferias/aprovacoes': '#059669', // Verde Sucesso (Aprovações de Férias)
+  '/ferias/coletivo': '#0F766E', // Verde Floresta (Férias Coletivas)
+  '/relatorios': '#6366F1', // Índigo / Análise de Dados (Relatórios)
+  '/atestados': '#0284C7', // Azul Atestados / Licenças
+
+  // Gestão do Tempo
+  '/ponto': '#0284C7', // Azul Claro (Meu Ponto)
+  '/banco-horas': '#4F46E5', // Índigo Equilibrado (Banco de Horas)
+  '/banco-horas/fechamento': '#4338CA', // Índigo Calendário (Fechamento Banco Horas)
+  '/ponto/gestao': '#16A34A', // Verde Validação (Gestão de Ponto)
+  '/escalas': '#7C3AED', // Violeta Turnos (Escalas)
+
+  // Administração
+  '/financeiro': '#15803D', // Verde Cifrão Financeiro (Dashboard Financeiro)
+  '/admin/configuracoes': '#475569', // Ardósia Empresa (Configurações da Empresa)
+  '/admin/email': '#2563EB', // Azul Mensageria (Configurações de E-mail)
+  '/admin/usuarios': '#9333EA', // Roxo Permissões (Usuários e Permissões)
+  '/admin/logs': '#B45309', // Âmbar Auditoria (Logs de Auditoria)
+  '/admin/tenant': '#334155', // Slate Escuro Corporativo (Gestão de Tenant SaaS)
+}
+
+/**
+ * Cores discretas para os marcadores/títulos das seções/pilares
+ */
+const SECTION_COLORS: Record<string, string> = {
+  Principal: '#0D47A1',
+  'Gestão de Talentos': '#4F46E5',
+  'Gestão de Pessoas': '#0D9488',
+  'Gestão do Tempo': '#0284C7',
+  Administração: '#475569',
 }
 
 interface PillarSection {
@@ -467,58 +533,98 @@ export const Sidebar: React.FC<SidebarProps> = ({
 
         {/* Navigation Sections */}
         <div className="py-4 px-2 space-y-6 overflow-y-auto max-h-[calc(100vh-130px)]">
-          {visibleSections.map((section) => (
-            <div key={section.title} className="space-y-1">
-              {!collapsed && (
-                <p className="px-3 text-[11px] font-semibold uppercase tracking-wider text-[#757575] mb-2">
-                  {section.title}
-                </p>
-              )}
-              {section.items.map((item) => {
-                const IconComponent = item.icon
+          {visibleSections.map((section) => {
+            const sectionColor = SECTION_COLORS[section.title] || '#757575'
+            return (
+              <div key={section.title} className="space-y-1">
+                {!collapsed ? (
+                  <div className="flex items-center gap-1.5 px-3 mb-2">
+                    <span
+                      className="inline-block h-1.5 w-1.5 rounded-full"
+                      style={{ backgroundColor: sectionColor }}
+                      aria-hidden="true"
+                    />
+                    <p className="text-[11px] font-semibold uppercase tracking-wider text-[#616161]">
+                      {section.title}
+                    </p>
+                  </div>
+                ) : (
+                  <div className="flex justify-center py-1">
+                    <span
+                      className="inline-block h-1 w-4 rounded-full opacity-40"
+                      style={{ backgroundColor: sectionColor }}
+                      aria-hidden="true"
+                    />
+                  </div>
+                )}
+                {section.items.map((item) => {
+                  const IconComponent = item.icon
+                  const itemColor = item.color || MENU_ITEM_COLORS[item.path] || '#0D47A1'
 
-                const iconContent = item.customIcon ? (
-                  item.customIcon
-                ) : IconComponent ? (
-                  <IconComponent className="h-5 w-5 shrink-0" />
-                ) : null
-
-                const linkElement = (
-                  <NavLink
-                    key={item.path}
-                    to={item.path}
-                    onClick={() => mobileOpen && onMobileClose()}
-                    className={({ isActive }) =>
-                      `group relative flex items-center gap-3 rounded-md px-3 py-2 text-[14px] font-medium transition-colors ${
-                        isActive
-                          ? 'bg-[#E8EEF7] text-[#0D47A1] font-semibold before:absolute before:left-0 before:top-1.5 before:bottom-1.5 before:w-1 before:rounded-r before:bg-[#0D47A1]'
-                          : 'text-[#212121] hover:bg-[#F5F5F5] hover:text-[#0D47A1]'
-                      } ${collapsed ? 'justify-center px-2' : ''}`
+                  const renderIcon = (isActive: boolean) => {
+                    if (item.customIcon) {
+                      return item.customIcon
                     }
-                  >
-                    {iconContent}
-                    {!collapsed && <span className="truncate">{item.title}</span>}
-                  </NavLink>
-                )
+                    if (!IconComponent) return null
 
-                if (collapsed) {
-                  return (
-                    <Tooltip key={item.path} delayDuration={100}>
-                      <TooltipTrigger asChild>{linkElement}</TooltipTrigger>
-                      <TooltipContent
-                        side="right"
-                        className="bg-[#212121] text-white text-xs font-medium"
+                    // Quando ativo: utiliza azul institucional escuro #0D47A1 com peso destacado
+                    // Quando inativo: exibe sua cor própria e harmônica
+                    const currentColor = isActive ? '#0D47A1' : itemColor
+
+                    return (
+                      <span
+                        className="flex h-5 w-5 shrink-0 items-center justify-center transition-transform duration-150 group-hover:scale-110"
+                        style={{ color: currentColor }}
                       >
-                        {item.title}
-                      </TooltipContent>
-                    </Tooltip>
-                  )
-                }
+                        <IconComponent
+                          className="h-5 w-5 shrink-0"
+                          strokeWidth={isActive ? 2.3 : 2}
+                        />
+                      </span>
+                    )
+                  }
 
-                return linkElement
-              })}
-            </div>
-          ))}
+                  const linkElement = (
+                    <NavLink
+                      key={item.path}
+                      to={item.path}
+                      onClick={() => mobileOpen && onMobileClose()}
+                      className={({ isActive }) =>
+                        `group relative flex items-center gap-3 rounded-md px-3 py-2 text-[14px] font-medium transition-colors ${
+                          isActive
+                            ? 'bg-[#E8EEF7] text-[#0D47A1] font-semibold before:absolute before:left-0 before:top-1.5 before:bottom-1.5 before:w-1 before:rounded-r before:bg-[#0D47A1]'
+                            : 'text-[#212121] hover:bg-[#F5F5F5] hover:text-[#0D47A1]'
+                        } ${collapsed ? 'justify-center px-2' : ''}`
+                      }
+                    >
+                      {({ isActive }) => (
+                        <>
+                          {renderIcon(isActive)}
+                          {!collapsed && <span className="truncate">{item.title}</span>}
+                        </>
+                      )}
+                    </NavLink>
+                  )
+
+                  if (collapsed) {
+                    return (
+                      <Tooltip key={item.path} delayDuration={100}>
+                        <TooltipTrigger asChild>{linkElement}</TooltipTrigger>
+                        <TooltipContent
+                          side="right"
+                          className="bg-[#212121] text-white text-xs font-medium"
+                        >
+                          {item.title}
+                        </TooltipContent>
+                      </Tooltip>
+                    )
+                  }
+
+                  return linkElement
+                })}
+              </div>
+            )
+          })}
         </div>
       </div>
 
