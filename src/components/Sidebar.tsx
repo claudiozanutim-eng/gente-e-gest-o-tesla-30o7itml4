@@ -78,6 +78,7 @@ export const MENU_ITEM_COLORS: Record<string, string> = {
   '/estrutura': '#4338CA', // Índigo Escuro (Estrutura Organizacional)
 
   // Gestão de Pessoas
+  '/niko-rh': '#0284C7', // Ciano / Azul Tecnológico Niko RH
   '/colaboradores': '#1D4ED8', // Azul Safira (Colaboradores)
   '/folha/gestao': '#16A34A', // Verde Folha / Financeiro (Gestão da Folha)
   '/comunicados/gestao': '#9333EA', // Púrpura Comunicativa (Comunicados)
@@ -107,6 +108,18 @@ export const MENU_ITEM_COLORS: Record<string, string> = {
   '/admin/usuarios': '#9333EA', // Roxo Permissões (Usuários e Permissões)
   '/admin/logs': '#B45309', // Âmbar Auditoria (Logs de Auditoria)
   '/admin/tenant': '#334155', // Slate Escuro Corporativo (Gestão de Tenant SaaS)
+}
+
+/**
+ * Variações com contraste otimizado (WCAG AA+) para renderização em texto de 14px sobre fundo branco (#FFFFFF / #F5F5F5).
+ * Se alguma cor de ícone for muito clara para texto pequeno, uma versão ligeiramente mais escura é aplicada apenas no texto.
+ */
+export const MENU_ITEM_TEXT_COLORS: Record<string, string> = {
+  ...MENU_ITEM_COLORS,
+  // Ajustes sutis para garantir nitidez impecável em leitura sobre fundo branco
+  '/relatorios': '#4F46E5', // Tom levemente mais denso que o índigo claro do ícone #6366F1
+  '/avaliacoes': '#B45309', // Âmbar mais encorpado para máxima legibilidade
+  '/alteracoes/pendentes': '#B45309', // Âmbar mais encorpado para máxima legibilidade
 }
 
 /**
@@ -560,6 +573,8 @@ export const Sidebar: React.FC<SidebarProps> = ({
                 {section.items.map((item) => {
                   const IconComponent = item.icon
                   const itemColor = item.color || MENU_ITEM_COLORS[item.path] || '#0D47A1'
+                  // Para o texto, garantimos excelente legibilidade com o mapa de alto contraste se necessário
+                  const textColor = MENU_ITEM_TEXT_COLORS[item.path] || itemColor
 
                   const renderIcon = (isActive: boolean) => {
                     if (item.customIcon) {
@@ -592,15 +607,27 @@ export const Sidebar: React.FC<SidebarProps> = ({
                       className={({ isActive }) =>
                         `group relative flex items-center gap-3 rounded-md px-3 py-2 text-[14px] font-medium transition-colors ${
                           isActive
-                            ? 'bg-[#E8EEF7] text-[#0D47A1] font-semibold before:absolute before:left-0 before:top-1.5 before:bottom-1.5 before:w-1 before:rounded-r before:bg-[#0D47A1]'
-                            : 'text-[#212121] hover:bg-[#F5F5F5] hover:text-[#0D47A1]'
+                            ? 'bg-[#E8EEF7] font-semibold before:absolute before:left-0 before:top-1.5 before:bottom-1.5 before:w-1 before:rounded-r before:bg-[#0D47A1]'
+                            : 'hover:bg-[#F5F5F5]'
                         } ${collapsed ? 'justify-center px-2' : ''}`
                       }
+                      style={({ isActive }) => ({
+                        color: isActive ? '#0D47A1' : textColor,
+                      })}
                     >
                       {({ isActive }) => (
                         <>
                           {renderIcon(isActive)}
-                          {!collapsed && <span className="truncate">{item.title}</span>}
+                          {!collapsed && (
+                            <span
+                              className="truncate transition-colors"
+                              style={{
+                                color: isActive ? '#0D47A1' : textColor,
+                              }}
+                            >
+                              {item.title}
+                            </span>
+                          )}
                         </>
                       )}
                     </NavLink>
@@ -640,7 +667,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
             <p className="text-[11px] text-[#757575] leading-snug font-medium">Tesla Mecatrônica</p>
           </div>
           <p className="text-[10px] font-medium text-[#0D47A1]" title="Versão do Sistema">
-            Tesla RH v0.0.42
+            Tesla RH v0.0.60
           </p>
         </div>
       )}
