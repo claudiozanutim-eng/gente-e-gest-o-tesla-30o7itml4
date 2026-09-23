@@ -657,6 +657,9 @@ export default function AdminEmailPage() {
                       <li>Novo holerite emitido ou importado para a competência</li>
                       <li>Novo comunicado corporativo (inclusive com confirmação obrigatória)</li>
                       <li>Aprovação / Recusa de Férias e Compensação de Banco de Horas</li>
+                      <li>
+                        Novo atestado médico enviado pelo colaborador (alerta imediato para o RH)
+                      </li>
                       <li>Validação e retorno de Atestados Médicos</li>
                     </ul>
                   </div>

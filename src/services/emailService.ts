@@ -21,6 +21,7 @@ export interface DadosEmailTransacional {
     | 'ciencia_pendente'
     | 'compensacao_aprovada'
     | 'compensacao_recusada'
+    | 'novo_atestado'
     | 'atestado_validado'
     | 'comunicado_publicado'
     | 'cadastro_aprovado'
