@@ -104,9 +104,45 @@ export const userService = {
   },
 
   async updateUserEmail(userId: string, newEmail: string): Promise<AppUser> {
+    const emailLimpo = newEmail.trim().toLowerCase()
     const record = await pb.collection('users').update<AppUser>(userId, {
-      email: newEmail.trim().toLowerCase(),
+      email: emailLimpo,
+      emailVisibility: true,
     })
+
+    // Sincroniza imediatamente com a ficha de colaborador vinculada
+    try {
+      // 1. Tenta buscar por user_id
+      let colab: Colaborador | null = null
+      try {
+        colab = await pb
+          .collection('colaborador')
+          .getFirstListItem<Colaborador>(`user_id = "${userId}"`)
+      } catch {
+        colab = null
+      }
+
+      // 2. Se não achou por user_id, tenta buscar pelo e-mail
+      if (!colab && emailLimpo) {
+        try {
+          colab = await pb
+            .collection('colaborador')
+            .getFirstListItem<Colaborador>(`email = "${emailLimpo}"`)
+        } catch {
+          colab = null
+        }
+      }
+
+      if (colab) {
+        await pb.collection('colaborador').update(colab.id, {
+          email: emailLimpo,
+          user_id: userId,
+        })
+      }
+    } catch (err) {
+      console.warn('Aviso ao sincronizar e-mail na ficha do colaborador em updateUserEmail:', err)
+    }
+
     return record
   },
 
@@ -127,21 +163,22 @@ export const userService = {
       const formData = new FormData()
       formData.append('tenant_id', data.tenant_id)
       formData.append('name', data.name)
-      formData.append('email', data.email)
+      formData.append('email', data.email.trim().toLowerCase())
       formData.append('password', password)
       formData.append('passwordConfirm', password)
       formData.append('perfil', data.perfil)
       formData.append('ativo', 'true')
-      formData.append('emailVisibility', 'false')
+      formData.append('emailVisibility', 'true')
       formData.append('avatar', avatarFile)
       record = await pb.collection('users').create<AppUser>(formData)
     } else {
       record = await pb.collection('users').create<AppUser>({
         ...data,
+        email: data.email.trim().toLowerCase(),
         password,
         passwordConfirm: password,
         ativo: true,
-        emailVisibility: false,
+        emailVisibility: true,
       })
     }
 
@@ -343,6 +380,21 @@ export const colaboradorService = {
         if (c.email) colabEmailMap.set(c.email.trim().toLowerCase(), c)
       })
 
+      const normalizarNome = (str?: string) =>
+        (str || '')
+          .toLowerCase()
+          .normalize('NFD')
+          .replace(/[\u0300-\u036f]/g, '')
+          .trim()
+
+      const colabNomeMap = new Map<string, Colaborador>()
+      colabs.forEach((c) => {
+        const n1 = normalizarNome(c.nome)
+        const n2 = normalizarNome(c.nome_completo)
+        if (n1) colabNomeMap.set(n1, c)
+        if (n2) colabNomeMap.set(n2, c)
+      })
+
       const novosCriadosOuVinculados: Colaborador[] = []
 
       // Mapeamento de cargo fallback pelo perfil do usuário
@@ -355,24 +407,52 @@ export const colaboradorService = {
       }
 
       for (const u of users) {
-        // Se já está vinculado por user_id, continua
-        if (colabUserIdSet.has(u.id)) continue
-
         const userEmail = (u.email || '').trim().toLowerCase()
-        const colabExistentePorEmail = userEmail ? colabEmailMap.get(userEmail) : null
+        const userNameNorm = normalizarNome(u.name)
 
-        if (colabExistentePorEmail) {
-          // Já existe ficha com o mesmo e-mail, vincular user_id se estiver vazio
-          if (!colabExistentePorEmail.user_id) {
+        // Se já está vinculado por user_id, garante que a ficha tem o e-mail de acesso
+        if (colabUserIdSet.has(u.id)) {
+          const fichaExistente = colabs.find((c) => c.user_id === u.id)
+          if (
+            fichaExistente &&
+            userEmail &&
+            (!fichaExistente.email || fichaExistente.email.trim().toLowerCase() !== userEmail)
+          ) {
             try {
               const updated = await pb
                 .collection('colaborador')
-                .update<Colaborador>(colabExistentePorEmail.id, { user_id: u.id })
+                .update<Colaborador>(fichaExistente.id, { email: userEmail })
               novosCriadosOuVinculados.push(updated)
-              colabUserIdSet.add(u.id)
-            } catch (err) {
-              console.warn(`Erro ao vincular user_id ${u.id} a colaborador existente:`, err)
+            } catch (syncErr) {
+              console.warn(`Erro ao atualizar e-mail na ficha existente de ${u.name}:`, syncErr)
             }
+          }
+          continue
+        }
+
+        // Tentar encontrar por e-mail ou por nome normalizado
+        const colabExistentePorEmail = userEmail ? colabEmailMap.get(userEmail) : null
+        const colabExistentePorNome = userNameNorm ? colabNomeMap.get(userNameNorm) : null
+        const colabCorrespondente = colabExistentePorEmail || colabExistentePorNome
+
+        if (colabCorrespondente) {
+          // Já existe ficha: vincular user_id e garantir e-mail correto
+          try {
+            const updatePayload: Record<string, unknown> = { user_id: u.id }
+            if (
+              userEmail &&
+              (!colabCorrespondente.email ||
+                colabCorrespondente.email.trim().toLowerCase() !== userEmail)
+            ) {
+              updatePayload.email = userEmail
+            }
+            const updated = await pb
+              .collection('colaborador')
+              .update<Colaborador>(colabCorrespondente.id, updatePayload)
+            novosCriadosOuVinculados.push(updated)
+            colabUserIdSet.add(u.id)
+          } catch (err) {
+            console.warn(`Erro ao vincular user_id ${u.id} a colaborador correspondente:`, err)
           }
         } else {
           // Não possui ficha: criar automaticamente

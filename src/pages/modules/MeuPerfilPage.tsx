@@ -747,7 +747,7 @@ export default function MeuPerfilPage() {
             <div className="flex flex-wrap items-center justify-center md:justify-start gap-4 pt-2 text-xs text-white/80">
               <div className="flex items-center gap-1.5">
                 <Mail className="h-3.5 w-3.5 text-blue-200" />
-                <span>{colaborador?.email || user?.email || 'Sem e-mail cadastrado'}</span>
+                <span>{user?.email || colaborador?.email || 'Sem e-mail cadastrado'}</span>
               </div>
               <div className="flex items-center gap-1.5">
                 <Building className="h-3.5 w-3.5 text-blue-200" />
@@ -1085,7 +1085,7 @@ export default function MeuPerfilPage() {
                           handleOpenEditModal(
                             'email',
                             'E-mail Corporativo',
-                            colaborador?.email || user?.email,
+                            user?.email || colaborador?.email,
                           )
                         }
                         className="h-6 px-2 text-[11px] text-[#0D47A1] hover:text-[#0A3A82] hover:bg-blue-50 font-semibold gap-1"
@@ -1096,7 +1096,7 @@ export default function MeuPerfilPage() {
                     )}
                   </div>
                   <p className="text-sm font-medium text-[#212121] break-all">
-                    {colaborador?.email || user?.email || '—'}
+                    {user?.email || colaborador?.email || '—'}
                   </p>
                 </div>
 

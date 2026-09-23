@@ -142,7 +142,16 @@ export default function AdminUsuariosPage() {
     }
   }
 
-  // Resolução da ficha vinculada para um usuário
+  const normalizarTexto = (str?: string): string => {
+    if (!str) return ''
+    return str
+      .toLowerCase()
+      .normalize('NFD')
+      .replace(/[\u0300-\u036f]/g, '')
+      .trim()
+  }
+
+  // Resolução da ficha vinculada para um usuário (robusta: user_id, e-mail e nome normalizado sem acentos)
   const getFichaVinculada = (user: AppUser): Colaborador | null => {
     // 1. Vinculação direta por user_id
     const colabPorId = colaboradores.find((c) => c.user_id === user.id)
@@ -157,14 +166,22 @@ export default function AdminUsuariosPage() {
       if (colabPorEmail) return colabPorEmail
     }
 
-    // 3. Vinculação por nome normalizado
-    const userNameNorm = (user.name || '').trim().toLowerCase()
+    // 3. Vinculação por nome completo ou primeiro nome normalizado (sem acentos/caixa)
+    const userNameNorm = normalizarTexto(user.name)
     if (userNameNorm) {
-      const colabPorNome = colaboradores.find(
-        (c) =>
-          (c.nome || '').trim().toLowerCase() === userNameNorm ||
-          (c.nome_completo || '').trim().toLowerCase() === userNameNorm,
-      )
+      const colabPorNome = colaboradores.find((c) => {
+        const cNome = normalizarTexto(c.nome)
+        const cCompleto = normalizarTexto(c.nome_completo)
+        return (
+          cNome === userNameNorm ||
+          cCompleto === userNameNorm ||
+          (userNameNorm.length > 3 &&
+            (cNome.includes(userNameNorm) ||
+              cCompleto.includes(userNameNorm) ||
+              userNameNorm.includes(cNome) ||
+              userNameNorm.includes(cCompleto)))
+        )
+      })
       if (colabPorNome) return colabPorNome
     }
 
@@ -172,13 +189,30 @@ export default function AdminUsuariosPage() {
   }
 
   // E-mail efetivo exibido na tabela: prioriza user.email; se vazio/nulo, busca na ficha do colaborador
+  // Dispara sincronização em segundo plano se houver divergência entre as entidades
   const getEmailEfetivo = (user: AppUser): string => {
     const emailUser = (user.email || '').trim()
-    if (emailUser) return emailUser
-
     const ficha = getFichaVinculada(user)
-    if (ficha?.email) {
-      return ficha.email.trim()
+    const emailFicha = (ficha?.email || '').trim()
+
+    if (emailUser) {
+      // Se user tem e-mail e a ficha vinculada não tem ou tem diferente, sincroniza ficha em segundo plano
+      if (ficha && (!emailFicha || emailFicha.toLowerCase() !== emailUser.toLowerCase())) {
+        colaboradorService
+          .updateColaborador(ficha.id, { email: emailUser.toLowerCase(), user_id: user.id })
+          .catch((err) => console.warn('Erro ao auto-sincronizar e-mail na ficha:', err))
+      }
+      return emailUser
+    }
+
+    if (emailFicha) {
+      // Se user está sem e-mail mas ficha tem, sincroniza user em segundo plano
+      if (!emailUser && user.id) {
+        userService
+          .updateUserEmail(user.id, emailFicha.toLowerCase())
+          .catch((err) => console.warn('Erro ao auto-sincronizar e-mail em users:', err))
+      }
+      return emailFicha
     }
 
     return ''

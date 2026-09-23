@@ -178,6 +178,7 @@ export const FichaColaboradorModal: React.FC<FichaColaboradorModalProps> = ({
   const [novoEmailEdit, setNovoEmailEdit] = useState<string>('')
   const [erroEmailEdit, setErroEmailEdit] = useState<string>('')
   const [salvandoEmail, setSalvandoEmail] = useState<boolean>(false)
+  const [usuarioVinculado, setUsuarioVinculado] = useState<AppUser | null>(null)
 
   // Sincronizar estado local quando prop mudar
   useEffect(() => {
@@ -222,7 +223,7 @@ export const FichaColaboradorModal: React.FC<FichaColaboradorModalProps> = ({
         })
     }
 
-    // 2. Carregar dados relacionados do colaborador
+    // 2. Carregar dados relacionados do colaborador e resolver usuário vinculado
     async function carregarFicha() {
       if (!alvo?.id) return
       try {
@@ -240,6 +241,60 @@ export const FichaColaboradorModal: React.FC<FichaColaboradorModalProps> = ({
         setSolicitacoes(solicList)
         setHistoricoAuditoria(logsList)
         setHistoricoFuncoes(funcList)
+
+        // Resolução do usuário de login vinculado para exibição do e-mail oficial
+        try {
+          let userEncontrado: AppUser | null = null
+          if (alvo.user_id) {
+            try {
+              userEncontrado = await pb.collection('users').getOne<AppUser>(alvo.user_id)
+            } catch {
+              userEncontrado = null
+            }
+          }
+          if (!userEncontrado && alvo.email) {
+            try {
+              userEncontrado = await pb
+                .collection('users')
+                .getFirstListItem<AppUser>(`email = "${alvo.email.trim().toLowerCase()}"`)
+            } catch {
+              userEncontrado = null
+            }
+          }
+          if (!userEncontrado && (alvo.nome_completo || alvo.nome)) {
+            try {
+              const nomeNorm = (alvo.nome_completo || alvo.nome || '').trim().toLowerCase()
+              const usersTenant = await pb.collection('users').getFullList<AppUser>({
+                filter: user?.tenant_id ? `tenant_id = "${user.tenant_id}"` : '',
+              })
+              userEncontrado =
+                usersTenant.find((u) => {
+                  const un = (u.name || '').trim().toLowerCase()
+                  return un === nomeNorm || (nomeNorm.length > 3 && un.includes(nomeNorm))
+                }) || null
+            } catch {
+              userEncontrado = null
+            }
+          }
+          setUsuarioVinculado(userEncontrado)
+
+          // Se encontrou usuário com e-mail e a ficha estava sem e-mail ou divergente, sincroniza
+          if (
+            userEncontrado?.email &&
+            alvo.id &&
+            (!alvo.email ||
+              alvo.email.trim().toLowerCase() !== userEncontrado.email.trim().toLowerCase())
+          ) {
+            colaboradorService
+              .updateColaborador(alvo.id, {
+                email: userEncontrado.email.trim().toLowerCase(),
+                user_id: userEncontrado.id,
+              })
+              .catch((err) => console.warn('Aviso ao sincronizar ficha com user:', err))
+          }
+        } catch (uErr) {
+          console.warn('Aviso ao buscar usuário vinculado:', uErr)
+        }
       } catch (err) {
         console.error('Erro ao carregar dados da ficha:', err)
       } finally {
@@ -277,6 +332,14 @@ export const FichaColaboradorModal: React.FC<FichaColaboradorModalProps> = ({
     [dataInicioFuncaoAtual],
   )
 
+  // E-mail efetivo do colaborador (prioriza o usuário de login vinculado para consistência absoluta)
+  const emailEfetivoColaborador = useMemo(() => {
+    const emailUser = (usuarioVinculado?.email || '').trim()
+    if (emailUser) return emailUser
+    const emailFicha = (dadosExibicao?.email || '').trim()
+    return emailFicha
+  }, [usuarioVinculado?.email, dadosExibicao?.email])
+
   // Abertura do modal de edição rápida de e-mail
   const handleAbrirEditarEmail = () => {
     if (!isAdminRHOrAbove) {
@@ -287,7 +350,7 @@ export const FichaColaboradorModal: React.FC<FichaColaboradorModalProps> = ({
       })
       return
     }
-    const emailAtual = (dadosExibicao?.email || '').trim()
+    const emailAtual = emailEfetivoColaborador
     setNovoEmailEdit(emailAtual)
     setErroEmailEdit('')
     setModalEditarEmailOpen(true)
@@ -770,7 +833,7 @@ export const FichaColaboradorModal: React.FC<FichaColaboradorModalProps> = ({
                           </span>
                           <div className="flex items-center gap-1.5 mt-0.5">
                             <span className="text-[#212121] font-medium font-mono text-xs break-all">
-                              {colab?.email || (
+                              {emailEfetivoColaborador || (
                                 <span className="font-sans text-[#9E9E9E] italic text-xs">
                                   Não informado
                                 </span>
