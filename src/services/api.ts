@@ -103,6 +103,13 @@ export const userService = {
     return record
   },
 
+  async updateUserEmail(userId: string, newEmail: string): Promise<AppUser> {
+    const record = await pb.collection('users').update<AppUser>(userId, {
+      email: newEmail.trim().toLowerCase(),
+    })
+    return record
+  },
+
   async createUser(
     data: {
       tenant_id: string

@@ -18,6 +18,7 @@ import {
   Trash2,
   AlertTriangle,
   Upload,
+  Pencil,
 } from 'lucide-react'
 import { useAuth } from '@/context/AuthContext'
 import pb from '@/lib/pocketbase/client'
@@ -29,6 +30,7 @@ import { Badge } from '@/components/ui/badge'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip'
 import {
   Select,
   SelectContent,
@@ -48,19 +50,22 @@ import { Skeleton } from '@/components/ui/skeleton'
 import { useToast } from '@/hooks/use-toast'
 import { CardPermissoesAcesso } from '@/components/admin/CardPermissoesAcesso'
 import { TESLA_LOGO_URL } from '@/lib/logoAsset'
+import { validarEmail } from '@/lib/validationColaborador'
 
 export default function AdminUsuariosPage() {
   const { user: currentUser, refreshUserFlags } = useAuth()
   const tenantId = currentUser?.tenant_id
   const { toast } = useToast()
 
-  // Permissão do usuário logado: apenas 'admin_rh' e 'admin' enxergam/editam o card de permissões
+  // Permissão do usuário logado: apenas 'admin_rh' e 'admin' enxergam/editam o card de permissões e editam e-mail
   const isPodeGerenciarPermissoes =
     currentUser?.perfil === 'admin' || currentUser?.perfil === 'admin_rh'
+  const isPodeEditarEmail = currentUser?.perfil === 'admin' || currentUser?.perfil === 'admin_rh'
   const isAdminGeral = currentUser?.perfil === 'admin'
   const isAdminRH = currentUser?.perfil === 'admin_rh'
 
   const [usuarios, setUsuarios] = useState<AppUser[]>([])
+  const [colaboradores, setColaboradores] = useState<Colaborador[]>([])
   const [loading, setLoading] = useState(true)
   const [searchTerm, setSearchTerm] = useState('')
   const [filtroPerfil, setFiltroPerfil] = useState<string>('todos')
@@ -75,6 +80,13 @@ export default function AdminUsuariosPage() {
   const [modalNovoUsuarioOpen, setModalNovoUsuarioOpen] = useState(false)
   const [modalEditarOpen, setModalEditarOpen] = useState(false)
   const [usuarioEditando, setUsuarioEditando] = useState<AppUser | null>(null)
+
+  // Modal Editar E-mail (acessível apenas para admin e admin_rh)
+  const [modalEditarEmailOpen, setModalEditarEmailOpen] = useState(false)
+  const [usuarioEditandoEmail, setUsuarioEditandoEmail] = useState<AppUser | null>(null)
+  const [novoEmailEdit, setNovoEmailEdit] = useState('')
+  const [erroEmailEdit, setErroEmailEdit] = useState('')
+  const [salvandoEmail, setSalvandoEmail] = useState(false)
 
   // Modal de Confirmação de Ação (Desativar / Reativar / Excluir definitivamente)
   const [modalConfirmAcaoOpen, setModalConfirmAcaoOpen] = useState(false)
@@ -106,12 +118,16 @@ export default function AdminUsuariosPage() {
     if (!tenantId) return
     try {
       setLoading(true)
-      const list = await userService.getUsersByTenant(tenantId)
-      setUsuarios(list)
+      const [listUsers, listColabs] = await Promise.all([
+        userService.getUsersByTenant(tenantId),
+        colaboradorService.getColaboradores(tenantId),
+      ])
+      setUsuarios(listUsers)
+      setColaboradores(listColabs)
 
       // Se havia um usuário selecionado para permissões, atualiza a referência dele
       if (usuarioSelecionadoPermissoes) {
-        const updatedTarget = list.find((u) => u.id === usuarioSelecionadoPermissoes.id)
+        const updatedTarget = listUsers.find((u) => u.id === usuarioSelecionadoPermissoes.id)
         if (updatedTarget) setUsuarioSelecionadoPermissoes(updatedTarget)
       }
     } catch (err) {
@@ -123,6 +139,220 @@ export default function AdminUsuariosPage() {
       })
     } finally {
       setLoading(false)
+    }
+  }
+
+  // Resolução da ficha vinculada para um usuário
+  const getFichaVinculada = (user: AppUser): Colaborador | null => {
+    // 1. Vinculação direta por user_id
+    const colabPorId = colaboradores.find((c) => c.user_id === user.id)
+    if (colabPorId) return colabPorId
+
+    // 2. Vinculação por e-mail (se o user possuir e-mail não vazio)
+    const userEmail = (user.email || '').trim().toLowerCase()
+    if (userEmail) {
+      const colabPorEmail = colaboradores.find(
+        (c) => (c.email || '').trim().toLowerCase() === userEmail,
+      )
+      if (colabPorEmail) return colabPorEmail
+    }
+
+    // 3. Vinculação por nome normalizado
+    const userNameNorm = (user.name || '').trim().toLowerCase()
+    if (userNameNorm) {
+      const colabPorNome = colaboradores.find(
+        (c) =>
+          (c.nome || '').trim().toLowerCase() === userNameNorm ||
+          (c.nome_completo || '').trim().toLowerCase() === userNameNorm,
+      )
+      if (colabPorNome) return colabPorNome
+    }
+
+    return null
+  }
+
+  // E-mail efetivo exibido na tabela: prioriza user.email; se vazio/nulo, busca na ficha do colaborador
+  const getEmailEfetivo = (user: AppUser): string => {
+    const emailUser = (user.email || '').trim()
+    if (emailUser) return emailUser
+
+    const ficha = getFichaVinculada(user)
+    if (ficha?.email) {
+      return ficha.email.trim()
+    }
+
+    return ''
+  }
+
+  // Abrir modal de edição de e-mail (apenas admin e admin_rh)
+  const handleAbrirEditarEmail = (user: AppUser) => {
+    if (!isPodeEditarEmail) {
+      toast({
+        title: 'Permissão insuficiente',
+        description: 'Apenas Administradores (Geral ou RH) podem editar o e-mail de usuários.',
+        variant: 'destructive',
+      })
+      return
+    }
+
+    const emailAtual = getEmailEfetivo(user)
+    setUsuarioEditandoEmail(user)
+    setNovoEmailEdit(emailAtual)
+    setErroEmailEdit('')
+    setModalEditarEmailOpen(true)
+  }
+
+  // Salvar atualização de e-mail com sincronização e auditoria
+  const handleSalvarEditarEmail = async (e: React.FormEvent) => {
+    e.preventDefault()
+    if (!usuarioEditandoEmail || !tenantId || !currentUser?.id) return
+
+    // Validação de segurança: isolamento por tenant
+    if (usuarioEditandoEmail.tenant_id !== tenantId) {
+      toast({
+        title: 'Ação não permitida',
+        description: 'Não é possível alterar dados de usuário pertencente a outra organização.',
+        variant: 'destructive',
+      })
+      return
+    }
+
+    // Validação de alçada
+    if (!isPodeEditarEmail) {
+      toast({
+        title: 'Permissão insuficiente',
+        description: 'Seu perfil de acesso não possui alçada para editar e-mails.',
+        variant: 'destructive',
+      })
+      return
+    }
+
+    const emailLimpo = novoEmailEdit.trim().toLowerCase()
+    if (!emailLimpo) {
+      setErroEmailEdit('Informe o endereço de e-mail.')
+      return
+    }
+
+    if (!validarEmail(emailLimpo)) {
+      setErroEmailEdit('Formato de e-mail inválido. Ex: nome@empresa.com.br')
+      return
+    }
+
+    setErroEmailEdit('')
+    setSalvandoEmail(true)
+
+    const emailAnterior = getEmailEfetivo(usuarioEditandoEmail)
+    const fichaVinculada = getFichaVinculada(usuarioEditandoEmail)
+
+    let atualizouUser = false
+    let atualizouColaborador = false
+    let avisoFallback = ''
+
+    try {
+      // 1. Tentar atualizar no registro de autenticação (`users`)
+      try {
+        await userService.updateUserEmail(usuarioEditandoEmail.id, emailLimpo)
+        atualizouUser = true
+      } catch (userErr: any) {
+        console.warn('Não foi possível atualizar e-mail em users (auth):', userErr)
+        const errMsg = userErr?.data?.data?.email?.message || userErr?.message || ''
+        if (errMsg.includes('already') || errMsg.includes('unique') || errMsg.includes('exists')) {
+          throw new Error('Este endereço de e-mail já está sendo utilizado por outro usuário.')
+        }
+        avisoFallback =
+          'O e-mail foi atualizado na ficha funcional do colaborador, mas não pôde ser alterado nas credenciais de autenticação por restrição do servidor.'
+      }
+
+      // 2. Se houver ficha vinculada, manter consistência atualizando a ficha também
+      if (fichaVinculada?.id) {
+        try {
+          await colaboradorService.updateColaborador(fichaVinculada.id, {
+            email: emailLimpo,
+            // Garante vínculo se ainda não estava gravado
+            user_id: usuarioEditandoEmail.id,
+          })
+          atualizouColaborador = true
+        } catch (colabErr) {
+          console.warn('Erro ao atualizar e-mail na ficha do colaborador:', colabErr)
+        }
+      }
+
+      // Se não conseguiu atualizar em nenhum dos dois, dispara erro
+      if (!atualizouUser && !atualizouColaborador) {
+        throw new Error(
+          'Não foi possível atualizar o e-mail nem no usuário nem na ficha vinculada.',
+        )
+      }
+
+      // 3. Registrar Log de Auditoria detalhado
+      try {
+        await logAuditoriaService.registrarLog({
+          tenant_id: tenantId,
+          user_id: currentUser.id,
+          acao: 'edicao_email_usuario',
+          entidade: 'users',
+          entidade_id: usuarioEditandoEmail.id,
+          dados_json: {
+            descricao: `E-mail de ${usuarioEditandoEmail.name} alterado de "${emailAnterior || '(vazio)'}" para "${emailLimpo}" por ${currentUser.name || currentUser.email}`,
+            usuario_afetado_id: usuarioEditandoEmail.id,
+            usuario_afetado_nome: usuarioEditandoEmail.name,
+            email_anterior: emailAnterior,
+            email_novo: emailLimpo,
+            atualizado_em_users: atualizouUser,
+            atualizado_em_colaborador: atualizouColaborador,
+            colaborador_id: fichaVinculada?.id || null,
+            responsavel_id: currentUser.id,
+            responsavel_nome: currentUser.name || currentUser.email,
+            responsavel_perfil: currentUser.perfil,
+            data_hora: new Date().toISOString(),
+          },
+        })
+      } catch (logErr) {
+        console.warn('Erro ao registrar log de auditoria da troca de e-mail:', logErr)
+      }
+
+      // 4. Atualizar estados locais imediatamente para refletir na UI sem recarregar tudo
+      if (atualizouUser) {
+        setUsuarios((prev) =>
+          prev.map((u) => (u.id === usuarioEditandoEmail.id ? { ...u, email: emailLimpo } : u)),
+        )
+      }
+
+      if (fichaVinculada?.id) {
+        setColaboradores((prev) =>
+          prev.map((c) =>
+            c.id === fichaVinculada.id
+              ? { ...c, email: emailLimpo, user_id: usuarioEditandoEmail.id }
+              : c,
+          ),
+        )
+      }
+
+      setModalEditarEmailOpen(false)
+      setUsuarioEditandoEmail(null)
+
+      if (avisoFallback) {
+        toast({
+          title: 'E-mail atualizado na ficha',
+          description: avisoFallback,
+        })
+      } else {
+        toast({
+          title: 'E-mail atualizado com sucesso!',
+          description: `O e-mail de ${usuarioEditandoEmail.name || 'usuário'} foi alterado para ${emailLimpo}.`,
+        })
+      }
+    } catch (err: any) {
+      console.error('Erro ao atualizar e-mail:', err)
+      toast({
+        title: 'Erro ao atualizar e-mail',
+        description:
+          err?.message ||
+          'Não foi possível salvar o novo e-mail. Verifique se o formato é válido e tente novamente.',
+        variant: 'destructive',
+      })
+    } finally {
+      setSalvandoEmail(false)
     }
   }
 
@@ -509,7 +739,8 @@ export default function AdminUsuariosPage() {
     if (searchTerm.trim()) {
       const term = searchTerm.toLowerCase()
       const matchName = (u.name || '').toLowerCase().includes(term)
-      const matchEmail = (u.email || '').toLowerCase().includes(term)
+      const emailEfetivo = getEmailEfetivo(u).toLowerCase()
+      const matchEmail = (u.email || '').toLowerCase().includes(term) || emailEfetivo.includes(term)
       return matchName || matchEmail
     }
     return true
@@ -762,7 +993,68 @@ export default function AdminUsuariosPage() {
                         </td>
 
                         <td className="py-3 px-4 text-[#616161] font-mono text-[11px]">
-                          {item.email}
+                          {(() => {
+                            const emailExibido = getEmailEfetivo(item)
+                            const isEmailDaFicha = !item.email && !!emailExibido
+
+                            if (!emailExibido) {
+                              return (
+                                <div className="flex items-center gap-1.5 text-[#9E9E9E] italic font-sans text-xs">
+                                  <span>Não informado</span>
+                                  {isPodeEditarEmail && (
+                                    <Button
+                                      variant="ghost"
+                                      size="sm"
+                                      onClick={() => handleAbrirEditarEmail(item)}
+                                      className="h-6 w-6 p-0 text-[#0D47A1] hover:bg-blue-50 hover:text-[#0A3A82] transition-colors"
+                                      title="Cadastrar e-mail"
+                                    >
+                                      <Pencil className="h-3 w-3" />
+                                      <span className="sr-only">Cadastrar e-mail</span>
+                                    </Button>
+                                  )}
+                                </div>
+                              )
+                            }
+
+                            return (
+                              <div className="flex items-center gap-1.5 max-w-[260px] group/email">
+                                <TooltipProvider delayDuration={200}>
+                                  <Tooltip>
+                                    <TooltipTrigger asChild>
+                                      <span className="truncate inline-block max-w-[200px] cursor-default font-mono text-[11px] text-[#424242]">
+                                        {emailExibido}
+                                      </span>
+                                    </TooltipTrigger>
+                                    <TooltipContent
+                                      side="top"
+                                      className="bg-[#212121] text-white text-xs px-2.5 py-1.5 max-w-xs break-all shadow-md"
+                                    >
+                                      <p className="font-mono text-xs">{emailExibido}</p>
+                                      {isEmailDaFicha && (
+                                        <p className="text-[10px] text-amber-300 mt-0.5">
+                                          Vinculado via ficha funcional de colaborador
+                                        </p>
+                                      )}
+                                    </TooltipContent>
+                                  </Tooltip>
+                                </TooltipProvider>
+
+                                {isPodeEditarEmail && (
+                                  <Button
+                                    variant="ghost"
+                                    size="sm"
+                                    onClick={() => handleAbrirEditarEmail(item)}
+                                    className="h-6 w-6 p-0 text-[#757575] hover:text-[#0D47A1] hover:bg-blue-50 transition-colors shrink-0"
+                                    title="Editar e-mail"
+                                  >
+                                    <Pencil className="h-3 w-3" />
+                                    <span className="sr-only">Editar e-mail</span>
+                                  </Button>
+                                )}
+                              </div>
+                            )
+                          })()}
                         </td>
 
                         <td className="py-3 px-4 whitespace-nowrap">
@@ -1301,6 +1593,100 @@ export default function AdminUsuariosPage() {
                   </>
                 ) : (
                   'Salvar Alterações'
+                )}
+              </Button>
+            </DialogFooter>
+          </form>
+        </DialogContent>
+      </Dialog>
+
+      {/* Modal Editar E-mail (Admin e Admin RH) */}
+      <Dialog
+        open={modalEditarEmailOpen}
+        onOpenChange={(open) => {
+          if (!salvandoEmail) {
+            setModalEditarEmailOpen(open)
+            if (!open) {
+              setUsuarioEditandoEmail(null)
+              setErroEmailEdit('')
+            }
+          }
+        }}
+      >
+        <DialogContent className="max-w-sm bg-white border border-[#E0E0E0]">
+          <DialogHeader className="text-left space-y-1">
+            <div className="flex items-center gap-2">
+              <div className="h-8 w-8 rounded-lg bg-[#E8EEF7] text-[#0D47A1] flex items-center justify-center shrink-0">
+                <Mail className="h-4 w-4" />
+              </div>
+              <div>
+                <DialogTitle className="text-base font-bold text-[#212121]">
+                  Editar E-mail
+                </DialogTitle>
+                <DialogDescription className="text-xs text-[#757575]">
+                  {usuarioEditandoEmail?.name || 'Colaborador'}
+                </DialogDescription>
+              </div>
+            </div>
+          </DialogHeader>
+
+          <form onSubmit={handleSalvarEditarEmail} className="space-y-4 py-2">
+            <div className="space-y-1.5">
+              <Label htmlFor="input-novo-email" className="text-xs font-semibold text-[#212121]">
+                Endereço de E-mail *
+              </Label>
+              <Input
+                id="input-novo-email"
+                type="email"
+                value={novoEmailEdit}
+                onChange={(e) => {
+                  setNovoEmailEdit(e.target.value)
+                  if (erroEmailEdit) setErroEmailEdit('')
+                }}
+                placeholder="colaborador@tesla.com.br"
+                className={`text-xs h-9 ${erroEmailEdit ? 'border-red-500 focus-visible:ring-red-400' : 'border-[#E0E0E0]'}`}
+                autoFocus
+                disabled={salvandoEmail}
+                required
+              />
+              {erroEmailEdit && (
+                <p className="text-[11px] text-red-600 font-medium flex items-center gap-1 mt-1">
+                  <AlertCircle className="h-3 w-3 shrink-0" />
+                  {erroEmailEdit}
+                </p>
+              )}
+              <p className="text-[10px] text-[#757575]">
+                O e-mail será sincronizado com as credenciais de login e a ficha funcional vinculada
+                neste tenant.
+              </p>
+            </div>
+
+            <DialogFooter className="pt-3 border-t border-[#F0F0F0] flex items-center justify-end gap-2">
+              <Button
+                type="button"
+                variant="outline"
+                disabled={salvandoEmail}
+                onClick={() => {
+                  setModalEditarEmailOpen(false)
+                  setUsuarioEditandoEmail(null)
+                  setErroEmailEdit('')
+                }}
+                className="border-[#E0E0E0] text-xs h-8"
+              >
+                Cancelar
+              </Button>
+              <Button
+                type="submit"
+                disabled={salvandoEmail}
+                className="bg-[#0D47A1] hover:bg-[#0A3A82] text-white text-xs font-semibold h-8 gap-1.5"
+              >
+                {salvandoEmail ? (
+                  <>
+                    <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                    Salvando...
+                  </>
+                ) : (
+                  'Salvar'
                 )}
               </Button>
             </DialogFooter>
