@@ -43,20 +43,33 @@ import {
   solicitacaoService,
   logAuditoriaService,
   historicoFuncaoService,
+  userService,
+  colaboradorService,
 } from '@/services/api'
 import { HistoricoFuncao } from '@/types'
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+  DialogFooter,
+} from '@/components/ui/dialog'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card'
 import { Skeleton } from '@/components/ui/skeleton'
+import { Input } from '@/components/ui/input'
+import { Label } from '@/components/ui/label'
 import { TabPlaceholder } from './TabPlaceholder'
 import { DemonstrativoFinanceiroView } from '@/components/folha/DemonstrativoFinanceiroView'
 import { ModalEditarPerfilColaborador } from './ModalEditarPerfilColaborador'
 import { usePermission } from '@/hooks/usePermission'
-import { Edit3 } from 'lucide-react'
+import { useToast } from '@/hooks/use-toast'
+import { validarEmail } from '@/lib/validationColaborador'
+import { Edit3, Pencil, Loader2 } from 'lucide-react'
 
 export interface FichaColaboradorModalProps {
   colaborador: Colaborador | null
@@ -148,7 +161,8 @@ export const FichaColaboradorModal: React.FC<FichaColaboradorModalProps> = ({
   onColaboradorUpdated,
 }) => {
   const { user } = useAuth()
-  const { podeEditarPerfilColaborador } = usePermission()
+  const { podeEditarPerfilColaborador, isAdminRHOrAbove } = usePermission()
+  const { toast } = useToast()
   const [colaboradorLocal, setColaboradorLocal] = useState<Colaborador | null>(colaborador)
   const [activeTab, setActiveTab] = useState<string>('perfil')
   const [loadingDados, setLoadingDados] = useState<boolean>(true)
@@ -158,6 +172,12 @@ export const FichaColaboradorModal: React.FC<FichaColaboradorModalProps> = ({
   const [historicoAuditoria, setHistoricoAuditoria] = useState<LogAuditoria[]>([])
   const [historicoFuncoes, setHistoricoFuncoes] = useState<HistoricoFuncao[]>([])
   const [modalEdicaoOpen, setModalEdicaoOpen] = useState<boolean>(false)
+
+  // Estado do Modal Editar E-mail (exclusivo para admin_rh e admin)
+  const [modalEditarEmailOpen, setModalEditarEmailOpen] = useState<boolean>(false)
+  const [novoEmailEdit, setNovoEmailEdit] = useState<string>('')
+  const [erroEmailEdit, setErroEmailEdit] = useState<string>('')
+  const [salvandoEmail, setSalvandoEmail] = useState<boolean>(false)
 
   // Sincronizar estado local quando prop mudar
   useEffect(() => {
@@ -256,6 +276,195 @@ export const FichaColaboradorModal: React.FC<FichaColaboradorModalProps> = ({
     () => calcularTempoEmpresa(dataInicioFuncaoAtual),
     [dataInicioFuncaoAtual],
   )
+
+  // Abertura do modal de edição rápida de e-mail
+  const handleAbrirEditarEmail = () => {
+    if (!isAdminRHOrAbove) {
+      toast({
+        title: 'Permissão insuficiente',
+        description: 'Apenas Administradores de RH e Administradores Gerais podem editar e-mails.',
+        variant: 'destructive',
+      })
+      return
+    }
+    const emailAtual = (dadosExibicao?.email || '').trim()
+    setNovoEmailEdit(emailAtual)
+    setErroEmailEdit('')
+    setModalEditarEmailOpen(true)
+  }
+
+  // Gravação sincronizada do e-mail (users + colaborador + log de auditoria)
+  const handleSalvarEditarEmail = async (e: React.FormEvent) => {
+    e.preventDefault()
+    if (!isAdminRHOrAbove) {
+      toast({
+        title: 'Permissão insuficiente',
+        description: 'Seu perfil não possui alçada para editar e-mails.',
+        variant: 'destructive',
+      })
+      return
+    }
+
+    if (!colab) return
+
+    // Validação de isolamento multi-tenant
+    if (user?.tenant_id && colab.tenant_id && colab.tenant_id !== user.tenant_id) {
+      toast({
+        title: 'Ação não permitida',
+        description: 'O colaborador pertence a outro tenant/organização.',
+        variant: 'destructive',
+      })
+      return
+    }
+
+    const emailLimpo = novoEmailEdit.trim().toLowerCase()
+    if (!emailLimpo) {
+      setErroEmailEdit('Informe o endereço de e-mail.')
+      return
+    }
+
+    if (!validarEmail(emailLimpo)) {
+      setErroEmailEdit('Formato de e-mail inválido. Ex: colaborador@tesla.com.br')
+      return
+    }
+
+    setErroEmailEdit('')
+    setSalvandoEmail(true)
+
+    const emailAnterior = (colab.email || '').trim().toLowerCase()
+    let atualizouUser = false
+    let atualizouColaborador = false
+    let avisoFallback = ''
+
+    try {
+      // 1. Localizar usuário de login vinculado se houver
+      let userIdAlvo = colab.user_id || null
+
+      if (!userIdAlvo && user?.tenant_id) {
+        // Tenta buscar usuário com o mesmo e-mail antigo ou novo no tenant
+        try {
+          const filterOld = emailAnterior
+            ? `(email = "${emailAnterior}" || email = "${emailLimpo}") && tenant_id = "${user.tenant_id}"`
+            : `email = "${emailLimpo}" && tenant_id = "${user.tenant_id}"`
+          const found = await pb.collection('users').getFirstListItem(filterOld)
+          if (found?.id) {
+            userIdAlvo = found.id
+          }
+        } catch {
+          // Nenhum usuário de auth encontrado previamente
+        }
+      }
+
+      // 2. Se temos usuário de auth, sincronizar na tabela `users`
+      if (userIdAlvo) {
+        try {
+          await userService.updateUserEmail(userIdAlvo, emailLimpo)
+          atualizouUser = true
+        } catch (userErr: any) {
+          console.warn('Não foi possível atualizar e-mail em users (auth):', userErr)
+          const errMsg = userErr?.data?.data?.email?.message || userErr?.message || ''
+          if (
+            errMsg.includes('already') ||
+            errMsg.includes('unique') ||
+            errMsg.includes('exists')
+          ) {
+            throw new Error('Este endereço de e-mail já está sendo utilizado por outro usuário.')
+          }
+          avisoFallback =
+            'O e-mail foi atualizado na ficha funcional do colaborador, mas não pôde ser alterado nas credenciais de autenticação por restrição do servidor.'
+        }
+      }
+
+      // 3. Atualizar na coleção `colaborador`
+      try {
+        const updatePayload: Partial<Colaborador> = {
+          email: emailLimpo,
+        }
+        if (userIdAlvo && !colab.user_id) {
+          updatePayload.user_id = userIdAlvo
+        }
+        const updatedColab = await colaboradorService.updateColaborador(colab.id, updatePayload)
+        colaboradorAtualizadoRef = updatedColab
+        atualizouColaborador = true
+      } catch (colabErr: any) {
+        console.warn('Erro ao atualizar e-mail na ficha do colaborador:', colabErr)
+      }
+
+      if (!atualizouUser && !atualizouColaborador) {
+        throw new Error(
+          'Não foi possível atualizar o e-mail nem no usuário nem na ficha vinculada.',
+        )
+      }
+
+      // 4. Log de auditoria detalhado
+      const tenantIdAudit = colab.tenant_id || user?.tenant_id
+      if (tenantIdAudit && user?.id) {
+        try {
+          await logAuditoriaService.registrarLog({
+            tenant_id: tenantIdAudit,
+            user_id: user.id,
+            acao: 'edicao_email_colaborador',
+            entidade: 'colaborador',
+            entidade_id: colab.id,
+            dados_json: {
+              descricao: `E-mail de ${nomeExibicao} alterado de "${emailAnterior || '(vazio)'}" para "${emailLimpo}" por ${user.name || user.email}`,
+              colaborador_id: colab.id,
+              colaborador_nome: nomeExibicao,
+              usuario_afetado_id: userIdAlvo,
+              email_anterior: emailAnterior,
+              email_novo: emailLimpo,
+              atualizado_em_users: atualizouUser,
+              atualizado_em_colaborador: atualizouColaborador,
+              responsavel_id: user.id,
+              responsavel_nome: user.name || user.email,
+              responsavel_perfil: user.perfil,
+              data_hora: new Date().toISOString(),
+            },
+          })
+        } catch (logErr) {
+          console.warn('Erro ao registrar log de auditoria da troca de e-mail:', logErr)
+        }
+      }
+
+      // 5. Atualizar estado local imediatamente
+      const novoColabState: Colaborador = {
+        ...(colaboradorAtualizadoRef || colab),
+        email: emailLimpo,
+        ...(userIdAlvo ? { user_id: userIdAlvo } : {}),
+      }
+      setColaboradorLocal(novoColabState)
+      if (onColaboradorUpdated) {
+        onColaboradorUpdated(novoColabState)
+      }
+
+      setModalEditarEmailOpen(false)
+
+      if (avisoFallback) {
+        toast({
+          title: 'E-mail atualizado na ficha',
+          description: avisoFallback,
+        })
+      } else {
+        toast({
+          title: 'E-mail atualizado com sucesso!',
+          description: `O e-mail de ${nomeExibicao} foi alterado para ${emailLimpo}.`,
+        })
+      }
+    } catch (err: any) {
+      console.error('Erro ao atualizar e-mail na ficha:', err)
+      toast({
+        title: 'Erro ao atualizar e-mail',
+        description:
+          err?.message ||
+          'Não foi possível salvar o novo e-mail. Verifique se o formato é válido e tente novamente.',
+        variant: 'destructive',
+      })
+    } finally {
+      setSalvandoEmail(false)
+    }
+  }
+
+  let colaboradorAtualizadoRef: Colaborador | null = null
 
   const handleSalvoEdicao = (colaboradorAtualizado: Colaborador) => {
     setColaboradorLocal(colaboradorAtualizado)
@@ -559,9 +768,28 @@ export const FichaColaboradorModal: React.FC<FichaColaboradorModalProps> = ({
                           <span className="font-semibold text-[#757575] block uppercase text-[10px]">
                             E-mail
                           </span>
-                          <span className="text-[#212121] font-medium">
-                            {colab?.email || 'Não informado'}
-                          </span>
+                          <div className="flex items-center gap-1.5 mt-0.5">
+                            <span className="text-[#212121] font-medium font-mono text-xs break-all">
+                              {colab?.email || (
+                                <span className="font-sans text-[#9E9E9E] italic text-xs">
+                                  Não informado
+                                </span>
+                              )}
+                            </span>
+                            {isAdminRHOrAbove && (
+                              <Button
+                                type="button"
+                                variant="ghost"
+                                size="sm"
+                                onClick={handleAbrirEditarEmail}
+                                className="h-6 w-6 p-0 text-[#757575] hover:text-[#0D47A1] hover:bg-blue-50 transition-colors shrink-0"
+                                title="Editar e-mail"
+                              >
+                                <Pencil className="h-3 w-3" />
+                                <span className="sr-only">Editar e-mail</span>
+                              </Button>
+                            )}
+                          </div>
                         </div>
 
                         <div>
@@ -1285,6 +1513,105 @@ export const FichaColaboradorModal: React.FC<FichaColaboradorModalProps> = ({
                 onSaved={handleSalvoEdicao}
               />
             )}
+
+            {/* Modal Pequeno "Editar E-mail" (RH admin_rh e Admin Geral) */}
+            <Dialog
+              open={modalEditarEmailOpen}
+              onOpenChange={(open) => {
+                if (!salvandoEmail) {
+                  setModalEditarEmailOpen(open)
+                  if (!open) {
+                    setErroEmailEdit('')
+                  }
+                }
+              }}
+            >
+              <DialogContent className="max-w-sm bg-white border border-[#E0E0E0]">
+                <DialogHeader className="text-left space-y-1">
+                  <div className="flex items-center gap-2">
+                    <div className="h-8 w-8 rounded-lg bg-[#E8EEF7] text-[#0D47A1] flex items-center justify-center shrink-0">
+                      <Mail className="h-4 w-4" />
+                    </div>
+                    <div>
+                      <DialogTitle className="text-base font-bold text-[#212121]">
+                        Editar E-mail
+                      </DialogTitle>
+                      <DialogDescription className="text-xs text-[#757575]">
+                        {nomeExibicao}
+                      </DialogDescription>
+                    </div>
+                  </div>
+                </DialogHeader>
+
+                <form onSubmit={handleSalvarEditarEmail} className="space-y-4 py-2">
+                  <div className="space-y-1.5">
+                    <Label
+                      htmlFor="input-ficha-email"
+                      className="text-xs font-semibold text-[#212121]"
+                    >
+                      Endereço de E-mail *
+                    </Label>
+                    <Input
+                      id="input-ficha-email"
+                      type="email"
+                      value={novoEmailEdit}
+                      onChange={(e) => {
+                        setNovoEmailEdit(e.target.value)
+                        if (erroEmailEdit) setErroEmailEdit('')
+                      }}
+                      placeholder="colaborador@tesla.com.br"
+                      className={`text-xs h-9 ${
+                        erroEmailEdit
+                          ? 'border-red-500 focus-visible:ring-red-400'
+                          : 'border-[#E0E0E0]'
+                      }`}
+                      autoFocus
+                      disabled={salvandoEmail}
+                      required
+                    />
+                    {erroEmailEdit && (
+                      <p className="text-[11px] text-red-600 font-medium flex items-center gap-1 mt-1">
+                        <AlertCircle className="h-3 w-3 shrink-0" />
+                        {erroEmailEdit}
+                      </p>
+                    )}
+                    <p className="text-[10px] text-[#757575]">
+                      O e-mail será sincronizado com as credenciais de login e a ficha funcional
+                      deste colaborador.
+                    </p>
+                  </div>
+
+                  <DialogFooter className="pt-3 border-t border-[#F0F0F0] flex items-center justify-end gap-2">
+                    <Button
+                      type="button"
+                      variant="outline"
+                      disabled={salvandoEmail}
+                      onClick={() => {
+                        setModalEditarEmailOpen(false)
+                        setErroEmailEdit('')
+                      }}
+                      className="border-[#E0E0E0] text-xs h-8"
+                    >
+                      Cancelar
+                    </Button>
+                    <Button
+                      type="submit"
+                      disabled={salvandoEmail}
+                      className="bg-[#0D47A1] hover:bg-[#0A3A82] text-white text-xs font-semibold h-8 gap-1.5"
+                    >
+                      {salvandoEmail ? (
+                        <>
+                          <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                          Salvando...
+                        </>
+                      ) : (
+                        'Salvar'
+                      )}
+                    </Button>
+                  </DialogFooter>
+                </form>
+              </DialogContent>
+            </Dialog>
           </>
         )}
       </DialogContent>
