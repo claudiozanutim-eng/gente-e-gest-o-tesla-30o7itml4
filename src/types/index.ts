@@ -1122,6 +1122,7 @@ export interface PermissaoUsuario {
 // ----------------------------------------------------
 export const DEPARTAMENTOS_PADRAO: readonly string[] = [
   'Comercial',
+  'Compras',
   'Diretoria',
   'Expedição',
   'Financeiro',
