@@ -97,7 +97,7 @@ export async function salvarRegistroHolerite(dados: {
     data_emissao: dados.dataEmissao.toISOString(),
   })
 
-  // Disparar notificação in-app para o colaborador avisando que o holerite foi emitido/disponibilizado
+  // Disparar notificação in-app e e-mail para o colaborador avisando que o holerite foi emitido/disponibilizado
   try {
     const colab = await pb.collection('colaborador').getOne(dados.colaboradorId)
     if (colab?.user_id) {
@@ -105,8 +105,8 @@ export async function salvarRegistroHolerite(dados: {
         tenant_id: dados.tenantId,
         destinatario_id: colab.user_id,
         tipo: 'holerite',
-        titulo: 'Demonstrativo de pagamento emitido',
-        mensagem: `Seu demonstrativo de pagamento referente à competência ${dados.competencia} foi emitido e está disponível para download.`,
+        titulo: `Holerite disponível: competência ${dados.competencia}`,
+        mensagem: `Seu demonstrativo de pagamento referente à competência ${dados.competencia} está disponível para consulta e download seguro no sistema (Código de verificação: ${dados.codigoVerificacao}).`,
         link: '/demonstrativo',
         lida: false,
       })

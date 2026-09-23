@@ -563,12 +563,15 @@ export default function AdminEmailPage() {
                       <MailCheck className="h-3.5 w-3.5" /> E-mails automáticos integrados:
                     </p>
                     <ul className="list-disc pl-4 space-y-0.5 text-[10px]">
-                      <li>Aprovação / Recusa / Cancelamento de Férias</li>
-                      <li>Resposta de compensação de banco de horas</li>
-                      <li>Validação de atestado médico pelo RH</li>
-                      <li>Novo holerite disponibilizado</li>
-                      <li>Publicação de comunicado corporativo</li>
-                      <li>Decisão de alteração cadastral</li>
+                      <li>Solicitação cadastral pendente do colaborador (para RH/Admin)</li>
+                      <li>
+                        Resultado da alteração cadastral aprovada/recusada (para o colaborador)
+                      </li>
+                      <li>Mudança de função/cargo registrada no histórico</li>
+                      <li>Novo holerite emitido ou importado para a competência</li>
+                      <li>Novo comunicado corporativo (inclusive com confirmação obrigatória)</li>
+                      <li>Aprovação / Recusa de Férias e Compensação de Banco de Horas</li>
+                      <li>Validação e retorno de Atestados Médicos</li>
                     </ul>
                   </div>
                 </CardContent>
@@ -639,7 +642,7 @@ export default function AdminEmailPage() {
                       <tr className="border-b border-[#E0E0E0] bg-[#FAFAFA] text-[#757575] font-semibold uppercase text-[10px]">
                         <th className="py-3 pl-4 min-w-[150px]">Data e Hora</th>
                         <th className="py-3 min-w-[200px]">Destinatário</th>
-                        <th className="py-3 min-w-[220px]">Assunto</th>
+                        <th className="py-3 min-w-[220px]">Assunto / Tipo</th>
                         <th className="py-3 min-w-[120px]">Status</th>
                         <th className="py-3 pr-4 min-w-[200px]">Diagnóstico / Erro</th>
                       </tr>
@@ -653,7 +656,14 @@ export default function AdminEmailPage() {
                               {dataStr}
                             </td>
                             <td className="py-3 font-medium text-[#212121]">{log.destinatario}</td>
-                            <td className="py-3 text-[#424242]">{log.assunto}</td>
+                            <td className="py-3 text-[#424242]">
+                              <p className="font-semibold">{log.assunto}</p>
+                              {log.tipo_evento && (
+                                <span className="inline-block mt-0.5 text-[9px] uppercase px-1.5 py-0.2 rounded bg-slate-100 text-slate-600 font-mono">
+                                  {log.tipo_evento}
+                                </span>
+                              )}
+                            </td>
                             <td className="py-3">
                               {log.status === 'enviado' ? (
                                 <Badge

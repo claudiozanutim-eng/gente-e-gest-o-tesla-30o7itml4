@@ -690,6 +690,8 @@ export interface EmailLog {
   assunto: string
   status: EmailLogStatus
   erro?: string
+  tipo_evento?: string
+  evento_ref?: string
   created: string
   updated: string
 }

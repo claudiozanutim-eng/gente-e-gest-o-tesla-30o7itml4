@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-09-23T13:40:13.324Z",
+  "generatedAt": "2026-09-23T13:59:51.638Z",
   "collections": [
     {
       "name": "users",
@@ -2439,12 +2439,25 @@
           "required": false,
           "system": false,
           "autodateTriggers": ["onCreate", "onUpdate"]
+        },
+        {
+          "name": "tipo_evento",
+          "type": "text",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "evento_ref",
+          "type": "text",
+          "required": false,
+          "system": false
         }
       ],
       "indexes": [
         "CREATE INDEX idx_email_log_tenant ON email_log (tenant_id)",
         "CREATE INDEX idx_email_log_status ON email_log (status)",
-        "CREATE INDEX idx_email_log_created ON email_log (created DESC)"
+        "CREATE INDEX idx_email_log_created ON email_log (created DESC)",
+        "CREATE INDEX `idx_email_log_anti_spam` ON `email_log` (destinatario, assunto, created)"
       ]
     },
     {

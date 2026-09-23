@@ -46,6 +46,7 @@ import {
 } from '@/types'
 import { useAuth } from '@/context/AuthContext'
 import { usePermission } from '@/hooks/usePermission'
+import pb from '@/lib/pocketbase/client'
 import {
   colaboradorService,
   dependenteService,
@@ -718,6 +719,23 @@ export const ModalEditarPerfilColaborador: React.FC<ModalEditarPerfilColaborador
               data_registro: new Date().toISOString(),
             },
           })
+
+          // Notificar colaborador afetado (e gestores) sobre a mudança de função
+          if (colaborador.user_id) {
+            try {
+              await pb.collection('notificacao').create({
+                tenant_id: user.tenant_id,
+                destinatario_id: colaborador.user_id,
+                tipo: 'cadastro',
+                titulo: 'Nova função registrada',
+                mensagem: `Seu enquadramento funcional foi atualizado para "${cargo.trim()}" (${departamento.trim() || 'Geral'}) a partir de ${dataMudancaFuncao}. Motivo: ${motivoMudancaFuncao.trim() || 'Mudança de enquadramento funcional'}.`,
+                link: '/meu-perfil',
+                lida: false,
+              })
+            } catch (notifErr) {
+              console.warn('Erro ao notificar colaborador sobre mudanca de funcao:', notifErr)
+            }
+          }
         } catch (histErr) {
           console.warn('Erro ao registrar transição de função:', histErr)
         }

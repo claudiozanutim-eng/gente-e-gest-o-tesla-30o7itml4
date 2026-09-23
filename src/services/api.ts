@@ -688,14 +688,15 @@ export const solicitacaoService = {
       console.warn('Erro ao registrar log de criacao de solicitacao:', e)
     }
 
-    // Notificar a equipe de RH/Gestores sobre a nova solicitação
+    // Notificar a equipe de RH e Admin RH sobre a nova solicitação cadastral
     try {
       const colab = await colaboradorService.getColaboradorById(data.colaborador_id)
       const nomeSolicitante = colab?.nome_completo || colab?.nome || 'Colaborador'
-      await notificacaoService.notificarGestores(data.tenant_id, {
-        titulo: 'Nova solicitação de alteração cadastral',
-        mensagem: `${nomeSolicitante} solicitou alteração: "${data.campo}".`,
+      await notificacaoService.notificarRH(data.tenant_id, {
+        titulo: 'Nova solicitação cadastral pendente',
+        mensagem: `${nomeSolicitante} solicitou alteração no campo "${data.campo}". Acesse para analisar e aprovar/recusar.`,
         link: '/alteracoes/pendentes',
+        tipo: 'cadastro',
       })
     } catch (e) {
       console.warn('Erro ao notificar RH sobre nova solicitacao:', e)
@@ -809,7 +810,7 @@ export const solicitacaoService = {
       },
     })
 
-    // 5. Notificar o colaborador
+    // 5. Notificar o colaborador solicitante sobre a aprovação
     try {
       const colab =
         colaboradorAtualizado ||
@@ -818,14 +819,14 @@ export const solicitacaoService = {
         const mensagemTexto =
           solicitacao.campo.toLowerCase() === 'geral' ||
           solicitacao.campo.toLowerCase().includes('solicitação geral')
-            ? 'Sua solicitação geral de alteração cadastral foi revisada e concluída pelo RH.'
-            : `Sua solicitação de alteração para "${solicitacao.campo}" foi aprovada pelo RH.`
+            ? 'Sua solicitação geral de alteração cadastral foi revisada e aprovada com sucesso pelo RH.'
+            : `Sua solicitação de alteração cadastral para "${solicitacao.campo}" foi aprovada com sucesso pelo RH. O seu cadastro já foi atualizado.`
 
         await notificacaoService.notificar({
           tenantId: solicitacao.tenant_id,
           destinatarioId: colab.user_id,
           tipo: 'cadastro',
-          titulo: 'Alteração cadastral aprovada',
+          titulo: 'Solicitação cadastral aprovada',
           mensagem: mensagemTexto,
           link: '/meu-perfil',
           emailDestinatario: colab.email,
@@ -868,7 +869,7 @@ export const solicitacaoService = {
       },
     })
 
-    // Notificar colaborador sobre rejeição
+    // Notificar colaborador solicitante sobre a recusa
     try {
       const colab = await colaboradorService.getColaboradorById(solicitacao.colaborador_id)
       if (colab?.user_id) {
@@ -876,8 +877,8 @@ export const solicitacaoService = {
           tenantId: solicitacao.tenant_id,
           destinatarioId: colab.user_id,
           tipo: 'cadastro',
-          titulo: 'Alteração cadastral reprovada',
-          mensagem: `Sua solicitação de alteração para "${solicitacao.campo}" foi recusada. Motivo: ${motivo || 'Verifique os dados informados.'}`,
+          titulo: 'Solicitação cadastral recusada',
+          mensagem: `Sua solicitação de alteração cadastral para "${solicitacao.campo}" foi analisada e recusada pelo RH. Justificativa: ${motivo || 'Verifique os dados informados e tente novamente se necessário.'}`,
           link: '/meu-perfil',
           emailDestinatario: colab.email,
           nomeDestinatario: colab.nome,
@@ -1046,13 +1047,20 @@ export const comunicadoService = {
         }
 
         if (elegivel) {
+          const prefixo = data.exige_confirmacao
+            ? '[Confirmação Obrigatória] Comunicado: '
+            : 'Comunicado: '
+          const msgAviso = data.exige_confirmacao
+            ? `Novo comunicado importante publicado no mural da empresa que requer sua confirmação de leitura:\n\n"${data.titulo}"\n\n${data.conteudo.slice(0, 250)}${data.conteudo.length > 250 ? '...' : ''}\n\nAcesse o sistema para ler na íntegra e registrar sua confirmação de ciência.`
+            : `Novo comunicado publicado no mural corporativo:\n\n"${data.titulo}"\n\n${data.conteudo.slice(0, 250)}${data.conteudo.length > 250 ? '...' : ''}`
+
           notificacaoService
             .notificar({
               tenantId: data.tenant_id,
               destinatarioId: colab.user_id,
               tipo: 'comunicado',
-              titulo: `Comunicado: ${data.titulo}`,
-              mensagem: data.conteudo.slice(0, 120) + (data.conteudo.length > 120 ? '...' : ''),
+              titulo: `${prefixo}${data.titulo}`,
+              mensagem: msgAviso,
               link: '/comunicados',
               emailDestinatario: colab.email,
               nomeDestinatario: colab.nome,

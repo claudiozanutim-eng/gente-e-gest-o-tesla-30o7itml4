@@ -34,6 +34,7 @@ import {
   ContatoEmergencia,
   SolicitacaoAlteracao,
   LogAuditoria,
+  AppUser,
 } from '@/types'
 import { useAuth } from '@/context/AuthContext'
 import pb from '@/lib/pocketbase/client'

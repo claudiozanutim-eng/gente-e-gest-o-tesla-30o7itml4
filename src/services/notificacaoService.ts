@@ -121,9 +121,18 @@ export const notificacaoService = {
   /**
    * Notifica todos os gestores de um tenant ou setor
    */
+  /**
+   * Notifica todos os gestores de um tenant ou setor
+   */
   async notificarGestores(
     tenantId: string,
-    dados: { titulo: string; mensagem: string; link?: string; departamento?: string },
+    dados: {
+      titulo: string
+      mensagem: string
+      link?: string
+      departamento?: string
+      tipo?: NotificacaoTipo
+    },
   ): Promise<void> {
     try {
       const usersGestores = await pb.collection('users').getFullList({
@@ -135,7 +144,7 @@ export const notificacaoService = {
           this.notificar({
             tenantId,
             destinatarioId: u.id,
-            tipo: 'geral',
+            tipo: dados.tipo || 'geral',
             titulo: dados.titulo,
             mensagem: dados.mensagem,
             link: dados.link,
@@ -146,6 +155,37 @@ export const notificacaoService = {
       )
     } catch (err) {
       console.warn('Erro ao notificar gestores:', err)
+    }
+  },
+
+  /**
+   * Notifica a equipe de RH e Administradores do tenant (ex: nova solicitação cadastral pendente)
+   */
+  async notificarRH(
+    tenantId: string,
+    dados: { titulo: string; mensagem: string; link?: string; tipo?: NotificacaoTipo },
+  ): Promise<void> {
+    try {
+      const usersRH = await pb.collection('users').getFullList({
+        filter: `tenant_id = "${tenantId}" && (perfil = "rh" || perfil = "admin_rh" || perfil = "admin")`,
+      })
+
+      await Promise.all(
+        usersRH.map((u) =>
+          this.notificar({
+            tenantId,
+            destinatarioId: u.id,
+            tipo: dados.tipo || 'cadastro',
+            titulo: dados.titulo,
+            mensagem: dados.mensagem,
+            link: dados.link,
+            emailDestinatario: u.email,
+            nomeDestinatario: u.name,
+          }),
+        ),
+      )
+    } catch (err) {
+      console.warn('Erro ao notificar equipe de RH:', err)
     }
   },
 }

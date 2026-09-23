@@ -549,15 +549,15 @@ export const holeriteImportService = {
           console.warn('Erro ao anexar arquivo original em documentos:', docErr)
         }
 
-        // 5. Notificação in-app para o colaborador
+        // 5. Notificação in-app e e-mail para o colaborador
         if (item.colaboradorEncontrado?.user_id) {
           try {
             await pb.collection('notificacao').create({
               tenant_id: tenantId,
               destinatario_id: item.colaboradorEncontrado.user_id,
               tipo: 'holerite',
-              titulo: `Holerite de ${comp} disponível`,
-              mensagem: `Seu holerite oficial da competência ${comp} foi importado pelo RH e já está disponível para consulta com autenticidade verificada (${codigoVerificacao}).`,
+              titulo: `Holerite disponível: competência ${comp}`,
+              mensagem: `Seu holerite oficial referente à competência ${comp} foi disponibilizado pelo RH e já pode ser consultado com autenticidade verificada (${codigoVerificacao}).`,
               link: '/demonstrativo',
               lida: false,
             })
