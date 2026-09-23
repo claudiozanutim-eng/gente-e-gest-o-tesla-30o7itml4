@@ -17,10 +17,16 @@ import {
   X,
   FileQuestion,
   Sparkles,
+  Building2,
+  User as UserIcon,
+  Filter,
+  Check,
+  Eye,
+  Search,
 } from 'lucide-react'
 import { useAuth } from '@/context/AuthContext'
-import { atestadoService } from '@/services/api'
-import { Atestado, AtestadoStatus, ATESTADO_STATUS_MAP } from '@/types'
+import { atestadoService, colaboradorService } from '@/services/api'
+import { Atestado, AtestadoStatus, ATESTADO_STATUS_MAP, Colaborador } from '@/types'
 import { useRealtime } from '@/hooks/use-realtime'
 import { useToast } from '@/hooks/use-toast'
 import { Button } from '@/components/ui/button'
@@ -42,8 +48,18 @@ export default function AtestadosPage() {
   const { user, colaborador } = useAuth()
   const { toast } = useToast()
 
+  // Perfil RH / Admin para consolidação geral
+  const perfil = user?.perfil || 'colaborador'
+  const isRH = perfil === 'rh' || perfil === 'admin_rh' || perfil === 'admin'
+
   const [atestados, setAtestados] = useState<Atestado[]>([])
+  const [colaboradoresMap, setColaboradoresMap] = useState<Record<string, Colaborador>>({})
   const [loading, setLoading] = useState(true)
+
+  // Filtros interativos para RH
+  const [filtroStatus, setFiltroStatus] = useState<AtestadoStatus | null>(null)
+  const [filtroDepartamento, setFiltroDepartamento] = useState<string | null>(null)
+  const [termoBusca, setTermoBusca] = useState('')
 
   // Estados do modal de envio
   const [modalOpen, setModalOpen] = useState(false)
@@ -60,7 +76,7 @@ export default function AtestadosPage() {
   const tenantId = user?.tenant_id
   const colaboradorId = colaborador?.id
 
-  // Carrega atestados
+  // Carrega atestados e colaboradores
   const carregarAtestados = useCallback(async () => {
     if (!tenantId) {
       setLoading(false)
@@ -68,11 +84,24 @@ export default function AtestadosPage() {
     }
     try {
       setLoading(true)
-      if (colaboradorId) {
+      if (isRH) {
+        // RH e Administradores: carregam todos os atestados do tenant e lista de colaboradores
+        const [listaAtestados, listaColaboradores] = await Promise.all([
+          atestadoService.getAtestadosTenant(tenantId),
+          colaboradorService.getColaboradores(tenantId),
+        ])
+        const map: Record<string, Colaborador> = {}
+        listaColaboradores.forEach((c) => {
+          map[c.id] = c
+        })
+        setColaboradoresMap(map)
+        setAtestados(listaAtestados)
+      } else if (colaboradorId) {
+        // Colaborador comum ou gestor (sem perfil RH)
         const data = await atestadoService.getAtestadosColaborador(tenantId, colaboradorId)
         setAtestados(data)
       } else {
-        // Para perfis administrativos sem ficha de colaborador própria associada
+        // Usuário sem ficha de colaborador associada e sem permissão RH
         setAtestados([])
       }
     } catch (err) {
@@ -85,7 +114,7 @@ export default function AtestadosPage() {
     } finally {
       setLoading(false)
     }
-  }, [tenantId, colaboradorId, toast])
+  }, [tenantId, isRH, colaboradorId, toast])
 
   useEffect(() => {
     carregarAtestados()
@@ -93,10 +122,10 @@ export default function AtestadosPage() {
 
   // Realtime subscription na coleção 'atestado'
   useRealtime<Atestado>('atestado', (e) => {
-    if (!colaboradorId) return
+    if (e.record.tenant_id !== tenantId) return
 
-    // Se o evento pertencer ao colaborador logado
-    if (e.record.colaborador_id === colaboradorId) {
+    if (isRH) {
+      // RH recebe atualizações de qualquer colaborador do tenant
       if (e.action === 'create') {
         setAtestados((prev) => {
           if (prev.some((item) => item.id === e.record.id)) return prev
@@ -106,7 +135,24 @@ export default function AtestadosPage() {
         setAtestados((prev) =>
           prev.map((item) => (item.id === e.record.id ? { ...item, ...e.record } : item)),
         )
-        // Se o modal de visualização estiver aberto para este atestado, atualiza-o
+        setPreviewAtestado((prev) => (prev?.id === e.record.id ? { ...prev, ...e.record } : prev))
+      } else if (e.action === 'delete') {
+        setAtestados((prev) => prev.filter((item) => item.id !== e.record.id))
+        setPreviewAtestado((prev) => (prev?.id === e.record.id ? null : prev))
+      }
+    } else {
+      // Colaborador comum ou gestor: apenas registros vinculados a ele
+      if (!colaboradorId || e.record.colaborador_id !== colaboradorId) return
+
+      if (e.action === 'create') {
+        setAtestados((prev) => {
+          if (prev.some((item) => item.id === e.record.id)) return prev
+          return [e.record, ...prev]
+        })
+      } else if (e.action === 'update') {
+        setAtestados((prev) =>
+          prev.map((item) => (item.id === e.record.id ? { ...item, ...e.record } : item)),
+        )
         setPreviewAtestado((prev) => (prev?.id === e.record.id ? { ...prev, ...e.record } : prev))
 
         toast({
@@ -150,10 +196,14 @@ export default function AtestadosPage() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
 
-    if (!tenantId || !colaboradorId) {
+    // Para envio, é necessário tenantId e identificação do colaborador atual
+    const alvoColabId = colaboradorId || (colaborador ? colaborador.id : null)
+
+    if (!tenantId || !alvoColabId) {
       toast({
         title: 'Perfil não identificado',
-        description: 'Vínculo do colaborador não encontrado. Entre em contato com o suporte.',
+        description:
+          'Ficha de colaborador não encontrada para seu usuário. Para enviar atestados, sua conta precisa estar vinculada a um colaborador ativo.',
         variant: 'destructive',
       })
       return
@@ -193,7 +243,7 @@ export default function AtestadosPage() {
 
       const formData = new FormData()
       formData.append('tenant_id', tenantId)
-      formData.append('colaborador_id', colaboradorId)
+      formData.append('colaborador_id', alvoColabId)
       formData.append('data_inicio', new Date(dataInicio + 'T00:00:00Z').toISOString())
       formData.append('qtd_dias', diasNum.toString())
       formData.append('status', 'recebido')
@@ -281,7 +331,15 @@ export default function AtestadosPage() {
     }
   }
 
-  // Contadores para resumo
+  // Helper para obter colaborador de um atestado
+  const getColaboradorAtestado = useCallback(
+    (item: Atestado): Colaborador | undefined => {
+      return item.expand?.colaborador_id || colaboradoresMap[item.colaborador_id]
+    },
+    [colaboradoresMap],
+  )
+
+  // Contadores gerais para os 4 cards de status
   const resumo = useMemo(() => {
     return {
       total: atestados.length,
@@ -291,6 +349,101 @@ export default function AtestadosPage() {
       necessita_correcao: atestados.filter((a) => a.status === 'necessita_correcao').length,
     }
   }, [atestados])
+
+  // Distribuição consolidada por Departamento (exclusivo para perfil RH)
+  const departamentosData = useMemo(() => {
+    if (!isRH) return []
+
+    const mapDeptos: Record<
+      string,
+      {
+        departamento: string
+        total: number
+        recebido: number
+        em_analise: number
+        validado: number
+        necessita_correcao: number
+      }
+    > = {}
+
+    atestados.forEach((item) => {
+      const colab = getColaboradorAtestado(item)
+      const depto = colab?.departamento?.trim() || 'Geral'
+
+      if (!mapDeptos[depto]) {
+        mapDeptos[depto] = {
+          departamento: depto,
+          total: 0,
+          recebido: 0,
+          em_analise: 0,
+          validado: 0,
+          necessita_correcao: 0,
+        }
+      }
+
+      mapDeptos[depto].total += 1
+      if (item.status === 'recebido') mapDeptos[depto].recebido += 1
+      else if (item.status === 'em_analise') mapDeptos[depto].em_analise += 1
+      else if (item.status === 'validado') mapDeptos[depto].validado += 1
+      else if (item.status === 'necessita_correcao') mapDeptos[depto].necessita_correcao += 1
+    })
+
+    return Object.values(mapDeptos).sort((a, b) => {
+      // Ordena por maior volume de atestados primeiro, depois alfabético
+      if (b.total !== a.total) return b.total - a.total
+      return a.departamento.localeCompare(b.departamento)
+    })
+  }, [isRH, atestados, getColaboradorAtestado])
+
+  // Alternar filtro de status ao clicar em um card
+  const handleToggleStatusFilter = (status: AtestadoStatus) => {
+    if (!isRH) return
+    setFiltroStatus((prev) => (prev === status ? null : status))
+  }
+
+  // Alternar filtro de departamento
+  const handleToggleDeptoFilter = (depto: string) => {
+    if (!isRH) return
+    setFiltroDepartamento((prev) => (prev === depto ? null : depto))
+  }
+
+  // Limpar todos os filtros
+  const handleLimparFiltros = () => {
+    setFiltroStatus(null)
+    setFiltroDepartamento(null)
+    setTermoBusca('')
+  }
+
+  // Filtragem da lista para exibição no histórico
+  const atestadosFiltrados = useMemo(() => {
+    return atestados.filter((item) => {
+      // Filtro de status (caso selecionado)
+      if (filtroStatus && item.status !== filtroStatus) {
+        return false
+      }
+
+      // Filtro de departamento (caso selecionado)
+      if (filtroDepartamento) {
+        const colab = getColaboradorAtestado(item)
+        const depto = colab?.departamento?.trim() || 'Geral'
+        if (depto.toLowerCase() !== filtroDepartamento.toLowerCase()) {
+          return false
+        }
+      }
+
+      // Filtro de busca textual (RH pode buscar por colaborador, departamento ou cargo)
+      if (isRH && termoBusca.trim()) {
+        const termo = termoBusca.toLowerCase().trim()
+        const colab = getColaboradorAtestado(item)
+        const nome = (colab?.nome || colab?.nome_completo || '').toLowerCase()
+        const depto = (colab?.departamento || '').toLowerCase()
+        const cargo = (colab?.cargo || '').toLowerCase()
+        return nome.includes(termo) || depto.includes(termo) || cargo.includes(termo)
+      }
+
+      return true
+    })
+  }, [atestados, filtroStatus, filtroDepartamento, termoBusca, isRH, getColaboradorAtestado])
 
   return (
     <div className="space-y-6 pb-12">
@@ -302,12 +455,20 @@ export default function AtestadosPage() {
               <FileCheck className="h-5 w-5" />
             </div>
             <div>
-              <h1 className="text-2xl font-bold tracking-tight text-[#212121]">
-                Atestados e Licenças Médicas
-              </h1>
+              <div className="flex items-center gap-2">
+                <h1 className="text-2xl font-bold tracking-tight text-[#212121]">
+                  Atestados e Licenças Médicas
+                </h1>
+                {isRH && (
+                  <Badge className="bg-[#0D47A1] hover:bg-[#0D47A1] text-white text-[11px] font-semibold px-2 py-0.5">
+                    Visão Geral RH
+                  </Badge>
+                )}
+              </div>
               <p className="text-xs text-[#757575] mt-0.5">
-                Envie seus atestados médicos para homologação do RH e acompanhe o status em tempo
-                real.
+                {isRH
+                  ? 'Consolidado de atestados médicos e licenças de todos os colaboradores e departamentos da organização.'
+                  : 'Envie seus atestados médicos para homologação do RH e acompanhe o status em tempo real.'}
               </p>
             </div>
           </div>
@@ -470,12 +631,17 @@ export default function AtestadosPage() {
           (statusKey) => {
             const config = ATESTADO_STATUS_MAP[statusKey]
             const count = resumo[statusKey]
+            const isAtivo = filtroStatus === statusKey
 
             return (
               <div
                 key={statusKey}
-                className="bg-white border rounded-xl p-3.5 shadow-2xs transition-all"
+                onClick={() => handleToggleStatusFilter(statusKey)}
+                className={`bg-white border rounded-xl p-3.5 shadow-2xs transition-all ${
+                  isRH ? 'cursor-pointer hover:shadow-xs' : ''
+                } ${isAtivo ? 'ring-2 ring-[#0D47A1] border-[#0D47A1]' : ''}`}
                 style={{ borderLeft: `4px solid ${config.color}` }}
+                title={isRH ? `Clique para filtrar por status: ${config.label}` : undefined}
               >
                 <div className="flex items-center justify-between">
                   <span
@@ -484,36 +650,273 @@ export default function AtestadosPage() {
                   >
                     {config.label}
                   </span>
-                  <span
-                    className="h-2 w-2 rounded-full"
-                    style={{ backgroundColor: config.color }}
-                  />
+                  {isAtivo ? (
+                    <span
+                      className="px-1.5 py-0.2 rounded text-[9px] font-bold text-white uppercase tracking-wider"
+                      style={{ backgroundColor: config.color }}
+                    >
+                      Ativo
+                    </span>
+                  ) : (
+                    <span
+                      className="h-2 w-2 rounded-full"
+                      style={{ backgroundColor: config.color }}
+                    />
+                  )}
                 </div>
                 <div className="text-xl font-extrabold text-[#212121] mt-1">{count}</div>
                 <p className="text-[11px] text-[#757575] mt-0.5 line-clamp-1">
                   {config.description}
                 </p>
+                {isRH && (
+                  <p className="text-[10px] text-[#0D47A1] mt-1.5 font-medium flex items-center gap-1">
+                    {isAtivo ? '✓ Filtrando listagem' : 'Filtrar listagem →'}
+                  </p>
+                )}
               </div>
             )
           },
         )}
       </div>
 
-      {/* 3. Lista de Atestados Enviados */}
+      {/* 2.1 Seção: Quebra por Departamento (Visão RH) */}
+      {isRH && (
+        <Card className="border border-[#E0E0E0] bg-white shadow-2xs">
+          <CardHeader className="p-4 sm:p-5 border-b border-[#F0F0F0]">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+              <div className="flex items-center gap-2.5">
+                <div className="h-8 w-8 rounded-lg bg-[#E8EEF7] flex items-center justify-center text-[#0D47A1] shrink-0">
+                  <Building2 className="h-4 w-4" />
+                </div>
+                <div>
+                  <CardTitle className="text-sm sm:text-base font-bold text-[#212121]">
+                    Atestados por Departamento
+                  </CardTitle>
+                  <CardDescription className="text-xs text-[#757575]">
+                    Distribuição consolidada dos afastamentos e licenças médicas por área
+                  </CardDescription>
+                </div>
+              </div>
+
+              {filtroDepartamento && (
+                <div className="flex items-center gap-2">
+                  <Badge
+                    variant="outline"
+                    className="bg-[#E8EEF7] text-[#0D47A1] border-[#0D47A1]/30 text-xs px-2.5 py-1 gap-1 font-semibold"
+                  >
+                    Área: {filtroDepartamento}
+                    <button
+                      type="button"
+                      onClick={() => setFiltroDepartamento(null)}
+                      className="ml-1 hover:text-red-600 rounded-full"
+                      title="Remover filtro de departamento"
+                    >
+                      <X className="h-3 w-3" />
+                    </button>
+                  </Badge>
+                </div>
+              )}
+            </div>
+          </CardHeader>
+
+          <CardContent className="p-4 sm:p-5">
+            {departamentosData.length === 0 ? (
+              <div className="py-6 text-center text-xs text-[#757575]">
+                Nenhum departamento com atestados registrados até o momento.
+              </div>
+            ) : (
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
+                {departamentosData.map((d) => {
+                  const isDeptoSelecionado =
+                    filtroDepartamento?.toLowerCase() === d.departamento.toLowerCase()
+
+                  return (
+                    <div
+                      key={d.departamento}
+                      onClick={() => handleToggleDeptoFilter(d.departamento)}
+                      className={`bg-white border rounded-xl p-3.5 shadow-2xs cursor-pointer transition-all hover:border-[#0D47A1] hover:shadow-xs flex flex-col justify-between ${
+                        isDeptoSelecionado
+                          ? 'border-[#0D47A1] ring-2 ring-[#0D47A1]/20 bg-[#F8FAFC]'
+                          : 'border-[#E0E0E0]'
+                      }`}
+                      style={{ borderLeft: '4px solid #0D47A1' }}
+                    >
+                      <div className="flex items-start justify-between gap-2">
+                        <div className="min-w-0">
+                          <span className="text-xs font-bold text-[#212121] truncate block">
+                            {d.departamento}
+                          </span>
+                          <span className="text-[11px] text-[#757575]">
+                            {d.total} {d.total === 1 ? 'atestado total' : 'atestados no total'}
+                          </span>
+                        </div>
+                        <Badge
+                          variant="outline"
+                          className="text-[10px] bg-slate-100 text-[#424242] border-[#E0E0E0] shrink-0 font-semibold"
+                        >
+                          Total: {d.total}
+                        </Badge>
+                      </div>
+
+                      {/* Mini barras / indicadores de status por departamento */}
+                      <div className="grid grid-cols-4 gap-1.5 mt-3 pt-2.5 border-t border-[#F0F0F0]">
+                        <div
+                          className="bg-[#FFFDE7] border border-[#FBC02D]/40 rounded-lg p-1.5 text-center"
+                          title="Recebidos"
+                        >
+                          <span className="text-[10px] font-bold text-[#9A7B00] block">
+                            Recebido
+                          </span>
+                          <span className="text-xs font-extrabold text-[#212121]">
+                            {d.recebido}
+                          </span>
+                        </div>
+                        <div
+                          className="bg-[#E3F2FD] border border-[#1976D2]/40 rounded-lg p-1.5 text-center"
+                          title="Em análise"
+                        >
+                          <span className="text-[10px] font-bold text-[#1565C0] block">
+                            Análise
+                          </span>
+                          <span className="text-xs font-extrabold text-[#212121]">
+                            {d.em_analise}
+                          </span>
+                        </div>
+                        <div
+                          className="bg-[#E8F5E9] border border-[#388E3C]/40 rounded-lg p-1.5 text-center"
+                          title="Validados"
+                        >
+                          <span className="text-[10px] font-bold text-[#2E7D32] block">
+                            Validado
+                          </span>
+                          <span className="text-xs font-extrabold text-[#212121]">
+                            {d.validado}
+                          </span>
+                        </div>
+                        <div
+                          className="bg-[#FFEBEE] border border-[#D32F2F]/40 rounded-lg p-1.5 text-center"
+                          title="Necessita correção"
+                        >
+                          <span className="text-[10px] font-bold text-[#C62828] block">
+                            Correção
+                          </span>
+                          <span className="text-xs font-extrabold text-[#212121]">
+                            {d.necessita_correcao}
+                          </span>
+                        </div>
+                      </div>
+
+                      <div className="mt-2.5 text-[10px] text-[#0D47A1] font-medium flex items-center justify-between">
+                        <span>
+                          {isDeptoSelecionado ? '✓ Departamento filtrado' : 'Filtrar registros'}
+                        </span>
+                        <span>→</span>
+                      </div>
+                    </div>
+                  )
+                })}
+              </div>
+            )}
+          </CardContent>
+        </Card>
+      )}
+
+      {/* 3. Lista de Atestados */}
       <div className="space-y-4">
-        <div className="flex items-center justify-between">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
           <div className="flex items-center gap-2">
             <Clock className="h-4 w-4 text-[#0D47A1]" />
-            <h2 className="text-base font-bold text-[#212121]">Histórico de Atestados Enviados</h2>
+            <h2 className="text-base font-bold text-[#212121]">
+              {isRH ? 'Histórico Consolidado de Atestados' : 'Histórico de Atestados Enviados'}
+            </h2>
             <Badge variant="outline" className="text-xs bg-white text-[#757575]">
-              {atestados.length} {atestados.length === 1 ? 'registro' : 'registros'}
+              {atestadosFiltrados.length}{' '}
+              {atestadosFiltrados.length === 1 ? 'registro' : 'registros'}
+              {(filtroStatus || filtroDepartamento || (isRH && termoBusca.trim())) &&
+                ` (de ${atestados.length})`}
             </Badge>
           </div>
-          <span className="text-[11px] text-[#757575] hidden sm:inline-flex items-center gap-1">
-            <span className="h-2 w-2 rounded-full bg-emerald-500 animate-pulse" />
-            Atualização em tempo real ativada
-          </span>
+
+          <div className="flex items-center gap-2">
+            <span className="text-[11px] text-[#757575] inline-flex items-center gap-1">
+              <span className="h-2 w-2 rounded-full bg-emerald-500 animate-pulse" />
+              Atualização em tempo real ativada
+            </span>
+          </div>
         </div>
+
+        {/* Barra de Filtros e Busca Ativos (Visão RH) */}
+        {isRH && (
+          <div className="bg-white border border-[#E0E0E0] rounded-xl p-3 flex flex-col sm:flex-row sm:items-center justify-between gap-3 shadow-2xs">
+            <div className="flex items-center gap-2 flex-1 max-w-md relative">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-[#757575]" />
+              <Input
+                type="text"
+                placeholder="Buscar por colaborador, departamento ou cargo..."
+                value={termoBusca}
+                onChange={(e) => setTermoBusca(e.target.value)}
+                className="pl-9 text-xs h-8 border-[#E0E0E0]"
+              />
+              {termoBusca && (
+                <button
+                  type="button"
+                  onClick={() => setTermoBusca('')}
+                  className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600"
+                >
+                  <X className="h-3.5 w-3.5" />
+                </button>
+              )}
+            </div>
+
+            <div className="flex items-center gap-2 flex-wrap">
+              {filtroStatus && (
+                <Badge
+                  variant="outline"
+                  className="text-xs px-2.5 py-0.5 gap-1 font-semibold text-white"
+                  style={{ backgroundColor: ATESTADO_STATUS_MAP[filtroStatus].color }}
+                >
+                  Status: {ATESTADO_STATUS_MAP[filtroStatus].label}
+                  <button
+                    type="button"
+                    onClick={() => setFiltroStatus(null)}
+                    className="ml-1 hover:opacity-80"
+                  >
+                    <X className="h-3 w-3" />
+                  </button>
+                </Badge>
+              )}
+
+              {filtroDepartamento && (
+                <Badge
+                  variant="outline"
+                  className="bg-[#E8EEF7] text-[#0D47A1] border-[#0D47A1]/30 text-xs px-2.5 py-0.5 gap-1 font-semibold"
+                >
+                  Área: {filtroDepartamento}
+                  <button
+                    type="button"
+                    onClick={() => setFiltroDepartamento(null)}
+                    className="ml-1 hover:text-red-600"
+                  >
+                    <X className="h-3 w-3" />
+                  </button>
+                </Badge>
+              )}
+
+              {(filtroStatus || filtroDepartamento || termoBusca) && (
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  onClick={handleLimparFiltros}
+                  className="h-8 text-xs text-[#757575] hover:text-[#212121] px-2 gap-1"
+                >
+                  <X className="h-3.5 w-3.5" />
+                  Limpar Filtros
+                </Button>
+              )}
+            </div>
+          </div>
+        )}
 
         {loading ? (
           <div className="space-y-3">
@@ -527,29 +930,51 @@ export default function AtestadosPage() {
               </Card>
             ))}
           </div>
-        ) : atestados.length === 0 ? (
+        ) : atestadosFiltrados.length === 0 ? (
           <Card className="border border-dashed border-[#E0E0E0] bg-white p-12 text-center">
             <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-full bg-[#E8EEF7] text-[#0D47A1] mb-3">
               <FileCheck className="h-7 w-7" />
             </div>
-            <h3 className="text-base font-bold text-[#212121]">Nenhum atestado enviado ainda</h3>
+            <h3 className="text-base font-bold text-[#212121]">
+              {atestados.length === 0
+                ? 'Nenhum atestado enviado ainda'
+                : 'Nenhum atestado encontrado para o filtro aplicado'}
+            </h3>
             <p className="text-xs text-[#757575] max-w-md mx-auto mt-1">
-              Quando você precisar se ausentar por motivos de saúde ou consulta médica, clique em
-              &quot;Enviar Atestado&quot; acima para encaminhar o comprovante ao RH.
+              {atestados.length === 0
+                ? isRH
+                  ? 'Os atestados e declarações enviados pelos colaboradores do tenant aparecerão aqui consolidados.'
+                  : 'Quando você precisar se ausentar por motivos de saúde ou consulta médica, clique em "Enviar Atestado" acima para encaminhar o comprovante ao RH.'
+                : 'Tente limpar os filtros de status, departamento ou termo de busca para visualizar os registros.'}
             </p>
-            <Button
-              onClick={() => setModalOpen(true)}
-              className="mt-4 bg-[#0D47A1] hover:bg-[#0A3A82] text-white text-xs font-semibold h-9 gap-1.5"
-            >
-              <Plus className="h-4 w-4" />
-              Enviar Primeiro Atestado
-            </Button>
+            {atestados.length === 0 ? (
+              <Button
+                onClick={() => setModalOpen(true)}
+                className="mt-4 bg-[#0D47A1] hover:bg-[#0A3A82] text-white text-xs font-semibold h-9 gap-1.5"
+              >
+                <Plus className="h-4 w-4" />
+                Enviar Primeiro Atestado
+              </Button>
+            ) : (
+              (filtroStatus || filtroDepartamento || termoBusca) && (
+                <Button
+                  onClick={handleLimparFiltros}
+                  variant="outline"
+                  className="mt-4 border-[#0D47A1] text-[#0D47A1] text-xs font-semibold h-9 gap-1.5"
+                >
+                  <X className="h-4 w-4" />
+                  Limpar Filtros Selecionados
+                </Button>
+              )
+            )}
           </Card>
         ) : (
           <div className="space-y-3">
-            {atestados.map((item) => {
+            {atestadosFiltrados.map((item) => {
               const statusCfg = ATESTADO_STATUS_MAP[item.status] || ATESTADO_STATUS_MAP.recebido
               const fileUrl = atestadoService.getFileUrl(item)
+              const colab = getColaboradorAtestado(item)
+              const depto = colab?.departamento?.trim() || 'Geral'
 
               return (
                 <Card
@@ -558,8 +983,31 @@ export default function AtestadosPage() {
                 >
                   <CardContent className="p-4 sm:p-5">
                     <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-3">
-                      {/* Lado Esquerdo: Período, Data de Envio e Anexo */}
+                      {/* Lado Esquerdo: Identificação do Colaborador (RH), Período e Data de Envio */}
                       <div className="space-y-2">
+                        {isRH && (
+                          <div className="flex items-center gap-2 flex-wrap pb-1 border-b border-[#F5F5F5]">
+                            <div className="flex items-center gap-1.5">
+                              <UserIcon className="h-3.5 w-3.5 text-[#0D47A1]" />
+                              <span className="text-sm font-bold text-[#212121]">
+                                {colab?.nome ||
+                                  colab?.nome_completo ||
+                                  'Colaborador não identificado'}
+                              </span>
+                            </div>
+                            <Badge
+                              variant="outline"
+                              className="text-[11px] bg-[#E8EEF7] text-[#0D47A1] border-[#0D47A1]/20 font-semibold"
+                            >
+                              <Building2 className="h-3 w-3 mr-1" />
+                              {depto}
+                            </Badge>
+                            {colab?.cargo && (
+                              <span className="text-xs text-[#757575]">• {colab.cargo}</span>
+                            )}
+                          </div>
+                        )}
+
                         <div className="flex items-center gap-2 flex-wrap">
                           <span className="text-xs font-semibold text-[#757575] flex items-center gap-1">
                             <CalendarIcon className="h-3.5 w-3.5 text-[#0D47A1]" />
@@ -634,7 +1082,7 @@ export default function AtestadosPage() {
                         )}
                       </div>
 
-                      {item.status === 'necessita_correcao' && (
+                      {item.status === 'necessita_correcao' && !isRH && (
                         <Button
                           size="sm"
                           onClick={() => {
