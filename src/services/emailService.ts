@@ -26,7 +26,36 @@ export interface DadosEmailTransacional {
     | 'cadastro_aprovado'
     | 'cadastro_rejeitado'
     | 'avaliacao_recebida'
+    | 'digest_diario'
     | 'geral'
+}
+
+export interface DigestPreviewInfo {
+  dataHoje: string
+  horarioAgendado: string
+  cronExpression: string
+  jaEnviadoHoje: boolean
+  destinatarios: Array<{ email: string; nome: string; perfil: string }>
+  metricas: {
+    alteracoesCadastrais: number
+    feriasPendentes: number
+    atestadosPendentes: number
+    compensacoesPendentes: number
+    comunicadosObrigatorios: number
+    documentosObrigatorios: number
+    totalGeral: number
+  }
+}
+
+export interface DisparoDigestResult {
+  success: boolean
+  enviado?: boolean
+  status?: string
+  jaEnviado?: boolean
+  motivo?: string
+  destinatarios?: string[]
+  totalPendencias?: number
+  message: string
 }
 
 import pb from '@/lib/pocketbase/client'
@@ -135,6 +164,30 @@ export const emailTransacionalService = {
   /**
    * Lista os logs de diagnóstico de e-mail do tenant
    */
+  /**
+   * Obtém prévia das métricas e destinatários do digest diário
+   */
+  async getDigestPreview(): Promise<DigestPreviewInfo> {
+    const res = await pb.send<DigestPreviewInfo>('/backend/v1/tesla/digest-preview', {
+      method: 'GET',
+    })
+    return res
+  },
+
+  /**
+   * Dispara o digest diário manualmente (com opção de forçar envio mesmo sem pendências ou ignorar idempotência)
+   */
+  async dispararDigestManual(opcoes?: {
+    forcarVazio?: boolean
+    ignorarIdempotencia?: boolean
+  }): Promise<DisparoDigestResult> {
+    const res = await pb.send<DisparoDigestResult>('/backend/v1/tesla/digest-manual', {
+      method: 'POST',
+      body: opcoes || {},
+    })
+    return res
+  },
+
   async getEmailLogs(tenantId: string, limit = 50): Promise<EmailLog[]> {
     try {
       const records = await pb.collection('email_log').getList<EmailLog>(1, limit, {

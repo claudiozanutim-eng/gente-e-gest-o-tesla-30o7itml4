@@ -96,6 +96,9 @@ export default function AdminLogsPage() {
     { value: 'publicacao_comunicado', label: 'Publicação de Comunicado' },
     { value: 'arquivamento_comunicado', label: 'Arquivamento de Comunicado' },
     { value: 'atualizacao_configuracoes_empresa', label: 'Configurações da Empresa' },
+    { value: 'criacao_config_smtp', label: 'Criação de Configuração SMTP' },
+    { value: 'edicao_config_smtp', label: 'Edição de Configuração SMTP' },
+    { value: 'disparo_digest_diario', label: 'Disparo do Digest Diário de RH' },
     { value: 'lancamento_folha', label: 'Lançamento de Folha' },
     { value: 'validacao_atestado', label: 'Validação de Atestado' },
   ]
